@@ -4,6 +4,7 @@ import { isPaused, togglePause } from "./pause.ts";
 import { openSettingsConfig } from "../ui/settings.ts";
 import { openUserConfig } from "../ui/user-config.ts";
 import { t } from "../i18n.ts";
+import { openModuleManagement } from "../ui/modules.ts";
 
 let menu: HTMLElement | null = null;
 
@@ -26,6 +27,7 @@ export function toggleMainMenu(): void {
       item("fa-solid fa-keyboard", t("Teclas"), () => openSettingsConfig("keys")),
       game.isGM ? item(isPaused() ? "fa-solid fa-play" : "fa-solid fa-pause", isPaused() ? t("Retomar o jogo") : t("Pausar o jogo"), togglePause) : null,
       item("fa-solid fa-rotate", t("Recarregar"), () => location.reload()),
+      game.isGM ? item("fa-solid fa-cube", t("Gerir módulos"), () => openModuleManagement()) : null,
       game.isGM ? item("fa-solid fa-server", t("Configuração (mundos)"), () => (location.href = "/setup")) : null,
       item("fa-solid fa-right-from-bracket", t("Sair"), async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); }),
       h("li", null, h("button.muted", { onclick: closeMainMenu }, t("Voltar ao jogo (Esc)")))));

@@ -334,6 +334,11 @@ export class Hub {
       }
     });
 
+    /** GM: reload every other page (after switching packages or a setting that needs it). */
+    socket.on("reload", () => {
+      if (this.#user(socket)?.role === "gm") socket.broadcast.emit("reload");
+    });
+
     /** Server clock, so clients can line up playback positions. */
     socket.on("time", (ack?: (now: number) => void) => ack?.(Date.now()));
 

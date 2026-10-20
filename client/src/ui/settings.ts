@@ -9,6 +9,7 @@ import { volumeControls } from "./audio-config.ts";
 import { toursPanel } from "../tours.ts";
 import { bindingFromEvent, bindingLabel, bindingsOf, conflictsFor, keyActions, onBindingsChange, resetAllBindings, setBindings } from "../keybindings.ts";
 import { t } from "../i18n.ts";
+import { reloadConfirm } from "./modules.ts";
 
 const SCOPE_NOTE: Record<SettingDef["scope"], string> = {
   world: "para toda a mesa", user: "a tua conta, em qualquer computador", client: "só neste browser"
@@ -96,18 +97,20 @@ export function openSettingsConfig(initial?: string): void {
         }, h("i.fa-solid.fa-rotate-left"), (" " + t("Repor predefinições"))),
         h("button.primary", {
           onclick: async () => {
-            let changed = 0, reload = false;
+            let changed = 0, reload = false, worldReload = false;
             for (const f of fields) {
               const v = f.read();
               if (JSON.stringify(v) === JSON.stringify(settings.get(f.def.key))) continue;
               if (await settings.set(f.def.key, v)) {
                 changed++;
                 reload ||= !!f.def.reload;
+                worldReload ||= !!f.def.reload && f.def.scope === "world";
                 // A new language needs the page drawn again.
                 if (f.def.key === "core.language") return location.reload();
               }
             }
-            toast(changed ? (reload ? t("Guardado — recarrega a página para aplicar") : t("Guardado")) : t("Nada mudou"));
+            if (reload) return reloadConfirm(worldReload);
+            toast(changed ? t("Guardado") : t("Nada mudou"));
           }
         }, t("Guardar"))));
   };

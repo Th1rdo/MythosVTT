@@ -305,5 +305,26 @@ export const EN: Record<string, string> = {
   "(dados do módulo)": "(module data)",
   "O módulo «{titulo}» não carregou: {erro}": "The module “{titulo}” didn't load: {erro}",
   "Módulos": "Modules",
-  "Módulos ativos": "Active modules"
+  "Módulos ativos": "Active modules",
+
+  // Module management
+  "Ativar": "Enable",
+  "Ativos": "Enabled",
+  "Desativar todos": "Disable all",
+  "Gerir módulos": "Manage modules",
+  "Inativos": "Disabled",
+  "Nenhum módulo corresponde.": "No module matches.",
+  "Não dá para desativar «{titulo}»: {outros} precisa(m) dele.": "Can't disable “{titulo}”: {outros} need(s) it.",
+  "Não está a correr: falta ativar {deps}": "Not running: enable {deps} too",
+  "Não há módulos instalados. Copia a pasta de um módulo para data/modules/ e volta a abrir esta janela.": "No modules installed. Copy a module's folder into data/modules/ and open this window again.",
+  "Os módulos ficam em data/modules/. Só correm na Mesa os que têm o bloco \"mesa\" no module.json (ver docs/packages.md).": "Modules live in data/modules/. Only those with a \"mesa\" block in module.json run on Mesa (see docs/packages.md).",
+  "Procurar por nome, id ou autor": "Search by name, id or author",
+  "Recarregar a página para aplicar?": "Reload the page to apply?",
+  "Recarregar agora a página de toda a mesa para aplicar?": "Reload everyone's page now to apply?",
+  "Só o mestre gere os módulos": "Only the GM manages modules",
+  "Todos": "All",
+  "precisa de": "needs",
+  "{n} de {total} ativos": "{n} of {total} enabled",
+  "«{titulo}» precisa de um módulo que não está instalado ou não corre na Mesa: {em_falta}": "“{titulo}” needs a module that isn't installed or doesn't run on Mesa: {em_falta}",
+  "«{titulo}» precisa de: {deps}. Ativar também?": "“{titulo}” needs: {deps}. Enable those too?"
 };

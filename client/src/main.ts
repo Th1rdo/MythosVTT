@@ -48,6 +48,7 @@ import { h } from "./dom.ts";
 import { chatPanel } from "./ui/chat.ts";
 import { actorsPanel, itemsPanel, journalPanel, playersPanel, scenesPanel } from "./ui/panels.ts";
 import { t } from "./i18n.ts";
+import { openModuleManagement } from "./ui/modules.ts";
 
 interface WorldInfo {
   world: { id: string; title: string; system: string };
@@ -129,6 +130,7 @@ async function startGame(): Promise<void> {
   registerCoreKeys(board);
   setTimeout(offerFirstTour, 2500);
   game.socket.on("runMacro", (e: RunMacroEvent) => onRunMacro(e));
+  game.socket.on("reload", () => location.reload());
   game.socket.on("showEntry", (e: ShowEntryEvent) => game.get("JournalEntry", e.entryId) && openJournal(e.entryId, { pageId: e.pageId }));
   game.socket.on("shareImage", (e: ShareImageEvent) => openImagePopout(e.src, e.title));
   game.socket.on("playAudio", (e: PlayAudioEvent) => audio.playOnce(e.src, e));
@@ -181,6 +183,7 @@ function settingsPanel(): HTMLElement {
       h("div.stack", null,
         h("button", { onclick: () => openUserConfig(game.userId) }, h("i.fa-solid.fa-user-gear"), (" " + t("A minha conta"))),
         h("button", { onclick: () => openSettingsConfig() }, h("i.fa-solid.fa-gears"), (" " + t("Definições"))),
+        game.isGM ? h("button", { onclick: () => openModuleManagement() }, h("i.fa-solid.fa-cube"), (" " + t("Gerir módulos"))) : null,
         h("button", { onclick: async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); } }, h("i.fa-solid.fa-right-from-bracket"), (" " + t("Sair"))))
     ),
     h("div.settings-block", null, h("h4", null, t("Volume (só neste browser)")), volumeControls()),

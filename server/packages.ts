@@ -82,7 +82,8 @@ function readManifest(dir: string): PackageInfo | null {
     .map(l => ({ lang: l.lang as string, name: typeof l.name === "string" ? l.name : (l.lang as string), path: l.path as string }));
   const requires = (m.relationships?.requires ?? []).map(r => r?.id).filter((x): x is string => typeof x === "string" && PACKAGE_ID.test(x));
   if (!mesa) problems.push("Feito para o Foundry: não tem bloco \"mesa\" no module.json");
-  for (const f of [...pick("esmodules"), ...pick("styles"), ...languages.map(l => l.path)]) {
+  // Only Mesa's own files matter (a Foundry-only package's scripts aren't loaded anyway).
+  if (mesa) for (const f of [...pick("esmodules"), ...pick("styles"), ...languages.map(l => l.path)]) {
     if (!fs.existsSync(path.join(MODULES_DIR, dir, f))) problems.push(`Falta o ficheiro ${f}`);
   }
   return {
