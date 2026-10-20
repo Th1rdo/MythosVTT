@@ -11,17 +11,21 @@
  */
 
 export type DocType =
-  | "User" | "Actor" | "Item" | "Scene" | "Token" | "Wall" | "AmbientLight" | "FogExploration"
-  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Setting";
+  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Token" | "Wall" | "AmbientLight" | "FogExploration"
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting";
 
 export const DOC_TYPES: readonly DocType[] = [
-  "User", "Actor", "Item", "Scene", "Token", "Wall", "AmbientLight", "FogExploration",
-  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Setting"
+  "User", "Actor", "Item", "ActiveEffect", "Scene", "Token", "Wall", "AmbientLight", "FogExploration",
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting"
 ];
+
+/** Child types whose parent is optional (world-level Items live in the Items directory). */
+export const OPTIONAL_PARENT: ReadonlySet<DocType> = new Set<DocType>(["Item"]);
 
 /** Child types and the type of their parent. Deleting a parent deletes its children. */
 export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   Item: "Actor",
+  ActiveEffect: "Actor",
   Token: "Scene",
   Wall: "Scene",
   AmbientLight: "Scene",
@@ -48,13 +52,33 @@ export interface UserDoc extends BaseDoc {
   passwordHash?: string | null;
 }
 
+/** When a token shows its name / resource bars (same scale as Foundry's TOKEN_DISPLAY_MODES). */
+export const DISPLAY = { NONE: 0, CONTROL: 10, OWNER_HOVER: 20, HOVER: 30, OWNER: 40, ALWAYS: 50 } as const;
+export type DisplayMode = 0 | 10 | 20 | 30 | 40 | 50;
+
+/** Token settings an actor gives to new tokens (Foundry's "prototype token"). */
+export interface PrototypeToken {
+  width: number;
+  height: number;
+  img: string | null;
+  actorLink: boolean;
+  disposition: -1 | 0 | 1;
+  displayName: DisplayMode;
+  displayBars: DisplayMode;
+  bar1: { attribute: string | null };
+  bar2: { attribute: string | null };
+  sight: { enabled: boolean; range: number; angle: number };
+  light: LightConfig;
+}
+
 export interface ActorDoc extends BaseDoc {
   name: string;
   type: string;
   img: string | null;
   system: Record<string, any>;
   ownership: Ownership;
-  token: { width: number; height: number; img: string | null };
+  folder: string | null;
+  token: PrototypeToken;
 }
 
 export interface ItemDoc extends BaseDoc {
@@ -62,6 +86,45 @@ export interface ItemDoc extends BaseDoc {
   type: string;
   img: string | null;
   system: Record<string, any>;
+  /** World-level items only (embedded items follow their actor). */
+  ownership: Ownership;
+  folder: string | null;
+  sort: number;
+}
+
+export type EffectChangeType = "add" | "multiply" | "override" | "upgrade" | "downgrade";
+
+/** A modification an active effect makes to actor data, e.g. {key: "system.defense.value", type: "add", value: "-5"}. */
+export interface EffectChange {
+  key: string;
+  type: EffectChangeType;
+  value: string;
+}
+
+/** Active effect data. Stored as ActiveEffect documents on actors, or inline in an unlinked token's delta. */
+export interface EffectData {
+  _id: string;
+  name: string;
+  /** Emoji or image path. */
+  icon: string;
+  disabled: boolean;
+  /** Condition ids this effect represents (see shared/conditions.ts). */
+  statuses: string[];
+  changes: EffectChange[];
+  /** Rounds of combat it lasts (null = indefinite); startRound set when applied in combat. */
+  duration: { rounds: number | null; startRound: number | null; combat: string | null };
+  description: string;
+}
+
+export interface ActiveEffectDoc extends BaseDoc, Omit<EffectData, "_id"> {}
+
+export interface FolderDoc extends BaseDoc {
+  name: string;
+  /** Which directory the folder belongs to. */
+  type: "Actor" | "Item" | "JournalEntry" | "Scene";
+  folder: string | null;
+  color: string | null;
+  sort: number;
 }
 
 export interface SceneDoc extends BaseDoc {
@@ -74,6 +137,7 @@ export interface SceneDoc extends BaseDoc {
   active: boolean;
   navigation: boolean;
   sort: number;
+  folder: string | null;
   /** When on, players only see what their tokens can see. */
   tokenVision: boolean;
   fog: { mode: FogMode; explored: string; unexplored: string };
@@ -154,6 +218,23 @@ export interface TokenDoc extends BaseDoc {
   rotation: number;
   sight: { enabled: boolean; /** distance units; 0 = sees only lit areas */ range: number; angle: number };
   light: LightConfig;
+  elevation: number;
+  /** Linked tokens share their actor; unlinked tokens are copies whose differences live in `delta`. */
+  actorLink: boolean;
+  delta: TokenDelta;
+  displayName: DisplayMode;
+  displayBars: DisplayMode;
+  /** Paths into the actor's system data, e.g. "PV" → system.PV.{value,max}. */
+  bar1: { attribute: string | null };
+  bar2: { attribute: string | null };
+}
+
+/** What an unlinked token changes relative to its base actor. */
+export interface TokenDelta {
+  name?: string | null;
+  img?: string | null;
+  system?: Record<string, any>;
+  effects?: EffectData[];
 }
 
 export interface CombatDoc extends BaseDoc {
@@ -212,6 +293,7 @@ export interface JournalEntryDoc extends BaseDoc {
   name: string;
   content: string;
   ownership: Ownership;
+  folder: string | null;
   sort: number;
 }
 

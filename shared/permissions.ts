@@ -1,12 +1,13 @@
 import { DOOR, DOOR_STATE, OWNERSHIP } from "./protocol.ts";
 import type {
-  ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, FogExplorationDoc, JournalEntryDoc, Ownership, TokenDoc,
-  UserDoc, WallDoc
+  ActiveEffectDoc, ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, FogExplorationDoc, ItemDoc, JournalEntryDoc,
+  Ownership, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
 /** Read access to other documents, used to resolve ownership through parents (Token → Actor, Item → Actor). */
 export interface DocLookup {
   get(type: DocType, id: string): BaseDoc | undefined;
+  all(type: DocType): BaseDoc[];
 }
 
 export function ownershipLevel(ownership: Ownership | undefined, user: UserDoc): number {
@@ -29,8 +30,16 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
     case "Actor":
       return ownershipLevel((doc as ActorDoc).ownership, user) >= OWNERSHIP.LIMITED;
     case "Item": {
-      const actor = docs.get("Actor", doc._parent!) as ActorDoc | undefined;
+      if (!doc._parent) return ownershipLevel((doc as ItemDoc).ownership, user) >= OWNERSHIP.LIMITED;
+      const actor = docs.get("Actor", doc._parent) as ActorDoc | undefined;
       return !!actor && ownershipLevel(actor.ownership, user) >= OWNERSHIP.OBSERVER;
+    }
+    case "ActiveEffect": {
+      // Visible with the actor, or when one of its tokens is on the map (status icons show on tokens).
+      const actor = docs.get("Actor", (doc as ActiveEffectDoc)._parent!) as ActorDoc | undefined;
+      if (!actor) return false;
+      if (ownershipLevel(actor.ownership, user) >= OWNERSHIP.LIMITED) return true;
+      return (docs.all("Token") as TokenDoc[]).some(t => t.actorId === actor._id && t.actorLink && !t.hidden);
     }
     case "JournalEntry":
       return ownershipLevel((doc as JournalEntryDoc).ownership, user) >= OWNERSHIP.LIMITED;
@@ -52,7 +61,7 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
 }
 
 /** Fields a player may change on a token they own. */
-const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation"]);
+const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "delta"]);
 const PLAYER_USER_FIELDS = new Set(["_id", "color"]);
 
 /**
@@ -77,6 +86,8 @@ export function checkWrite(
       if (op !== "update") return deny;
       return ownsActor(doc._id, user, docs) ? null : deny;
     case "Item":
+      return doc._parent && ownsActor(doc._parent, user, docs) ? null : deny;
+    case "ActiveEffect":
       return ownsActor(doc._parent, user, docs) ? null : deny;
     case "Token":
       if (op !== "update" || !ownsActor((doc as TokenDoc).actorId, user, docs)) return deny;

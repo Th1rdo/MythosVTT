@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {
-  BaseDoc, CombatDoc, CombatantDoc, DocRequest, DocType, FogExplorationDoc, SceneDoc, TokenDoc, UserDoc, WallDoc
+  BaseDoc, CombatDoc, CombatantDoc, DocRequest, DocType, FogExplorationDoc, FolderDoc, SceneDoc, TokenDoc, UserDoc, WallDoc
 } from "../shared/protocol.ts";
-import { DOC_TYPES, PARENT_TYPE } from "../shared/protocol.ts";
+import { DOC_TYPES, OPTIONAL_PARENT, PARENT_TYPE } from "../shared/protocol.ts";
 import { checkWrite } from "../shared/permissions.ts";
 import type { DocLookup } from "../shared/permissions.ts";
 import { expandDotKeys, mergeDeep, randomId } from "../shared/objects.ts";
@@ -108,7 +108,7 @@ export class World implements DocLookup {
     const type = req.type;
     if (!DOC_TYPES.includes(type)) throw new Error(`Tipo desconhecido: ${type}`);
     const parentType = PARENT_TYPE[type];
-    if (parentType) {
+    if (parentType && (req.parent || !OPTIONAL_PARENT.has(type))) {
       if (!req.parent || !this.get(parentType, req.parent)) throw new Error(`${type} precisa de um ${parentType} válido`);
     } else if (req.parent) {
       throw new Error(`${type} não tem pai`);
@@ -248,6 +248,17 @@ export class World implements DocLookup {
       }
     }
     for (const c of this.all<CombatantDoc>("Combatant")) if (c.tokenId && goneTokens.has(c.tokenId)) remove("Combatant", c);
+
+    // Deleting a folder moves its contents and subfolders up one level.
+    for (const f of changes.filter(c => c.type === "Folder" && !c.after).map(c => c.before as FolderDoc)) {
+      const types: DocType[] = [f.type, "Folder"];
+      for (const t of types) {
+        for (const d of this.all(t)) {
+          if (d.folder !== f._id || alreadyGone.has(`${t}:${d._id}`)) continue;
+          out.push({ type: t, before: d, after: { ...d, folder: f.folder ?? null } });
+        }
+      }
+    }
 
     // Pass the turn on if the current combatant left.
     const removedCombatants = new Set([...changes, ...out].filter(c => c.type === "Combatant" && !c.after).map(c => c.before!._id));

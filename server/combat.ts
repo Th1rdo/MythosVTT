@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import type { ActorDoc, CombatAction, CombatDoc, CombatantDoc, TokenDoc, UserDoc } from "../shared/protocol.ts";
+import type { ActiveEffectDoc, ActorDoc, CombatAction, CombatDoc, CombatantDoc, EffectData, TokenDoc, UserDoc } from "../shared/protocol.ts";
+import { actorState, isExpired, tokenActor } from "../shared/actors.ts";
 import { ownsActor } from "../shared/permissions.ts";
 import { roll } from "../shared/dice.ts";
 import { initiativeFormula } from "../shared/ordem.ts";
@@ -27,7 +28,10 @@ export function runCombatAction(world: World, user: UserDoc, a: CombatAction): C
   const combat = world.get("Combat", a.combatId) as CombatDoc | undefined;
   if (!combat) throw new Error("Combate não existe");
   const combatants = world.all<CombatantDoc>("Combatant").filter(c => c._parent === combat._id);
-  const setTurn = (s: TurnState) => world.applyAsSystem({ op: "update", type: "Combat", updates: [{ _id: combat._id, ...s }] });
+  const setTurn = (s: TurnState) => [
+    ...world.applyAsSystem({ op: "update", type: "Combat", updates: [{ _id: combat._id, ...s }] }),
+    ...(s.round !== combat.round ? expireEffects(world, combat._id, s.round) : [])
+  ];
   const owns = (c: CombatantDoc | undefined) => !!c && ownsActor(c.actorId, user, world);
 
   switch (a.action) {
@@ -72,6 +76,23 @@ export function runCombatAction(world: World, user: UserDoc, a: CombatAction): C
   }
 }
 
+/** Remove effects whose duration (in rounds of this combat) has run out. */
+function expireEffects(world: World, combatId: string, round: number): Change[] {
+  const changes: Change[] = [];
+  const expired = world.all<ActiveEffectDoc>("ActiveEffect").filter(e => isExpired(e as unknown as EffectData, combatId, round));
+  const byActor = new Map<string, string[]>();
+  for (const e of expired) byActor.set(e._parent!, [...(byActor.get(e._parent!) ?? []), e._id]);
+  for (const [actorId, ids] of byActor) changes.push(...world.applyAsSystem({ op: "delete", type: "ActiveEffect", parent: actorId, ids }));
+  for (const t of world.all<TokenDoc>("Token")) {
+    const effects = t.delta?.effects;
+    if (!effects?.some(e => isExpired(e, combatId, round))) continue;
+    changes.push(...world.applyAsSystem({
+      op: "update", type: "Token", parent: t._parent, updates: [{ _id: t._id, delta: { ...t.delta, effects: effects.filter(e => !isExpired(e, combatId, round)) } }]
+    }));
+  }
+  return changes;
+}
+
 /** NPC = no player owns its actor. */
 function isNPC(world: World, c: CombatantDoc): boolean {
   const actor = world.get("Actor", c.actorId ?? "") as ActorDoc | undefined;
@@ -85,7 +106,10 @@ function rollInitiative(world: World, user: UserDoc, combat: CombatDoc, targets:
   const updates: { _id: string; initiative: number }[] = [];
   const gms = world.all<UserDoc>("User").filter(u => u.role === "gm").map(u => u._id);
   for (const c of targets) {
-    const actor = world.get("Actor", c.actorId ?? "") as ActorDoc | undefined;
+    // Roll from the actor the token represents (unlinked copies, effects applied).
+    const token = c.tokenId ? (world.get("Token", c.tokenId) as TokenDoc | undefined) : undefined;
+    const base = world.get("Actor", c.actorId ?? "") as ActorDoc | undefined;
+    const actor = token ? tokenActor(token, world)?.derived : base ? actorState(base, world).derived : undefined;
     const result = roll(initiativeFormula(actor), secureRandomInt);
     updates.push({ _id: c._id, initiative: result.total });
     const [msg] = world.createAsSystem("ChatMessage", [{

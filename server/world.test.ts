@@ -116,4 +116,25 @@ test("secret doors look like plain walls to players", async () => {
   assert.equal((publicDoc("Wall", secret, gm) as any).door, 2);
 });
 
+test("world items: GM only, hidden from players unless shared; owners edit token deltas", () => {
+  const { world, gm, alice, scene, token } = setup();
+  assert.throws(() => world.apply({ op: "create", type: "Item", data: [{ name: "Pistola" }] }, alice), /permissão/);
+  const [c] = world.apply({ op: "create", type: "Item", data: [{ name: "Pistola", type: "armament" }] }, gm);
+  assert.equal(c.after!._parent, undefined);
+  assert.equal(canSee("Item", c.after!, alice, world), false);
+  world.apply({ op: "update", type: "Item", updates: [{ _id: c.after!._id, "ownership.default": 1 }] }, gm);
+  assert.equal(canSee("Item", world.get("Item", c.after!._id)!, alice, world), true);
+  world.apply({ op: "update", type: "Token", parent: scene._id, updates: [{ _id: token._id, "delta.system.PV.value": 3 }] }, alice);
+  assert.equal((world.get("Token", token._id) as any).delta.system.PV.value, 3);
+});
+
+test("deleting a folder moves its contents up", () => {
+  const { world, gm, actor } = setup();
+  const [outer] = world.createAsSystem("Folder", [{ name: "NPCs", type: "Actor" }]);
+  const [inner] = world.createAsSystem("Folder", [{ name: "Cultistas", type: "Actor", folder: outer._id }]);
+  world.apply({ op: "update", type: "Actor", updates: [{ _id: actor._id, folder: inner._id }] }, gm);
+  world.apply({ op: "delete", type: "Folder", ids: [inner._id] }, gm);
+  assert.equal((world.get("Actor", actor._id) as any).folder, outer._id);
+});
+
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
