@@ -36,7 +36,8 @@ function wallColor(w: WallDoc): number {
  *   click a wall → select; Delete removes; double-click → config; drag an endpoint → move it
  */
 export class WallsLayer implements Tool {
-  preset: WallPreset = "wall";
+  /** Wall type drawn by the tool; null = select/edit only. */
+  preset: WallPreset | null = "wall";
   #board: Board;
   #perception: Perception;
   #lines = new Graphics();
@@ -197,6 +198,10 @@ export class WallsLayer implements Tool {
       return true;
     }
     this.#selected = null;
+    if (!this.preset) {
+      this.redraw();
+      return false;
+    }
     const joined = hit ? { x: hit.wall.c[hit.endpoint! * 2], y: hit.wall.c[hit.endpoint! * 2 + 1] } : null;
     const from = this.#chainFrom ?? joined ?? this.#board.snap(p, !e.shiftKey);
     this.#draft = { from, to: from };
@@ -248,7 +253,7 @@ export class WallsLayer implements Tool {
       if (!this.#chainFrom) this.#preview.clear();
       return;
     }
-    await game.create("Wall", { c: [draft.from.x, draft.from.y, to.x, to.y], ...WALL_PRESETS[this.preset].data }, scene._id);
+    await game.create("Wall", { c: [draft.from.x, draft.from.y, to.x, to.y], ...WALL_PRESETS[this.preset ?? "wall"].data }, scene._id);
     this.#chainFrom = chaining ? to : null;
     if (!chaining) this.#preview.clear();
   }

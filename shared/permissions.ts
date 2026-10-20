@@ -62,7 +62,7 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
 
 /** Fields a player may change on a token they own. */
 const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "delta"]);
-const PLAYER_USER_FIELDS = new Set(["_id", "color"]);
+const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar"]);
 
 /**
  * Whether `user` may apply `op` to `doc` (for updates, `changes` is the requested diff).

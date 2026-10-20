@@ -4,9 +4,23 @@ import { avatar, h, safeHtml, timeLabel } from "../dom.ts";
 
 const HELP = "Escreve uma mensagem, ou rola dados:\n/r 2d20kh+5 # Luta  — rola, com descrição após #\n/gr 1d20  — rolagem só para o mestre";
 
+/** Chat input: Enter sends, Shift+Enter breaks the line. Used in the chat tab and the floating dock. */
+export function chatInputBox(): HTMLTextAreaElement {
+  const input = h("textarea.chat-input", { rows: 2, placeholder: "Escreve uma mensagem… (/r 1d20 para rolar)", title: HELP });
+  input.addEventListener("keydown", async e => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    await send(text);
+  });
+  return input;
+}
+
 export function chatPanel(): HTMLElement {
   const log = h("div.chat-log");
-  const input = h("textarea.chat-input", { rows: 2, placeholder: "Mensagem ou /r 1d20…", title: HELP });
+  const input = chatInputBox();
 
   let first = true;
   const render = () => {
@@ -19,15 +33,6 @@ export function chatPanel(): HTMLElement {
   game.on("ChatMessage", render);
   game.on("ready", render);
   render();
-
-  input.addEventListener("keydown", async e => {
-    if (e.key !== "Enter" || e.shiftKey) return;
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = "";
-    await send(text);
-  });
 
   return h("div.chat", null, log, input);
 }
@@ -52,7 +57,7 @@ async function send(text: string): Promise<void> {
   await game.create("ChatMessage", { content: text, speaker: speaker() }).catch(() => {});
 }
 
-function messageView(m: ChatMessageDoc): HTMLElement {
+export function messageView(m: ChatMessageDoc): HTMLElement {
   const author = game.get<UserDoc>("User", m.author);
   const actor = game.get<ActorDoc>("Actor", m.speaker.actor);
   const name = m.speaker.alias || actor?.name || author?.name || "?";

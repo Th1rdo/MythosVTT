@@ -74,7 +74,9 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ⬜ Adventure export/import
 - ⬜ Full dice grammar (parenthetical, functions, pools, exploding/reroll, fate, coins), roll resolver, dice config
 
-## Phase 7 — UX and administration  *(applications/ui, settings, sidebar, helpers)*
+## Phase 7 — UX and administration  *(applications/ui, settings, sidebar, helpers — shell REA `ev_9483b78d…`)*
+- ✅ Foundry-like shell: two-column scene controls (layer groups + tools), scene navigation pill with user pips, players list with latency/FPS, hotbar (10 slots × 5 pages, drop items/actors/journal, keys 1–0, lock/clear), collapsible sidebar icon strip with floating chat dock + notifications, directory headers (create, folder, search, sort, collapse all), scene banners
+- ✅ GUI size per browser: left bar, right sidebar, hotbar (60–160%)
 - ⬜ Settings framework (world/client/user scope), configure settings UI
 - ⬜ Keybindings, scene controls toolbar, scene navigation bar, pause, notifications, chat bubbles, context menus
 - ⬜ User config (avatar, colour, character), permission config, invitation links

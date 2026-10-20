@@ -20,6 +20,8 @@ export class LightsLayer implements Tool {
   #draft: { at: Point; to: Point } | null = null;
   #moving: { id: string; dx: number; dy: number } | null = null;
   #selected: string | null = null;
+  /** Whether dragging on empty space creates a light (false = select/move only). */
+  drawing = true;
 
   constructor(board: Board) {
     this.#board = board;
@@ -109,7 +111,7 @@ export class LightsLayer implements Tool {
   }
 
   down(p: Point, e: FederatedPointerEvent): boolean {
-    if (!game.isGM) return false;
+    if (!game.isGM || !this.drawing) return false;
     const at = this.#board.snap(p, !e.shiftKey);
     this.#selected = null;
     this.#draft = { at, to: at };

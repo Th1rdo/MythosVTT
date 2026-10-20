@@ -8,7 +8,7 @@ const NO_LIGHT = { bright: 0, dim: 0, color: null, alpha: 0.5, angle: 360, anima
 function defaults(type: DocType): Record<string, unknown> {
   switch (type) {
     case "User":
-      return { name: "Jogador", role: "player", color: "#7c8cff", character: null, passwordHash: null };
+      return { name: "Jogador", role: "player", color: "#7c8cff", character: null, hotbar: {}, passwordHash: null };
     case "Actor":
       return {
         name: "Novo ator", type: "agent", img: null, system: {}, ownership: { default: OWNERSHIP.NONE }, folder: null,

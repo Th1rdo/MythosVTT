@@ -2,25 +2,38 @@ import DOMPurify from "dompurify";
 
 type Child = Node | string | null | undefined | false;
 
-/** Tiny element builder: h("div.card", {onclick}, "text", child). Text is always inserted as text. */
+/** Tiny element builder: h("div#id.card", {onclick}, "text", child). Text is always inserted as text. */
 export function h<K extends keyof HTMLElementTagNameMap>(
-  tag: K | `${K}.${string}`,
+  tag: K | `${K}.${string}` | `${K}#${string}`,
   props: Record<string, any> | null = null,
   ...children: (Child | Child[])[]
 ): HTMLElementTagNameMap[K] {
-  const [name, ...classes] = tag.split(".");
+  const [head, ...classes] = tag.split(".");
+  const [name, id] = head.split("#");
   const el = document.createElement(name) as HTMLElementTagNameMap[K];
+  if (id) el.id = id;
   if (classes.length) el.className = classes.join(" ");
   for (const [k, v] of Object.entries(props ?? {})) {
     if (v === undefined || v === null || v === false) continue;
     if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
-    else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+    else if (k === "style" && typeof v === "object") {
+      // Custom properties (--x) can't be assigned as style properties.
+      for (const [sk, sv] of Object.entries(v)) {
+        if (sk.startsWith("--")) el.style.setProperty(sk, String(sv));
+        else (el.style as any)[sk] = sv;
+      }
+    }
     else if (k === "dataset") Object.assign(el.dataset, v);
     else if (k in el && k !== "list") (el as any)[k] = v;
     else el.setAttribute(k, v === true ? "" : String(v));
   }
   for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) el.append(c);
   return el;
+}
+
+/** Replace an element's children, skipping null/false entries. */
+export function setChildren(el: Element, ...children: (Child | Child[])[]): void {
+  el.replaceChildren(...children.flat().filter((c): c is Node | string => c !== null && c !== undefined && c !== false));
 }
 
 /** Render untrusted HTML (journal entries, imported chat cards) with scripts and handlers removed. */

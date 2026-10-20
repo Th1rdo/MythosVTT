@@ -48,6 +48,8 @@ export interface UserDoc extends BaseDoc {
   role: "gm" | "player";
   color: string;
   character: string | null;
+  /** Hotbar slots 1–50 (10 per page) → what they hold. */
+  hotbar?: Record<string, HotbarEntry | null>;
   /** Server-only. Never sent to clients. */
   passwordHash?: string | null;
 }
@@ -69,6 +71,11 @@ export interface PrototypeToken {
   bar2: { attribute: string | null };
   sight: { enabled: boolean; range: number; angle: number };
   light: LightConfig;
+}
+
+export interface HotbarEntry {
+  type: "Item" | "Actor" | "JournalEntry";
+  id: string;
 }
 
 export interface ActorDoc extends BaseDoc {

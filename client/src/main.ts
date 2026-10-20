@@ -1,12 +1,22 @@
+import "@fontsource/signika/400.css";
+import "@fontsource/signika/600.css";
+import "@fontsource/signika/700.css";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./style.css";
-import type { SceneDoc, UserDoc } from "../../shared/protocol.ts";
+import type { UserDoc } from "../../shared/protocol.ts";
 import { game } from "./game.ts";
 import { Board } from "./canvas/board.ts";
 import { Perception } from "./canvas/perception.ts";
 import { WallsLayer } from "./canvas/walls.ts";
 import { LightsLayer } from "./canvas/lights.ts";
 import { Ruler } from "./canvas/ruler.ts";
-import { sceneControls } from "./canvas/controls.ts";
+import { sceneControls } from "./shell/controls.ts";
+import { sceneNavigation } from "./shell/navigation.ts";
+import { playersList } from "./shell/players.ts";
+import { hotbar } from "./shell/hotbar.ts";
+import { sidebar } from "./shell/sidebar.ts";
+import type { SidebarTab } from "./shell/sidebar.ts";
+import { applyUiScale, readUiScale, uiScaleSettings } from "./shell/ui-scale.ts";
 import { TurnMarker } from "./canvas/turn-marker.ts";
 import { combatPanel } from "./ui/combat.ts";
 import { h } from "./dom.ts";
@@ -20,6 +30,7 @@ interface WorldInfo {
 }
 
 const app = document.getElementById("app")!;
+applyUiScale(readUiScale());
 
 async function boot(): Promise<void> {
   const info: WorldInfo = await fetch("/api/world").then(r => r.json());
@@ -64,22 +75,8 @@ function joinScreen(info: WorldInfo): void {
 
 async function startGame(): Promise<void> {
   const boardHost = h("div.board");
-  const sidebar = h("aside.sidebar");
-  const sceneTitle = h("span.scene-name");
-  const presence = h("div.presence");
-  const hint = h("div.hint.muted.small");
-  const controlsHost = h("div");
-
-  app.replaceChildren(h("div.layout", null,
-    h("div.stage", null,
-      boardHost,
-      h("div.hud-top", null, sceneTitle),
-      presence,
-      controlsHost,
-      hint
-    ),
-    sidebar
-  ));
+  const stage = h("div.stage", null, boardHost);
+  app.replaceChildren(stage);
 
   await game.connect();
 
@@ -87,55 +84,43 @@ async function startGame(): Promise<void> {
   await board.mount(boardHost);
   const perception = new Perception(board);
   const walls = new WallsLayer(board, perception);
-  new LightsLayer(board);
+  const lights = new LightsLayer(board);
   new Ruler(board);
   new TurnMarker(board);
-  controlsHost.replaceWith(sceneControls(board, walls, hint));
   perception.refresh();
   // Debug handle for development only (stripped from production builds).
   if (import.meta.env.DEV) Object.assign(window, { mesa: { game, board, perception, walls } });
 
-  // [id, icon, label, panel]
-  const tabs: [string, string, string, () => HTMLElement][] = [
-    ["chat", "💬", "Chat", chatPanel],
-    ["combat", "⚔️", "Combate", () => combatPanel(id => board.panTo(id))],
-    ["actors", "👤", "Atores", actorsPanel],
-    ["items", "🎒", "Itens", itemsPanel],
-    ["journal", "📜", "Diário", journalPanel],
-    ...(game.isGM ? [["scenes", "🗺️", "Cenas", scenesPanel], ["players", "👥", "Jogadores", playersPanel]] as [string, string, string, () => HTMLElement][] : [])
+  const tabs: SidebarTab[] = [
+    { id: "chat", icon: "fa-solid fa-comments", label: "Chat", make: chatPanel },
+    { id: "combat", icon: "fa-solid fa-khanda", label: "Combate", make: () => combatPanel(id => board.panTo(id)) },
+    ...(game.isGM ? [{ id: "scenes", icon: "fa-solid fa-map", label: "Cenas", make: scenesPanel }] : []),
+    { id: "actors", icon: "fa-solid fa-user", label: "Atores", make: actorsPanel },
+    { id: "items", icon: "fa-solid fa-suitcase", label: "Itens", make: itemsPanel },
+    { id: "journal", icon: "fa-solid fa-book-open", label: "Diário", make: journalPanel },
+    { id: "settings", icon: "fa-solid fa-gears", label: "Definições", make: settingsPanel }
   ];
-  const panels = new Map(tabs.map(([id, , , make]) => [id, make()]));
-  const nav = h("nav.tabs", null, tabs.map(([id, icon, label]) => h("button", { dataset: { tab: id }, title: label, onclick: () => show(id) }, h("span.tab-icon", null, icon), h("span.tab-label", null, label))));
-  const content = h("div.tab-content");
-  const show = (id: string) => {
-    for (const b of nav.querySelectorAll("button")) b.classList.toggle("active", b.dataset.tab === id);
-    content.replaceChildren(panels.get(id)!);
-  };
-  sidebar.append(
-    h("header.side-head", null,
-      h("strong.grow", null, game.world.title),
-      h("span.muted.small", null, game.user.name),
-      h("button.icon.small", { title: "Sair", onclick: async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); } }, "⏻")
-    ),
-    nav, content
+  stage.append(
+    sceneControls(board, walls, lights),
+    sceneNavigation(),
+    playersList(board),
+    hotbar(),
+    sidebar(tabs)
   );
-  show("chat");
+}
 
-  const renderSceneTitle = () => {
-    const s: SceneDoc | undefined = game.viewedScene;
-    sceneTitle.textContent = s ? s.name + (game.isGM && !s.active ? "  (pré-visualização — não ativa)" : "") : "Sem cena ativa";
-  };
-  game.on("view", renderSceneTitle);
-  game.on("Scene", renderSceneTitle);
-  renderSceneTitle();
-
-  const renderPresence = () => {
-    presence.replaceChildren(...game.all<UserDoc>("User").map(u => h("div.who", { className: game.online.includes(u._id) ? "who on" : "who" },
-      h("span.dot", { style: { background: u.color } }), u.name)));
-  };
-  game.on("presence", renderPresence);
-  game.on("User", renderPresence);
-  renderPresence();
+function settingsPanel(): HTMLElement {
+  return h("div.panel", null,
+    h("div.settings-block", null,
+      h("h3", null, game.world.title),
+      h("p.muted.small", null, `Mesa · ${game.world.system}`),
+      h("p", null, "Ligado como ", h("strong", null, game.user.name), game.isGM ? " (mestre)" : ""),
+      h("button", { onclick: async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); } }, h("i.fa-solid.fa-right-from-bracket"), " Sair")
+    ),
+    uiScaleSettings(),
+    game.isGM && h("h4.settings-title", null, "Jogadores"),
+    game.isGM && playersPanel()
+  );
 }
 
 boot();

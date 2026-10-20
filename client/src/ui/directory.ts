@@ -35,8 +35,13 @@ export interface DirectoryOptions<T extends BaseDoc> {
   dragData?: (doc: T, dt: DataTransfer) => void;
   /** Extra class for the entry row. */
   rowClass?: (doc: T) => string;
+  /** Manual order (e.g. scene sort); the header's sort button toggles between this and A→Z. */
   sort?: (a: T, b: T) => number;
   empty: string;
+  /** "Create X" button in the header (GM). */
+  create?: { label: string; icon: string; run: () => void };
+  /** Image used as a banner background for the row (scene thumbnails). */
+  banner?: (doc: T) => string | null;
 }
 
 /**
@@ -49,7 +54,37 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
   render: () => void;
 } {
   const list = h("ul.doc-list.directory");
-  const sort = opts.sort ?? ((a: T, b: T) => a.name.localeCompare(b.name, "pt"));
+  const alpha = (a: T, b: T) => a.name.localeCompare(b.name, "pt");
+  let alphabetical = !opts.sort;
+  let query = "";
+  const sortFn = () => (alphabetical ? alpha : opts.sort ?? alpha);
+  const matches = (d: T) => !query || d.name.toLocaleLowerCase("pt").includes(query);
+
+  const search = h("input.dir-search", {
+    type: "search", placeholder: "Procurar…",
+    oninput: (e: Event) => {
+      query = (e.target as HTMLInputElement).value.trim().toLocaleLowerCase("pt");
+      render();
+    }
+  });
+  const sortBtn = h("button.icon", { onclick: () => { alphabetical = !alphabetical; render(); } });
+  const header = h("header.dir-header", null,
+    game.isGM && h("div.dir-create", null,
+      opts.create && h("button", { onclick: opts.create.run }, h("i", { className: opts.create.icon }), " ", opts.create.label),
+      h("button", { onclick: () => createFolder(opts.type) }, h("i.fa-solid.fa-folder"), " Criar pasta")),
+    h("div.dir-search-row", null,
+      h("i.fa-solid.fa-magnifying-glass"),
+      search,
+      opts.sort ? sortBtn : null,
+      h("button.icon", {
+        title: "Fechar todas as pastas",
+        onclick: () => {
+          for (const f of game.all<FolderDoc>("Folder")) if (f.type === opts.type) collapsed.add(f._id);
+          saveCollapsed();
+          render();
+        }
+      }, h("i.fa-solid.fa-folder-tree")))
+  );
 
   const moveTo = async (e: DragEvent, folderId: string | null) => {
     if (!game.isGM) return;
@@ -85,14 +120,19 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
   acceptDrop(list, null);
 
   const render = () => {
-    const docs = opts.docs();
+    sortBtn.title = alphabetical ? "Ordem: A→Z (clicar para manual)" : "Ordem: manual (clicar para A→Z)";
+    sortBtn.replaceChildren(h("i", { className: alphabetical ? "fa-solid fa-arrow-down-a-z" : "fa-solid fa-sort" }));
+    const docs = opts.docs().filter(matches);
     const folders = game.all<FolderDoc>("Folder").filter(f => f.type === opts.type);
     const childrenOf = (id: string | null) => folders.filter(f => (f.folder ?? null) === id).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"));
-    const docsIn = (id: string | null) => docs.filter(d => (d.folder ?? null) === id || (id === null && d.folder && !folders.some(f => f._id === d.folder))).sort(sort);
+    const docsIn = (id: string | null) => docs.filter(d => (d.folder ?? null) === id || (id === null && d.folder && !folders.some(f => f._id === d.folder))).sort(sortFn());
     const hasContent = (id: string): boolean => docsIn(id).length > 0 || childrenOf(id).some(f => hasContent(f._id));
+    // While searching, folders open up and empty ones hide.
+    const searching = !!query;
 
     const entryRow = (d: T) => h("li", {
-      className: ["entry", opts.rowClass?.(d)].filter(Boolean).join(" "),
+      className: ["entry", opts.rowClass?.(d), opts.banner && "banner"].filter(Boolean).join(" "),
+      style: opts.banner?.(d) ? { backgroundImage: `linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.35)), url("${opts.banner(d)}")` } : undefined,
       draggable: true,
       ondragstart: (e: DragEvent) => {
         e.dataTransfer?.setData(DOC_DRAG, JSON.stringify({ type: opts.type, id: d._id }));
@@ -102,8 +142,8 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
     }, ...opts.entry(d).filter((n): n is Node => !!n));
 
     const folderNode = (f: FolderDoc, depth: number): HTMLElement | null => {
-      if (!game.isGM && !hasContent(f._id)) return null;
-      const open = !collapsed.has(f._id);
+      if ((!game.isGM || searching) && !hasContent(f._id)) return null;
+      const open = searching || !collapsed.has(f._id);
       const head = h("div.folder-head", {
         style: { borderLeftColor: f.color ?? "transparent" },
         draggable: game.isGM,
@@ -157,7 +197,7 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
   for (const t of [opts.type, "Folder"] as const) game.on(t, render);
   game.on("ready", render);
   render();
-  return { element: list, render };
+  return { element: h("div.directory-wrap", null, header, list), render };
 }
 
 export async function createFolder(type: DirType, parent: string | null = null): Promise<void> {

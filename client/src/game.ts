@@ -18,6 +18,10 @@ export class Game implements DocLookup {
   world!: WorldSnapshot["world"];
   userId!: string;
   online: string[] = [];
+  /** userId → scene they're viewing. */
+  viewing: Record<string, string | null> = {};
+  /** Round-trip time to the server in ms (rolling average). */
+  latency: number | null = null;
   /** Scene the local user is looking at (GMs can browse; players follow the active scene). */
   viewedSceneId: string | null = null;
 
@@ -39,6 +43,7 @@ export class Game implements DocLookup {
           this.#emit(t, { op: "reset", docs: [...map.values()], ids: [] });
         }
         if (!this.viewedSceneId || !this.get("Scene", this.viewedSceneId)) this.viewedSceneId = this.activeScene?._id ?? null;
+        this.socket.emit("viewing", this.viewedSceneId);
         this.#emitSimple("view");
         this.#emitSimple("ready");
         resolve();
@@ -49,6 +54,22 @@ export class Game implements DocLookup {
         this.#emitSimple("presence");
       });
       this.socket.on("ping", (p: PingEvent) => this.#emitSimple("ping", p));
+      this.socket.on("viewing", (v: Record<string, string | null>) => {
+        this.viewing = v;
+        this.#emitSimple("presence");
+      });
+      this.socket.on("connect", () => this.socket.emit("viewing", this.viewedSceneId));
+      setInterval(async () => {
+        const t = performance.now();
+        try {
+          await this.socket.timeout(5000).emitWithAck("latency");
+          const ms = performance.now() - t;
+          this.latency = this.latency === null ? ms : this.latency * 0.7 + ms * 0.3;
+          this.#emitSimple("presence");
+        } catch {
+          this.latency = null;
+        }
+      }, 5000);
       this.socket.on("pull", (sceneId: string) => this.view(sceneId));
       this.socket.on("disconnect", reason => {
         if (reason === "io server disconnect") location.reload();
@@ -120,6 +141,7 @@ export class Game implements DocLookup {
 
   view(sceneId: string | null): void {
     this.viewedSceneId = sceneId;
+    this.socket?.emit("viewing", sceneId);
     this.#emitSimple("view");
   }
 

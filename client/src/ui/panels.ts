@@ -5,7 +5,7 @@ import { game, toast } from "../game.ts";
 import { avatar, h, imageSize, pickFile, safeHtml, upload } from "../dom.ts";
 import { ITEM_DRAG, openSheet, ownershipEditor } from "./sheet.ts";
 import { openItemSheet } from "./item-sheet.ts";
-import { createFolder, directory } from "./directory.ts";
+import { directory } from "./directory.ts";
 import { closeWindow, confirmDialog, openWindow, prompt, setWindowTitle } from "./windows.ts";
 
 // ---------------------------------------------------------------------------
@@ -14,12 +14,13 @@ import { closeWindow, confirmDialog, openWindow, prompt, setWindowTitle } from "
 export function actorsPanel(): HTMLElement {
   const dir = directory<ActorDoc>({
     type: "Actor",
+    create: { label: "Criar ator", icon: "fa-solid fa-user", run: () => add() },
     docs: () => game.all<ActorDoc>("Actor"),
     empty: "Sem atores.",
     onOpen: a => openSheet(a._id),
     dragData: (a, dt) => dt.setData("application/x-mesa-actor", a._id),
     entry: a => [
-      avatar(a.img, a.name, 32),
+      avatar(a.img, a.name, 44),
       h("span.grow", null, a.name),
       h("span.muted.small", null, a.type),
       game.isGM && h("button.icon.small", {
@@ -46,13 +47,7 @@ export function actorsPanel(): HTMLElement {
     openSheet(actor._id);
   };
 
-  return h("div.panel", null,
-    game.isGM && h("div.row.toolbar", null,
-      h("button.primary", { onclick: add }, "+ Ator"),
-      h("button", { onclick: () => createFolder("Actor") }, "+ Pasta"),
-      h("span.muted.small", null, "Arrasta para o mapa")),
-    dir.element
-  );
+  return h("div.panel", null, dir.element);
 }
 
 // ---------------------------------------------------------------------------
@@ -61,12 +56,13 @@ export function actorsPanel(): HTMLElement {
 export function itemsPanel(): HTMLElement {
   const dir = directory<ItemDoc>({
     type: "Item",
+    create: { label: "Criar item", icon: "fa-solid fa-suitcase", run: () => add() },
     docs: () => game.all<ItemDoc>("Item").filter(i => !i._parent),
     empty: game.isGM ? "Sem itens. Cria um com + Item." : "O mestre ainda não partilhou itens.",
     onOpen: i => openItemSheet(i._id),
     dragData: (i, dt) => dt.setData(ITEM_DRAG, JSON.stringify({ id: i._id })),
     entry: i => [
-      avatar(i.img, i.name, 28),
+      avatar(i.img, i.name, 36),
       h("span.grow", null, i.name),
       h("span.muted.small", null, ITEM_TYPES.find(([t]) => t === i.type)?.[1] ?? i.type),
       game.isGM && h("button.icon.small", {
@@ -84,13 +80,7 @@ export function itemsPanel(): HTMLElement {
     const [item] = await game.create<ItemDoc>("Item", { name: v.name, type: "generalEquipment", system: itemTemplate("generalEquipment") });
     if (item) openItemSheet(item._id);
   };
-  return h("div.panel", null,
-    game.isGM && h("div.row.toolbar", null,
-      h("button.primary", { onclick: add }, "+ Item"),
-      h("button", { onclick: () => createFolder("Item") }, "+ Pasta"),
-      h("span.muted.small", null, "Arrasta para uma ficha")),
-    dir.element
-  );
+  return h("div.panel", null, dir.element);
 }
 
 /** Minimal Ordem Paranormal agent so the sheet has something to show. */
@@ -118,13 +108,15 @@ function blankAgent(): Record<string, unknown> {
 export function scenesPanel(): HTMLElement {
   const dir = directory<SceneDoc>({
     type: "Scene",
+    create: { label: "Criar cena", icon: "fa-solid fa-map", run: () => add() },
+    banner: s => s.img,
     docs: () => game.all<SceneDoc>("Scene"),
     empty: "Sem cenas.",
     sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
     rowClass: s => (s._id === game.viewedSceneId ? "current" : ""),
     onOpen: s => game.view(s._id),
     entry: s => [
-      h("span.grow", null, s.active ? "● " : "", s.name),
+      h("span.grow.scene-title", null, s.active ? h("i.fa-solid.fa-bullseye", { title: "Ativa" }) : null, " ", s.name),
       !s.active && h("button.small", { title: "Ativar para todos", onclick: (e: Event) => (e.stopPropagation(), game.update("Scene", { _id: s._id, active: true })) }, "Ativar"),
       h("button.icon.small", { title: "Configurar", onclick: (e: Event) => (e.stopPropagation(), sceneConfig(s._id)) }, "⚙"),
       h("button.icon.small", {
@@ -149,8 +141,6 @@ export function scenesPanel(): HTMLElement {
 
   return h("div.panel", null,
     h("div.row.toolbar", null,
-      h("button.primary", { onclick: add }, "+ Cena"),
-      h("button", { onclick: () => createFolder("Scene") }, "+ Pasta"),
       h("button", { title: "Levar os jogadores para a cena que estás a ver", onclick: () => game.viewedSceneId && game.pullPlayers(game.viewedSceneId) }, "Puxar jogadores")
     ),
     list
@@ -233,6 +223,7 @@ function sceneConfig(sceneId: string): void {
 export function journalPanel(): HTMLElement {
   const dir = directory<JournalEntryDoc>({
     type: "JournalEntry",
+    create: { label: "Criar entrada", icon: "fa-solid fa-book-open", run: () => add() },
     docs: () => game.all<JournalEntryDoc>("JournalEntry"),
     empty: "Sem entradas.",
     sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
@@ -250,13 +241,10 @@ export function journalPanel(): HTMLElement {
     openJournal(entry._id, true);
   };
 
-  return h("div.panel", null,
-    game.isGM && h("div.row.toolbar", null, h("button.primary", { onclick: add }, "+ Entrada"), h("button", { onclick: () => createFolder("JournalEntry") }, "+ Pasta")),
-    dir.element
-  );
+  return h("div.panel", null, dir.element);
 }
 
-function openJournal(id: string, startEditing = false): void {
+export function openJournal(id: string, startEditing = false): void {
   const key = `journal-${id}`;
   let off = () => {};
   const body = openWindow(key, game.get<JournalEntryDoc>("JournalEntry", id)?.name ?? "", { width: 620, onClose: () => off() });

@@ -59,6 +59,12 @@ export class Hub {
     return [...ids];
   }
 
+  viewing(): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    for (const s of this.#io.sockets.sockets.values()) if (s.data.sceneId !== undefined) out[s.data.userId] = s.data.sceneId;
+    return out;
+  }
+
   #onConnect(socket: Socket): void {
     const user = this.#user(socket)!;
     socket.emit("world", this.#snapshot(user));
@@ -146,7 +152,17 @@ export class Hub {
       }
     });
 
-    socket.on("disconnect", () => this.#io.emit("presence", this.online()));
+    /** Which scene each user is looking at (scene navigation shows their pips). */
+    socket.on("viewing", (sceneId: unknown) => {
+      socket.data.sceneId = typeof sceneId === "string" ? sceneId : null;
+      this.#io.emit("viewing", this.viewing());
+    });
+    socket.on("latency", (ack?: () => void) => ack?.());
+
+    socket.on("disconnect", () => {
+      this.#io.emit("presence", this.online());
+      this.#io.emit("viewing", this.viewing());
+    });
   }
 
   #snapshot(user: UserDoc): WorldSnapshot {

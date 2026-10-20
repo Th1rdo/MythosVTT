@@ -77,3 +77,10 @@ npm test
 ```bash
 npm run typecheck
 ```
+
+## Credits
+
+- Icons: [Font Awesome Free](https://fontawesome.com) — icons CC BY 4.0, fonts SIL OFL 1.1, code MIT.
+- Font: [Signika](https://fonts.google.com/specimen/Signika) via Fontsource — SIL OFL 1.1.
+- The interface layout follows Foundry VTT's conventions (studied with REA, see `docs/foundry-analysis.md`); no Foundry
+  code, CSS or art is included.
