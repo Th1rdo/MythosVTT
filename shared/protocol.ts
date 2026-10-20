@@ -147,7 +147,8 @@ export interface SceneDoc extends BaseDoc {
   width: number;
   height: number;
   backgroundColor: string;
-  grid: { size: number; color: string; alpha: number; distance: number; units: string };
+  /** type: Foundry's GRID_TYPES (0 gridless, 1 square, 2–5 hex). */
+  grid: { type: number; size: number; color: string; alpha: number; distance: number; units: string };
   active: boolean;
   navigation: boolean;
   sort: number;

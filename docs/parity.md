@@ -50,14 +50,16 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ⬜ Items on unlinked tokens (currently shared with the base actor), item effects that transfer to the actor
 - ⬜ Targeting (T), directory search/filter, folder sort modes, duplicate/context menus, token image wildcards
 
-## Phase 4 — More placeables  *(placeables/*, layers/*)*
-- ⬜ Tiles (image/video, overhead/occlusion, z-order)
-- ⬜ Drawings (freehand, shapes, text, fill/stroke)
-- ⬜ Measured templates (circle, cone, ray, rectangle)
-- ⬜ Notes (map pins linked to journal entries/pages)
-- ⬜ Regions + region behaviors (teleport, damage, pause, etc.)
-- ⬜ Levels (v14 multi-level scenes)
-- ⬜ Hex and gridless grids
+## Phase 4 — More placeables  *(placeables/*, layers/*, levels, regions, grid — REA `ev_0449de80…`)*
+- ✅ Levels (v14 floors): per-level background/foreground art and elevation bands; tokens on one level; walls/lights/tiles/drawings/notes/regions list theirs; level tabs in navigation; HUD level picker; players follow their token; wall collisions per level
+- ✅ Tiles (image/video), background vs foreground (roofs), occlusion fade under controlled tokens, z-order, GM tool + config
+- ✅ Drawings (rectangle, ellipse, polygon, freehand, text) for everyone, author-owned editing
+- ✅ Measured templates (circle, cone, rectangle, line) — as regions, like v14 — for everyone, with measurements
+- ✅ Notes (map pins linked to journal entries, drop an entry on the map; visible to who can see the entry)
+- ✅ Regions + behaviours on the server: teleport (incl. other scenes), change level (asks the player), apply/remove effect, scrolling text, toggle behaviours; adjust darkness drawn by clients
+- ✅ Hex (odd/even rows/columns) and gridless grids: drawing, snapping, token placement, measurement
+- ✅ Importer: levels, tiles, drawings, notes, regions + behaviours, grid types
+- ⬜ Ring/emanation/token region shapes; turn/round region events; pause-game, macro, movement-cost, surface behaviours; region-driven elevation; tile video controls
 
 ## Phase 5 — Audio  *(audio/*, documents/playlist, playlist-sound, ambient-sound)*
 - ⬜ Playlists (sequential/shuffle/simultaneous, fades, repeat), synced playback for all

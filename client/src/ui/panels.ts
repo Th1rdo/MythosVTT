@@ -157,6 +157,10 @@ function sceneConfig(sceneId: string): void {
   const field = (label: string, input: HTMLElement) => h("label.field", null, h("span", null, label), input);
   const name = h("input", { value: scene.name });
   const gridSize = h("input", { type: "number", min: 20, max: 500, value: String(scene.grid.size) });
+  const gridType = h("select", null, [[0, "Sem grelha"], [1, "Quadrados"], [2, "Hexágonos (linhas, ímpares)"], [3, "Hexágonos (linhas, pares)"], [4, "Hexágonos (colunas, ímpares)"], [5, "Hexágonos (colunas, pares)"]]
+    .map(([v, l]) => h("option", { value: String(v), selected: (scene.grid.type ?? 1) === v }, String(l))));
+  const gridDistanceInput = h("input", { type: "number", min: 0.1, step: 0.1, value: String(scene.grid.distance) });
+  const gridUnits = h("input", { value: scene.grid.units, style: { width: "60px" } });
   const gridAlpha = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: String(scene.grid.alpha) });
   const gridColor = h("input", { type: "color", value: scene.grid.color });
   const width = h("input", { type: "number", value: String(scene.width) });
@@ -194,7 +198,10 @@ function sceneConfig(sceneId: string): void {
         _id: sceneId, name: name.value.trim() || scene.name, img,
         width: Number(width.value) || scene.width, height: Number(height.value) || scene.height,
         backgroundColor: bgColor.value,
-        grid: { size: Number(gridSize.value) || 100, alpha: Number(gridAlpha.value), color: gridColor.value },
+        grid: {
+          type: Number(gridType.value), size: Number(gridSize.value) || 100, alpha: Number(gridAlpha.value), color: gridColor.value,
+          distance: Number(gridDistanceInput.value) || 1, units: gridUnits.value.trim() || "m"
+        },
         tokenVision: tokenVision.checked,
         fog: { mode: Number(fogMode.value), unexplored: unexplored.value },
         environment: { darkness: Number(darkness.value), globalLight: globalLight.checked, globalLightThreshold: Number(globalThreshold.value) }
@@ -205,7 +212,8 @@ function sceneConfig(sceneId: string): void {
     field("Nome", name),
     h("div.field", null, h("span", null, "Fundo"), h("div.row", null, imgLabel, h("button", { type: "button", onclick: chooseImage }, "Carregar…"), img && h("button", { type: "button", onclick: () => { img = null; imgLabel.textContent = "sem imagem"; } }, "Remover"))),
     h("div.row", null, field("Largura (px)", width), field("Altura (px)", height)),
-    h("div.row", null, field("Grelha (px)", gridSize), field("Cor", gridColor)),
+    h("div.row", null, field("Grelha", gridType), field("Tamanho (px)", gridSize), field("Cor", gridColor)),
+    h("div.row", null, field("Distância por casa", gridDistanceInput), field("Unidade", gridUnits)),
     field("Opacidade da grelha", gridAlpha),
     field("Cor de fundo", bgColor),
     h("h4", null, "Visão e iluminação"),

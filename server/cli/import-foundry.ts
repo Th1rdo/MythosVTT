@@ -293,7 +293,10 @@ insert("Scene", scenes.map(s => {
     width: s.width ?? 3000,
     height: s.height ?? 2000,
     backgroundColor: s.backgroundColor ?? only?.background?.color ?? "#111111",
-    grid: { size: grid.size ?? 100, color: grid.color ?? "#000000", alpha: grid.alpha ?? 0.2, distance: grid.distance ?? 1.5, units: grid.units ?? "m" },
+    grid: {
+      type: [0, 1, 2, 3, 4, 5].includes(grid.type ?? s.gridType) ? grid.type ?? s.gridType : 1,
+      size: grid.size ?? 100, color: grid.color ?? "#000000", alpha: grid.alpha ?? 0.2, distance: grid.distance ?? 1.5, units: grid.units ?? "m"
+    },
     active: !!s.active,
     navigation: s.navigation ?? true,
     sort: s.navOrder ?? s.sort ?? 0,

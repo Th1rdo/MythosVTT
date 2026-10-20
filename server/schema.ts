@@ -26,7 +26,7 @@ function defaults(type: DocType): Record<string, unknown> {
     case "Scene":
       return {
         name: "Nova cena", img: null, width: 3000, height: 2000, backgroundColor: "#111111",
-        grid: { size: 100, color: "#000000", alpha: 0.25, distance: 1.5, units: "m" },
+        grid: { type: 1, size: 100, color: "#000000", alpha: 0.25, distance: 1.5, units: "m" },
         active: false, navigation: true, sort: 0, folder: null, initialLevel: null,
         tokenVision: true,
         fog: { mode: 1, explored: "#000000", unexplored: "#000000" },

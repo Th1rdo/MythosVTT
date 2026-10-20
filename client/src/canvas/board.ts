@@ -4,7 +4,8 @@ import type { ActorDoc, DisplayMode, PingEvent, SceneDoc, TokenDoc, UserDoc } fr
 import { DISPLAY, OWNERSHIP } from "../../../shared/protocol.ts";
 import { ownershipLevel } from "../../../shared/permissions.ts";
 import type { Point } from "../../../shared/geometry.ts";
-import { gridDistance } from "../../../shared/geometry.ts";
+import { GRID, hexCenters, hexPolygon, isHex, measure, snapPoint, snapTokenPosition } from "../../../shared/grid.ts";
+import type { GridSpec } from "../../../shared/grid.ts";
 import { barValue, tokenActor } from "../../../shared/actors.ts";
 import type { TokenActor } from "../../../shared/actors.ts";
 import { CONDITION_BY_ID, DEAD } from "../../../shared/conditions.ts";
@@ -205,12 +206,24 @@ export class Board {
     return g ? g.size / (g.distance || 1) : 1;
   }
 
-  /** Snap a point to grid corners and centres (half-grid), unless the caller disables it. */
+  /** The viewed scene's grid. */
+  get grid(): GridSpec {
+    const g = this.scene?.grid;
+    return { type: g?.type ?? GRID.SQUARE, size: g?.size ?? 100, distance: g?.distance ?? 1 };
+  }
+
+  /** Snap a point to the grid (square: corners and centres; hex: centres and corners), unless disabled. */
   snap(p: Point, enabled = true): Point {
-    const size = this.scene?.grid.size ?? 100;
     if (!enabled) return { x: Math.round(p.x), y: Math.round(p.y) };
-    const step = size / 2;
-    return { x: Math.round(p.x / step) * step, y: Math.round(p.y / step) * step };
+    return snapPoint(this.grid, p);
+  }
+
+  /** Grid position for a token whose top-left is at `p`, kept inside the scene. */
+  snapToken(p: Point, doc: TokenDoc): Point {
+    const scene = this.scene!;
+    const size = scene.grid.size;
+    const at = snapTokenPosition(this.grid, p, doc.width, doc.height);
+    return { x: clamp(at.x, 0, Math.max(0, scene.width - doc.width * size)), y: clamp(at.y, 0, Math.max(0, scene.height - doc.height * size)) };
   }
 
   /** Live token centre (follows the sprite during drags). */
@@ -277,7 +290,12 @@ export class Board {
 
   #drawGrid(scene: SceneDoc): void {
     const { size, color, alpha } = scene.grid;
-    if (!size || size < 10 || alpha <= 0) return;
+    if (!size || size < 10 || alpha <= 0 || this.grid.type === GRID.GRIDLESS) return;
+    if (isHex(this.grid)) {
+      for (const c of hexCenters(this.grid, scene.width, scene.height)) this.layers.grid.poly(hexPolygon(this.grid, c));
+      this.layers.grid.stroke({ width: 1, color, alpha });
+      return;
+    }
     for (let x = 0; x <= scene.width; x += size) this.layers.grid.moveTo(x, 0).lineTo(x, scene.height);
     for (let y = 0; y <= scene.height; y += size) this.layers.grid.moveTo(0, y).lineTo(scene.width, y);
     this.layers.grid.stroke({ width: 1, color, alpha });
@@ -616,7 +634,7 @@ export class Board {
     const v = this.tokens.get(d.anchor);
     if (v) {
       const size = scene.grid.size;
-      const dist = gridDistance(d.start, { x: Math.round(v.root.x / size) * size, y: Math.round(v.root.y / size) * size }, size, scene.grid.distance);
+      const dist = measure(this.grid, d.start, this.snapToken({ x: v.root.x, y: v.root.y }, v.doc));
       this.#dragLabel.text = `${formatNumber(dist)} ${scene.grid.units}`;
       this.#dragLabel.position.set(v.root.x + (v.doc.width * size) / 2, v.root.y - 6);
       this.#dragLabel.visible = true;
@@ -647,13 +665,11 @@ export class Board {
     if (!d || d.kind !== "tokens" || !d.moved) return;
     const scene = this.scene;
     if (!scene) return;
-    const size = scene.grid.size;
     const updates: { _id: string; x: number; y: number }[] = [];
     for (const id of d.offsets.keys()) {
       const v = this.tokens.get(id);
       if (!v) continue;
-      const x = clamp(Math.round(v.root.x / size) * size, 0, Math.max(0, scene.width - v.doc.width * size));
-      const y = clamp(Math.round(v.root.y / size) * size, 0, Math.max(0, scene.height - v.doc.height * size));
+      const { x, y } = this.snapToken({ x: v.root.x, y: v.root.y }, v.doc);
       v.target = { x, y };
       updates.push({ _id: id, x, y });
     }
@@ -719,9 +735,10 @@ export class Board {
     const size = scene.grid.size;
     const p = this.eventToWorld(e);
     const proto = actor.token;
+    const at = snapTokenPosition(this.grid, { x: p.x - (proto.width * size) / 2, y: p.y - (proto.height * size) / 2 }, proto.width, proto.height);
     await game.create("Token", {
       name: actor.name, actorId: actor._id, img: proto.img ?? actor.img,
-      x: Math.floor(p.x / size) * size, y: Math.floor(p.y / size) * size,
+      x: at.x, y: at.y,
       width: proto.width, height: proto.height, disposition: proto.disposition,
       actorLink: proto.actorLink, displayName: proto.displayName, displayBars: proto.displayBars,
       bar1: proto.bar1, bar2: proto.bar2, sight: proto.sight, light: proto.light,
@@ -760,10 +777,11 @@ export class Board {
       const dy = e.key === "ArrowUp" ? -size : e.key === "ArrowDown" ? size : 0;
       const movable = selected.filter(v => this.canMove(v.doc));
       // Step from where each token is heading, so quick repeated presses add up.
+      // On hex grids a step lands on the neighbouring hex in that direction.
+      const step = isHex(this.grid) ? 0.9 : 1;
       const updates = movable.map(v => {
         const from = v.target ?? { x: v.doc.x, y: v.doc.y };
-        const x = clamp(from.x + dx, 0, scene.width - v.doc.width * size);
-        const y = clamp(from.y + dy, 0, scene.height - v.doc.height * size);
+        const { x, y } = this.snapToken({ x: from.x + dx * step, y: from.y + dy * step }, v.doc);
         v.target = { x, y };
         return { _id: v.doc._id, x, y };
       });

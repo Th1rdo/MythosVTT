@@ -2,7 +2,7 @@ import { Container, Graphics, Text } from "pixi.js";
 import type { FederatedPointerEvent } from "pixi.js";
 import type { UserDoc } from "../../../shared/protocol.ts";
 import type { Point } from "../../../shared/geometry.ts";
-import { gridDistance } from "../../../shared/geometry.ts";
+import { measure } from "../../../shared/grid.ts";
 import { game } from "../game.ts";
 import type { Board, Tool } from "./board.ts";
 import { formatNumber } from "./board.ts";
@@ -107,7 +107,7 @@ export class Ruler implements Tool {
     for (let i = 1; i < points.length; i++) {
       const a = points[i - 1], b = points[i];
       g.moveTo(a.x, a.y).lineTo(b.x, b.y);
-      total += gridDistance(a, b, scene.grid.size, scene.grid.distance);
+      total += measure(this.#board.grid, a, b);
     }
     g.stroke({ width: 8 * scale, color: 0x000000, alpha: 0.5 });
     for (let i = 1; i < points.length; i++) g.moveTo(points[i - 1].x, points[i - 1].y).lineTo(points[i].x, points[i].y);
