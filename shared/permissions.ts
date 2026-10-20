@@ -1,6 +1,6 @@
 import { DOOR, DOOR_STATE, OWNERSHIP } from "./protocol.ts";
 import type {
-  ActiveEffectDoc, ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, FogExplorationDoc, ItemDoc, JournalEntryDoc,
+  ActiveEffectDoc, ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc,
   Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
@@ -53,6 +53,13 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
       return !(doc as AmbientLightDoc).hidden;
     case "Tile":
       return !(doc as TileDoc).hidden;
+    case "Drawing":
+      return !(doc as DrawingDoc).hidden || (doc as DrawingDoc).author === user._id;
+    case "Note": {
+      // A pin shows to whoever can see its journal entry; pins without an entry are GM notes.
+      const entry = docs.get("JournalEntry", (doc as NoteDoc).entryId ?? "") as JournalEntryDoc | undefined;
+      return !!entry && ownershipLevel(entry.ownership, user) >= OWNERSHIP.LIMITED;
+    }
     case "FogExploration":
       return (doc as FogExplorationDoc).user === user._id;
     case "Combatant":
@@ -108,6 +115,9 @@ export function checkWrite(
     }
     case "FogExploration":
       return (doc as FogExplorationDoc).user === user._id && (op !== "update" || !("user" in (changes ?? {}))) ? null : deny;
+    case "Drawing":
+      // Anyone may draw; authors edit and delete their own drawings.
+      return (doc as DrawingDoc).author === user._id ? null : deny;
     case "Combatant":
       // Owners may mark their own combatant defeated; initiative comes from server-side rolls.
       if (op !== "update" || !ownsActor((doc as CombatantDoc).actorId, user, docs)) return deny;

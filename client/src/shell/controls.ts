@@ -5,6 +5,7 @@ import type { Board, ToolName } from "../canvas/board.ts";
 import type { WallPreset, WallsLayer } from "../canvas/walls.ts";
 import type { LightsLayer } from "../canvas/lights.ts";
 import type { TilesLayer } from "../canvas/tiles.ts";
+import type { DrawingsLayer } from "../canvas/drawings.ts";
 import { confirmDialog } from "../ui/windows.ts";
 
 interface ToolDef {
@@ -28,7 +29,7 @@ interface GroupDef {
  * Scene controls, laid out like Foundry's: the left column picks a layer group, the right column
  * shows that group's tools. Hover a button for what it does.
  */
-export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer, tiles: TilesLayer): HTMLElement {
+export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer, tiles: TilesLayer, drawings: DrawingsLayer): HTMLElement {
   const el = h("nav#controls");
   let group = "tokens";
   let tool = "select";
@@ -52,6 +53,24 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
       tools: [
         { name: "select", icon: "fa-solid fa-expand", title: "Selecionar tokens — clique, Shift+clique, caixa; botão direito: HUD", run: use("tokens") },
         { name: "ruler", icon: "fa-solid fa-ruler", title: "Régua — arrastar para medir, Espaço: ponto intermédio", run: use("ruler") }
+      ]
+    },
+    {
+      name: "drawings", icon: "fa-solid fa-pencil", title: "Desenhos", gm: false,
+      tools: [
+        { name: "select", icon: "fa-solid fa-expand", title: "Selecionar desenhos — arrastar, duplo clique: configurar, Del: apagar", run: use("drawings", () => (drawings.tool = "select")) },
+        { name: "rectangle", icon: "fa-regular fa-square", title: "Retângulo", run: use("drawings", () => (drawings.tool = "rectangle")) },
+        { name: "ellipse", icon: "fa-regular fa-circle", title: "Elipse", run: use("drawings", () => (drawings.tool = "ellipse")) },
+        { name: "polygon", icon: "fa-solid fa-draw-polygon", title: "Polígono — clicar pontos, duplo clique ou Enter para fechar", run: use("drawings", () => (drawings.tool = "polygon")) },
+        { name: "freehand", icon: "fa-solid fa-signature", title: "Mão livre", run: use("drawings", () => (drawings.tool = "freehand")) },
+        { name: "text", icon: "fa-solid fa-font", title: "Texto — clicar no mapa", run: use("drawings", () => (drawings.tool = "text")) },
+        ...(game.isGM ? [{ name: "clear", icon: "fa-solid fa-trash", title: "Apagar todos os desenhos da cena", button: true, run: async () => { if (await confirmDialog("Apagar todos os desenhos desta cena?")) drawings.clearAll(); } }] : [])
+      ]
+    },
+    {
+      name: "notes", icon: "fa-solid fa-bookmark", title: "Notas", gm: true,
+      tools: [
+        { name: "select", icon: "fa-solid fa-expand", title: "Notas — arrasta uma entrada do Diário para o mapa; arrastar para mover, Del: apagar, duplo clique: abrir", run: use("notes") }
       ]
     },
     {
@@ -123,7 +142,7 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
   };
   // Keep in sync if something else changes the board tool (e.g. a scene change resets it).
   board.on("tool", () => {
-    const owner = ({ tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting", tiles: "tiles" } as const)[board.tool];
+    const owner = ({ tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting", tiles: "tiles", drawings: "drawings", notes: "notes" } as const)[board.tool];
     if (owner !== group) {
       group = owner;
       tool = board.tool === "ruler" ? "ruler" : "select";

@@ -347,6 +347,57 @@ insert("Tile", scenes.flatMap(s => {
   });
 }));
 
+// Foundry shape types: r rectangle, e ellipse, p polygon (smoothed polygons are freehand lines).
+const SHAPES: Record<string, string> = { r: "rectangle", e: "ellipse", p: "polygon", c: "ellipse" };
+insert("Drawing", scenes.flatMap(s => {
+  const { padX, padY } = sceneOffset(s);
+  return (s.drawings ?? []).map((d: Raw) => {
+    const raw = d.shape?.type ?? d.type ?? "r";
+    let type = SHAPES[raw] ?? "rectangle";
+    if (type === "polygon" && (d.bezierFactor ?? 0) > 0) type = "freehand";
+    if (d.text && !(d.shape?.width > 0)) type = "text";
+    return {
+      _id: d._id,
+      _parent: s._id,
+      author: d.author ?? "",
+      shape: { type, width: d.shape?.width ?? d.width ?? 0, height: d.shape?.height ?? d.height ?? 0, points: d.shape?.points ?? d.points?.flat?.() ?? [] },
+      x: (d.x ?? 0) - padX,
+      y: (d.y ?? 0) - padY,
+      rotation: d.rotation ?? 0,
+      strokeWidth: d.strokeWidth ?? 8,
+      strokeColor: d.strokeColor ?? "#ffffff",
+      strokeAlpha: d.strokeAlpha ?? 1,
+      fillColor: d.fillType ? d.fillColor ?? "#ffffff" : null,
+      fillAlpha: d.fillAlpha ?? 0.5,
+      text: d.text ?? "",
+      fontSize: d.fontSize ?? 48,
+      textColor: d.textColor ?? "#ffffff",
+      hidden: !!d.hidden,
+      locked: !!d.locked,
+      sort: d.sort ?? d.z ?? 0,
+      levels: keepLevels(s, d.levels)
+    };
+  });
+}));
+
+insert("Note", scenes.flatMap(s => {
+  const { padX, padY } = sceneOffset(s);
+  return (s.notes ?? []).map((n: Raw) => ({
+    _id: n._id,
+    _parent: s._id,
+    entryId: n.entryId ?? null,
+    x: (n.x ?? 0) - padX,
+    y: (n.y ?? 0) - padY,
+    icon: "📌",
+    iconSize: n.iconSize ?? 40,
+    text: n.text ?? "",
+    textColor: n.textColor ?? "#ffffff",
+    fontSize: n.fontSize ?? 24,
+    global: !!n.global,
+    levels: keepLevels(s, n.levels)
+  }));
+}));
+
 insert("Token", scenes.flatMap(s => {
   const { padX, padY } = sceneOffset(s);
   return (s.tokens ?? []).map((t: Raw) => ({

@@ -11,11 +11,11 @@
  */
 
 export type DocType =
-  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Wall" | "AmbientLight" | "FogExploration"
+  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Wall" | "AmbientLight" | "FogExploration"
   | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting";
 
 export const DOC_TYPES: readonly DocType[] = [
-  "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Wall", "AmbientLight", "FogExploration",
+  "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Wall", "AmbientLight", "FogExploration",
   "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting"
 ];
 
@@ -29,6 +29,8 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   Token: "Scene",
   Level: "Scene",
   Tile: "Scene",
+  Drawing: "Scene",
+  Note: "Scene",
   Wall: "Scene",
   AmbientLight: "Scene",
   FogExploration: "Scene",
@@ -191,6 +193,44 @@ export interface TileDoc extends BaseDoc {
   /** Foreground tiles fade to `alpha` when a token the viewer controls is underneath. */
   occlusion: { fade: boolean; alpha: number };
   /** Levels the tile appears on (empty = all). */
+  levels: string[];
+}
+
+/** A shape, text or freehand line drawn on the scene. Points are relative to (x, y). */
+export interface DrawingDoc extends BaseDoc {
+  author: string;
+  shape: { type: "rectangle" | "ellipse" | "polygon" | "freehand" | "text"; width: number; height: number; points: number[] };
+  x: number;
+  y: number;
+  rotation: number;
+  strokeWidth: number;
+  strokeColor: string;
+  strokeAlpha: number;
+  /** null = no fill. */
+  fillColor: string | null;
+  fillAlpha: number;
+  text: string;
+  fontSize: number;
+  textColor: string;
+  hidden: boolean;
+  locked: boolean;
+  sort: number;
+  levels: string[];
+}
+
+/** A map pin linked to a journal entry. */
+export interface NoteDoc extends BaseDoc {
+  entryId: string | null;
+  x: number;
+  y: number;
+  /** Emoji (or short text) shown as the pin. */
+  icon: string;
+  iconSize: number;
+  text: string;
+  textColor: string;
+  fontSize: number;
+  /** Visible even where the viewer has no line of sight. */
+  global: boolean;
   levels: string[];
 }
 

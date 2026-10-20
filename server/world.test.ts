@@ -158,4 +158,20 @@ test("walls only block tokens on their own level", () => {
   void rc;
 });
 
+test("drawings: anyone draws, authors edit their own; notes follow their journal entry", () => {
+  const { world, gm, alice, bob, scene } = setup();
+  const [c] = world.apply({ op: "create", type: "Drawing", parent: scene._id, data: [{ author: bob._id, shape: { type: "rectangle", width: 50, height: 50, points: [] } }] }, alice);
+  assert.equal(c.after!.author, alice._id, "author is forced to the creator");
+  world.apply({ op: "update", type: "Drawing", parent: scene._id, updates: [{ _id: c.after!._id, x: 10 }] }, alice);
+  assert.throws(() => world.apply({ op: "delete", type: "Drawing", parent: scene._id, ids: [c.after!._id] }, bob), /permissão/);
+  assert.throws(() => world.apply({ op: "create", type: "Drawing", parent: scene._id, data: [{ shape: { type: "blob", points: [] } }] }, alice), /inválido/);
+
+  const [entry] = world.createAsSystem("JournalEntry", [{ name: "Pista", ownership: { default: 0 } }]);
+  const [note] = world.createAsSystem("Note", [{ entryId: entry._id }], scene._id);
+  assert.equal(canSee("Note", note, alice, world), false);
+  world.apply({ op: "update", type: "JournalEntry", updates: [{ _id: entry._id, "ownership.default": 2 }] }, gm);
+  assert.equal(canSee("Note", note, alice, world), true);
+  assert.throws(() => world.apply({ op: "create", type: "Note", parent: scene._id, data: [{ entryId: entry._id }] }, alice), /permissão/);
+});
+
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

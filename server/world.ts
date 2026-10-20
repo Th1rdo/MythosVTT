@@ -200,6 +200,8 @@ export class World implements DocLookup {
       out.roll = null;
       if (typeof out.content !== "string" || !out.content.trim()) throw new Error("Mensagem vazia");
     }
+    if (type === "Drawing" && op === "create") out.author = user._id;
+    if (type === "Drawing" && op === "update") delete out.author;
     if (type === "FogExploration") {
       out.timestamp = Date.now();
       if (op === "create") {

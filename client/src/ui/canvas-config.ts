@@ -1,4 +1,4 @@
-import type { ActorDoc, AmbientLightDoc, LightConfig, TileDoc, TokenDoc, WallDoc } from "../../../shared/protocol.ts";
+import type { ActorDoc, AmbientLightDoc, DrawingDoc, JournalEntryDoc, LightConfig, NoteDoc, TileDoc, TokenDoc, WallDoc } from "../../../shared/protocol.ts";
 import { sceneLevels } from "../../../shared/levels.ts";
 import { game } from "../game.ts";
 import { h } from "../dom.ts";
@@ -264,6 +264,84 @@ export function openTileConfig(tileId: string, sceneId: string): void {
     lv.node,
     h("div.row.end", null,
       h("button.danger", { type: "button", onclick: () => { game.delete("Tile", tileId, sceneId); closeWindow(key); } }, "Apagar"),
+      h("button.primary", { type: "submit" }, "Guardar"))
+  ));
+}
+
+export function openDrawingConfig(drawingId: string, sceneId: string): void {
+  const key = `drawing-${drawingId}`;
+  const d = game.get<DrawingDoc>("Drawing", drawingId);
+  if (!d) return;
+  const body = openWindow(key, "Desenho", { width: 380 });
+  if (!body) return;
+  const strokeWidth = num(d.strokeWidth, { min: 0, max: 64 });
+  const strokeColor = h("input", { type: "color", value: d.strokeColor });
+  const strokeAlpha = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: String(d.strokeAlpha) });
+  const filled = h("input", { type: "checkbox", checked: !!d.fillColor });
+  const fillColor = h("input", { type: "color", value: d.fillColor ?? d.strokeColor });
+  const fillAlpha = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: String(d.fillAlpha) });
+  const text = h("textarea", { rows: 2 }, d.text);
+  const fontSize = num(d.fontSize, { min: 8, max: 256 });
+  const textColor = h("input", { type: "color", value: d.textColor });
+  const rotation = num(d.rotation, { min: 0, max: 359 });
+  const hidden = h("input", { type: "checkbox", checked: d.hidden });
+  const locked = h("input", { type: "checkbox", checked: d.locked });
+  body.append(h("form.stack", {
+    onsubmit: async (e: Event) => {
+      e.preventDefault();
+      await game.update("Drawing", {
+        _id: drawingId, strokeWidth: Number(strokeWidth.value) || 0, strokeColor: strokeColor.value, strokeAlpha: Number(strokeAlpha.value),
+        fillColor: filled.checked ? fillColor.value : null, fillAlpha: Number(fillAlpha.value), text: text.value,
+        fontSize: Math.max(8, Number(fontSize.value) || 48), textColor: textColor.value, rotation: Number(rotation.value) || 0,
+        hidden: hidden.checked, locked: locked.checked
+      }, sceneId);
+      closeWindow(key);
+    }
+  },
+    h("div.row", null, field("Traço", strokeWidth), field("Cor", strokeColor), field("Opacidade", strokeAlpha)),
+    h("div.row", null, h("label.row", null, filled, "Preenchido"), field("Cor", fillColor), field("Opacidade", fillAlpha)),
+    field("Texto", text),
+    h("div.row", null, field("Tamanho", fontSize), field("Cor do texto", textColor), field("Rotação", rotation)),
+    h("div.row", null, game.isGM && h("label.row", null, hidden, "Escondido"), h("label.row", null, locked, "Trancado")),
+    h("div.row.end", null,
+      h("button.danger", { type: "button", onclick: () => { game.delete("Drawing", drawingId, sceneId); closeWindow(key); } }, "Apagar"),
+      h("button.primary", { type: "submit" }, "Guardar"))
+  ));
+}
+
+export function openNoteConfig(noteId: string, sceneId: string): void {
+  const key = `note-${noteId}`;
+  const n = game.get<NoteDoc>("Note", noteId);
+  if (!n) return;
+  const body = openWindow(key, "Nota no mapa", { width: 380 });
+  if (!body) return;
+  const entries = game.all<JournalEntryDoc>("JournalEntry").sort((a, b) => a.name.localeCompare(b.name, "pt"));
+  const entry = select([["", "— nenhuma —"], ...entries.map(j => [j._id, j.name] as [string, string])], n.entryId ?? "");
+  const icon = h("input", { value: n.icon, maxLength: 4, style: { width: "64px" } });
+  const iconSize = num(n.iconSize, { min: 24, max: 200 });
+  const text = h("input", { value: n.text, placeholder: "(nome da entrada)" });
+  const fontSize = num(n.fontSize, { min: 8, max: 128 });
+  const textColor = h("input", { type: "color", value: n.textColor });
+  const global = h("input", { type: "checkbox", checked: n.global });
+  const lv = levelsField(sceneId, n.levels);
+  body.append(h("form.stack", {
+    onsubmit: async (e: Event) => {
+      e.preventDefault();
+      await game.update("Note", {
+        _id: noteId, entryId: entry.value || null, icon: icon.value.trim() || "📌", iconSize: Number(iconSize.value) || 40,
+        text: text.value, fontSize: Number(fontSize.value) || 24, textColor: textColor.value, global: global.checked, levels: lv.read()
+      }, sceneId);
+      closeWindow(key);
+    }
+  },
+    field("Entrada do diário", entry),
+    h("div.row", null, field("Ícone", icon), field("Tamanho", iconSize)),
+    h("div.row", null, field("Texto", text), field("Tamanho", fontSize), field("Cor", textColor)),
+    h("label.row", null, global, "Visível mesmo fora do campo de visão"),
+    lv.node,
+    h("p.muted.small", null, "Os jogadores só veem a nota se puderem ver a entrada do diário."),
+    h("div.row.end", null,
+      h("button.danger", { type: "button", onclick: () => { game.delete("Note", noteId, sceneId); closeWindow(key); } }, "Apagar"),
       h("button.primary", { type: "submit" }, "Guardar"))
   ));
 }

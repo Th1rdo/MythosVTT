@@ -42,6 +42,14 @@ function defaults(type: DocType): Record<string, unknown> {
       };
     case "Wall":
       return { c: [0, 0, 0, 0], move: 20, sight: 20, light: 20, sound: 20, dir: 0, door: 0, ds: 0, levels: [] };
+    case "Drawing":
+      return {
+        author: "", shape: { type: "rectangle", width: 100, height: 100, points: [] }, x: 0, y: 0, rotation: 0,
+        strokeWidth: 8, strokeColor: "#ffffff", strokeAlpha: 1, fillColor: null, fillAlpha: 0.2,
+        text: "", fontSize: 48, textColor: "#ffffff", hidden: false, locked: false, sort: 0, levels: []
+      };
+    case "Note":
+      return { entryId: null, x: 0, y: 0, icon: "📌", iconSize: 40, text: "", textColor: "#ffffff", fontSize: 24, global: false, levels: [] };
     case "Level":
       return { name: "Nível", elevation: { bottom: 0, top: null }, background: { src: null, color: "#999999" }, foreground: { src: null }, sort: 0 };
     case "Tile":
@@ -72,6 +80,8 @@ const NUMBER_FIELDS: Partial<Record<DocType, string[]>> = {
   Combat: ["round", "sort"],
   Tile: ["x", "y", "width", "height", "rotation", "alpha", "elevation", "sort"],
   Level: ["sort"],
+  Drawing: ["x", "y", "rotation", "strokeWidth", "fontSize", "sort"],
+  Note: ["x", "y", "iconSize", "fontSize"],
   Scene: ["width", "height", "sort"],
   JournalEntry: ["sort"]
 };
@@ -81,6 +91,7 @@ const MAX_FOG_IMAGE = 900_000;
 const SENSES = new Set([0, 10, 20]);
 const CHANGE_TYPES = new Set(["add", "multiply", "override", "upgrade", "downgrade"]);
 const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene"]);
+const DRAWING_TYPES = new Set(["rectangle", "ellipse", "polygon", "freehand", "text"]);
 
 /** Fill defaults for a new document. Throws on invalid shapes. */
 export function prepareCreate(type: DocType, data: Record<string, unknown>, id: string, parent?: string): BaseDoc {
@@ -121,6 +132,12 @@ export function validate(type: DocType, doc: BaseDoc): void {
     }
   }
   if (type === "Folder" && !FOLDER_TYPES.has(doc.type as string)) throw new Error("Tipo de pasta inválido");
+  if (type === "Drawing") {
+    const shape = doc.shape as { type?: string; points?: unknown };
+    if (!DRAWING_TYPES.has(shape?.type as string) || !Array.isArray(shape.points) || shape.points.length > 20_000
+      || !shape.points.every(n => typeof n === "number" && Number.isFinite(n))) throw new Error("Desenho inválido");
+    if (typeof doc.text === "string" && doc.text.length > 5000) throw new Error("Texto demasiado longo");
+  }
   if (type === "FogExploration") {
     if (typeof doc.explored !== "string" || doc.explored.length > MAX_FOG_IMAGE) throw new Error("Nevoeiro inválido");
     if (doc.explored && !/^data:image\/(webp|png);base64,/.test(doc.explored)) throw new Error("Nevoeiro: formato de imagem inválido");

@@ -199,8 +199,15 @@ export class Hub {
               if (item._parent === c.after!._id && canSee("Item", item, user, this.#world)) push("create", "Item", item);
             }
           }
+          // A journal entry that just became visible reveals its map notes.
+          if (!sawBefore && c.type === "JournalEntry") {
+            for (const n of this.#world.all("Note")) if ((n as { entryId?: string }).entryId === c.after!._id) push("create", "Note", n);
+          }
         } else if (sawBefore) {
           push("delete", c.type, c.before!._id);
+          if (c.type === "JournalEntry") {
+            for (const n of this.#world.all("Note")) if ((n as { entryId?: string }).entryId === c.before!._id) push("delete", "Note", n._id);
+          }
         }
       }
       for (const e of events.values()) socket.emit("doc", e);

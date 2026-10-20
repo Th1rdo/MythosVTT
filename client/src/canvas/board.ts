@@ -20,7 +20,7 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const FONT = "Inter, system-ui, sans-serif";
 
-export type ToolName = "tokens" | "walls" | "lights" | "ruler" | "tiles";
+export type ToolName = "tokens" | "walls" | "lights" | "ruler" | "tiles" | "drawings" | "notes";
 
 /** A canvas tool receives pointer input that doesn't land on a token. */
 export interface Tool {
@@ -117,7 +117,8 @@ export class Board {
     this.app.canvas.addEventListener("contextmenu", e => e.preventDefault());
     this.app.canvas.addEventListener("dblclick", e => this.#onDoubleClick(e));
     this.app.canvas.addEventListener("dragover", e => {
-      if (e.dataTransfer?.types.includes("application/x-mesa-actor")) e.preventDefault();
+      const types = e.dataTransfer?.types ?? [];
+      if (types.includes("application/x-mesa-actor") || types.includes("application/x-mesa-doc")) e.preventDefault();
     });
     this.app.canvas.addEventListener("drop", e => this.#onDrop(e));
     window.addEventListener("keydown", e => this.#onKey(e));
