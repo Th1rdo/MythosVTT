@@ -1,13 +1,14 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, ChatMessageDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, ChatMessageDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
 import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE } from "../shared/protocol.ts";
 import { canSee } from "../shared/permissions.ts";
 import { roll } from "../shared/dice.ts";
 import { runCombatAction } from "./combat.ts";
 import { runPlaylistAction } from "./playlists.ts";
+import { runTableAction } from "./tables.ts";
 import { processRegionEvents } from "./regions.ts";
 import type { Emit } from "./regions.ts";
 import type { Change, World } from "./world.ts";
@@ -22,7 +23,7 @@ export function publicDoc(type: DocType, doc: BaseDoc, viewer: UserDoc): BaseDoc
     return { ...rest, hasPassword: !!passwordHash };
   }
   if (type === "ChatMessage" && viewer.role !== "gm" && (doc as ChatMessageDoc).blind) {
-    return { ...doc, roll: null, inline: [], content: "" };
+    return { ...doc, roll: null, inline: [], content: "", table: null };
   }
   if (type === "Wall" && viewer.role !== "gm" && (doc as WallDoc).door === DOOR.SECRET) {
     return { ...doc, door: DOOR.NONE, ds: DOOR_STATE.CLOSED };
@@ -142,6 +143,17 @@ export class Hub {
       if (!me) return ack?.({ ok: false, error: "Sessão inválida" });
       try {
         this.#broadcast(runPlaylistAction(this.#world, me, action), me._id);
+        ack?.({ ok: true, result: [] });
+      } catch (err) {
+        ack?.({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    socket.on("table", (action: TableAction, ack?: Ack<DocResponse>) => {
+      const me = this.#user(socket);
+      if (!me) return ack?.({ ok: false, error: "Sessão inválida" });
+      try {
+        this.#broadcast(runTableAction(this.#world, me, action, secureRandomInt), me._id);
         ack?.({ ok: true, result: [] });
       } catch (err) {
         ack?.({ ok: false, error: (err as Error).message });

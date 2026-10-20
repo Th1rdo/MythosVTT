@@ -87,11 +87,15 @@ function defaults(type: DocType): Record<string, unknown> {
     case "Combatant":
       return { actorId: null, tokenId: null, name: "", img: null, initiative: null, hidden: false, defeated: false };
     case "ChatMessage":
-      return { author: "", speaker: { actor: null, alias: "" }, content: "", html: false, flavor: null, roll: null, whisper: null, blind: false, inline: [], timestamp: 0 };
+      return { author: "", speaker: { actor: null, alias: "" }, content: "", html: false, flavor: null, roll: null, whisper: null, blind: false, inline: [], table: null, timestamp: 0 };
     case "JournalEntry":
       return { name: "Nova entrada", content: "", ownership: { default: OWNERSHIP.NONE }, folder: null, sort: 0 };
     case "Setting":
       return { key: "", value: null };
+    case "RollTable":
+      return { name: "Nova tabela", img: null, description: "", formula: "", replacement: true, displayRoll: true, folder: null, sort: 0, ownership: { default: OWNERSHIP.NONE } };
+    case "TableResult":
+      return { type: "text", name: "", img: null, description: "", document: null, weight: 1, range: [1, 1], drawn: false };
     case "Macro":
       return { name: "Nova macro", type: "chat", author: "", img: null, command: "", folder: null, sort: 0, ownership: { default: OWNERSHIP.NONE } };
   }
@@ -110,14 +114,17 @@ const NUMBER_FIELDS: Partial<Record<DocType, string[]>> = {
   Note: ["x", "y", "iconSize", "fontSize"],
   Scene: ["width", "height", "sort"],
   JournalEntry: ["sort"],
-  Macro: ["sort"]
+  Macro: ["sort"],
+  RollTable: ["sort"],
+  TableResult: ["weight"]
 };
 
 const MAX_CONTENT = 200_000;
 const MAX_FOG_IMAGE = 900_000;
 const SENSES = new Set([0, 10, 20]);
 const CHANGE_TYPES = new Set(["add", "multiply", "override", "upgrade", "downgrade"]);
-const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro"]);
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro", "RollTable"]);
+const LINK_TYPES = new Set(["Actor", "Item", "JournalEntry", "RollTable", "Scene", "Macro", "Playlist"]);
 const AUDIO_CHANNELS = new Set(["music", "environment", "interface"]);
 const SOUND_EFFECTS = new Set([null, "lowpass", "highpass", "reverb"]);
 const DRAWING_TYPES = new Set(["rectangle", "ellipse", "polygon", "freehand", "text"]);
@@ -188,6 +195,15 @@ export function validate(type: DocType, doc: BaseDoc): void {
       || !shape.points.every(n => typeof n === "number" && Number.isFinite(n))) throw new Error("Desenho inválido");
     if (typeof doc.text === "string" && doc.text.length > 5000) throw new Error("Texto demasiado longo");
   }
+  if (type === "TableResult") {
+    const r = doc.range as unknown;
+    if (!Array.isArray(r) || r.length !== 2 || !r.every(n => Number.isInteger(n)) || r[1] < r[0]) throw new Error("Resultado: intervalo inválido");
+    if (!Number.isInteger(doc.weight) || (doc.weight as number) < 1) throw new Error("Resultado: peso tem de ser ≥ 1");
+    if (doc.type !== "text" && doc.type !== "document") throw new Error("Resultado: tipo inválido");
+    const d = doc.document as { type?: string; id?: unknown } | null;
+    if (d !== null && (!LINK_TYPES.has(d?.type as string) || typeof d?.id !== "string")) throw new Error("Resultado: ligação inválida");
+  }
+  if (type === "RollTable" && typeof doc.formula !== "string") throw new Error("Tabela: fórmula inválida");
   if (type === "Macro") {
     if (doc.type !== "chat" && doc.type !== "script") throw new Error("Macro: tipo inválido");
     if (typeof doc.command !== "string") throw new Error("Macro: comando inválido");

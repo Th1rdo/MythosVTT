@@ -1,4 +1,5 @@
-import type { ActorDoc, HotbarEntry, ItemDoc, JournalEntryDoc, MacroDoc } from "../../../shared/protocol.ts";
+import type { ActorDoc, HotbarEntry, ItemDoc, JournalEntryDoc, MacroDoc, RollTableDoc } from "../../../shared/protocol.ts";
+import { drawTable } from "../ui/tables.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { macroLevel } from "../../../shared/permissions.ts";
 import { game, toast } from "../game.ts";
@@ -34,7 +35,7 @@ export function hotbar(): HTMLElement {
 
   const entryInfo = (e: HotbarEntry | null | undefined) => {
     if (!e) return null;
-    const doc = game.get<ActorDoc | ItemDoc | JournalEntryDoc | MacroDoc>(e.type, e.id);
+    const doc = game.get<ActorDoc | ItemDoc | JournalEntryDoc | MacroDoc | RollTableDoc>(e.type, e.id);
     return doc ? { doc, img: (doc as ActorDoc).img ?? null, name: doc.name } : null;
   };
 
@@ -46,6 +47,7 @@ export function hotbar(): HTMLElement {
       return;
     }
     if (e.type === "Macro") return executeMacro(info.doc as MacroDoc);
+    if (e.type === "RollTable") return drawTable(e.id);
     if (e.type === "Actor") return openSheet(e.id);
     if (e.type === "JournalEntry") return openJournal(e.id);
     const item = info.doc as ItemDoc;
@@ -74,7 +76,7 @@ export function hotbar(): HTMLElement {
     else if (actor) save(slot, { type: "Actor", id: actor });
     else if (doc) {
       const { type, id } = JSON.parse(doc);
-      if (type === "JournalEntry" || type === "Actor" || type === "Item" || type === "Macro") save(slot, { type, id });
+      if (type === "JournalEntry" || type === "Actor" || type === "Item" || type === "Macro" || type === "RollTable") save(slot, { type, id });
     }
   };
 
@@ -148,7 +150,7 @@ export function hotbar(): HTMLElement {
   });
   audio.onChange(render);
   game.on("User", ev => ev.ids.includes(game.userId) && render());
-  for (const t of ["Item", "Actor", "JournalEntry", "Macro"] as const) game.on(t, render);
+  for (const t of ["Item", "Actor", "JournalEntry", "Macro", "RollTable"] as const) game.on(t, render);
   render();
   return el;
 }

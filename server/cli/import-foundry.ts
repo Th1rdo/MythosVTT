@@ -251,7 +251,7 @@ insert("User", users.map(u => ({
   passwordHash: null
 })));
 
-const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro"]);
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro", "RollTable"]);
 const folders = (await readCollection("folders")).filter(f => FOLDER_TYPES.has(f.type));
 const folderIds = new Set(folders.map(f => f._id));
 const folderOf = (id: unknown) => (typeof id === "string" && folderIds.has(id) ? id : null);
@@ -574,6 +574,31 @@ insert("PlaylistSound", playlists.flatMap(p => (p.sounds ?? []).map((t: Raw) => 
   repeat: !!t.repeat, volume: unit(t.volume, 0.5),
   fade: typeof t.fade === "number" && t.fade > 0 ? Math.min(60_000, t.fade) : null, sort: t.sort ?? 0
 }))));
+
+// Roll tables. Results point at world documents by UUID ("Actor.abc…"); compendium links are dropped.
+const LINKABLE = new Set(["Actor", "Item", "JournalEntry", "RollTable", "Scene", "Macro", "Playlist"]);
+function resultLink(r: Raw): { type: string; id: string } | null {
+  const uuid = typeof r.documentUuid === "string" ? r.documentUuid : r.documentCollection && r.documentId ? `${r.documentCollection}.${r.documentId}` : "";
+  const m = /^(\w+)\.([A-Za-z0-9]{16})$/.exec(uuid);
+  return m && LINKABLE.has(m[1]) ? { type: m[1], id: m[2] } : null;
+}
+const tables = await readCollection("tables");
+insert("RollTable", tables.map(t => ({
+  _id: t._id, name: t.name ?? "Tabela", img: asset(t.img), description: typeof t.description === "string" ? t.description : "",
+  formula: typeof t.formula === "string" ? t.formula : "", replacement: t.replacement ?? true, displayRoll: t.displayRoll ?? true,
+  folder: folderOf(t.folder), sort: t.sort ?? 0, ownership: t.ownership ?? { default: 0 }
+})));
+insert("TableResult", tables.flatMap(t => (t.results ?? []).map((r: Raw) => {
+  const document = resultLink(r);
+  const range = Array.isArray(r.range) && r.range.length === 2 ? r.range.map((n: unknown) => Math.round(Number(n) || 1)) : [1, 1];
+  return {
+    _id: r._id, _parent: t._id, type: document ? "document" : "text",
+    // v13 split "text" into name + description; older results only have text.
+    name: r.name ?? (document ? "" : r.text ?? ""), description: r.description ?? (document ? r.text ?? "" : ""),
+    img: asset(r.img), document, weight: Math.max(1, Math.round(Number(r.weight) || 1)),
+    range: [Math.min(range[0], range[1]), Math.max(range[0], range[1])], drawn: !!r.drawn
+  };
+})));
 
 // Macros keep their command as-is: Foundry script macros call Foundry's API and need adapting to Mesa's.
 insert("Macro", macros.map(m => ({

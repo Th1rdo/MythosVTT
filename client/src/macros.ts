@@ -1,4 +1,5 @@
-import type { ActorDoc, AudioChannel, MacroDoc, RunMacroEvent, TokenDoc, UserDoc } from "../../shared/protocol.ts";
+import type { ActorDoc, AudioChannel, MacroDoc, RollMode, RollTableDoc, RunMacroEvent, TokenDoc, UserDoc } from "../../shared/protocol.ts";
+import { drawTable } from "./ui/tables.ts";
 import { canRunMacro } from "../../shared/permissions.ts";
 import { game, toast } from "./game.ts";
 import type { Board } from "./canvas/board.ts";
@@ -23,6 +24,8 @@ export interface MacroApi {
   /** Play a sound here, and for everyone else too if you're the GM and `everyone` is on. */
   playAudio: (src: string, opts?: { volume?: number; channel?: AudioChannel; loop?: boolean }, everyone?: boolean) => void;
   openSheet: (actorId: string) => void;
+  /** Draw from a roll table by name or id (posts the result to the chat). */
+  drawTable: (nameOrId: string, opts?: { count?: number; mode?: RollMode }) => Promise<boolean>;
 }
 
 let board: Board | null = null;
@@ -101,7 +104,15 @@ function api(speaker: Speaker): MacroApi {
       audio.playOnce(src, opts);
       if (everyone && game.isGM) game.socket.emit("playAudio", { src, ...opts });
     },
-    openSheet: id => openSheet(id)
+    openSheet: id => openSheet(id),
+    drawTable: async (nameOrId, opts = {}) => {
+      const t = game.get<RollTableDoc>("RollTable", nameOrId) ?? game.all<RollTableDoc>("RollTable").find(x => x.name === nameOrId);
+      if (!t) {
+        toast(`Não há tabela "${nameOrId}"`, "error");
+        return false;
+      }
+      return drawTable(t._id, opts.count, opts.mode);
+    }
   };
 }
 

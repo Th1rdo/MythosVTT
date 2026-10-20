@@ -9,7 +9,7 @@ import { executeMacro } from "../macros.ts";
 
 const SCRIPT_HELP = "Script em JavaScript (corre no teu browser, pode usar await). Disponível: speaker, actor, token, character, scope e mesa " +
   "(mesa.game, mesa.board, mesa.selected(), mesa.chat(texto), mesa.roll(fórmula, descrição), mesa.notify(texto), " +
-  "mesa.playAudio(ficheiro, {volume, channel}), mesa.openSheet(idAtor), mesa.audio).";
+  "mesa.playAudio(ficheiro, {volume, channel}), mesa.drawTable(nome, {count, mode}), mesa.openSheet(idAtor), mesa.audio).";
 const CHAT_HELP = "Texto enviado para o chat como se o escrevesses. Várias linhas começadas por \"/\" correm uma a uma (ex.: /r 1d20).";
 
 /** An image path shows as a picture; anything else (an emoji) as text; nothing as the type's icon. */

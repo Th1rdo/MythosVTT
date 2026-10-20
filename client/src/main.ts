@@ -16,6 +16,7 @@ import { PlaylistPlayer } from "./audio/playlists.ts";
 import { audio } from "./audio/engine.ts";
 import { playlistsPanel } from "./ui/playlists.ts";
 import { macrosPanel } from "./ui/macros.ts";
+import { tablesPanel } from "./ui/tables.ts";
 import { onRunMacro, setMacroBoard } from "./macros.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -124,6 +125,7 @@ async function startGame(): Promise<void> {
     { id: "actors", icon: "fa-solid fa-user", label: "Atores", make: actorsPanel },
     { id: "items", icon: "fa-solid fa-suitcase", label: "Itens", make: itemsPanel },
     { id: "journal", icon: "fa-solid fa-book-open", label: "Diário", make: journalPanel },
+    { id: "tables", icon: "fa-solid fa-table-list", label: "Tabelas", make: tablesPanel },
     { id: "macros", icon: "fa-solid fa-code", label: "Macros", make: macrosPanel },
     { id: "playlists", icon: "fa-solid fa-music", label: "Playlists", make: () => playlistsPanel(playlists) },
     { id: "settings", icon: "fa-solid fa-gears", label: "Definições", make: settingsPanel }

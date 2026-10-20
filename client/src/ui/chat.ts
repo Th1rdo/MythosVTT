@@ -1,4 +1,5 @@
-import type { ActorDoc, ChatMessageDoc, DieResult, RollMode, RollResult, RollTerm, UserDoc } from "../../../shared/protocol.ts";
+import type { BaseDoc, ActorDoc, ChatMessageDoc, DieResult, RollMode, RollResult, RollTerm, TableDraw, UserDoc } from "../../../shared/protocol.ts";
+import { linkChip } from "./links.ts";
 import { replaceFormulaData } from "../../../shared/dice.ts";
 import { game, toast } from "../game.ts";
 import { avatar, h, safeHtml, timeLabel } from "../dom.ts";
@@ -101,8 +102,22 @@ export function messageView(m: ChatMessageDoc): HTMLElement {
     ),
     m.flavor && h("div.flavor", null, m.flavor),
     body,
-    m.roll && rollView(m.roll)
+    m.roll && rollView(m.roll),
+    m.table && tableCard(m.table)
   );
+}
+
+/** What a table draw produced: each result with its picture, text and linked document. */
+function tableCard(t: TableDraw): HTMLElement {
+  return h("ul.table-draw", null, t.results.map(r => h("li", null,
+    r.img ? avatar(r.img, r.name, 36) : null,
+    h("div.grow", null,
+      h("div.row.wrap", null,
+        r.document ? linkChip(r.document.type, r.document.id, r.name) : h("strong", null, r.name || "—"),
+        r.document && r.name && game.get<BaseDoc & { name: string }>(r.document.type, r.document.id)?.name !== r.name ? h("span", null, r.name) : null,
+        r.roll !== null && t.results.length > 1 ? h("span.muted.small", null, `(${r.roll})`) : null,
+        r.from ? h("span.muted.small", null, `de ${r.from}`) : null),
+      r.description ? h("div.small", null, r.description.includes("<") ? safeHtml(r.description) : r.description) : null))));
 }
 
 /** Text with [[formula]] markers turned into result chips (hover for the dice). */

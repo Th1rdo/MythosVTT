@@ -12,11 +12,11 @@
 
 export type DocType =
   | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "AmbientSound" | "FogExploration"
-  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro";
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro" | "RollTable" | "TableResult";
 
 export const DOC_TYPES: readonly DocType[] = [
   "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "AmbientSound", "FogExploration",
-  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro"
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro", "RollTable", "TableResult"
 ];
 
 /** Child types whose parent is optional (world-level Items live in the Items directory). */
@@ -37,7 +37,8 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   AmbientSound: "Scene",
   FogExploration: "Scene",
   Combatant: "Combat",
-  PlaylistSound: "Playlist"
+  PlaylistSound: "Playlist",
+  TableResult: "RollTable"
 };
 
 export interface BaseDoc {
@@ -81,7 +82,7 @@ export interface PrototypeToken {
 }
 
 export interface HotbarEntry {
-  type: "Item" | "Actor" | "JournalEntry" | "Macro";
+  type: "Item" | "Actor" | "JournalEntry" | "Macro" | "RollTable";
   id: string;
 }
 
@@ -137,7 +138,7 @@ export interface ActiveEffectDoc extends BaseDoc, Omit<EffectData, "_id"> {}
 export interface FolderDoc extends BaseDoc {
   name: string;
   /** Which directory the folder belongs to. */
-  type: "Actor" | "Item" | "JournalEntry" | "Scene" | "Playlist" | "Macro";
+  type: "Actor" | "Item" | "JournalEntry" | "Scene" | "Playlist" | "Macro" | "RollTable";
   folder: string | null;
   color: string | null;
   sort: number;
@@ -558,6 +559,8 @@ export interface ChatMessageDoc extends BaseDoc {
   blind: boolean;
   /** Rolls written inline as [[formula]] in the text, in order. */
   inline: RollResult[];
+  /** A draw from a roll table: what came out. */
+  table: TableDraw | null;
   timestamp: number;
 }
 
@@ -586,6 +589,53 @@ export interface MacroDoc extends BaseDoc {
   /** LIMITED lets others see and run it; OWNER lets them edit it. */
   ownership: Ownership;
 }
+
+/** Documents a table result (or chat card) can point at. */
+export type LinkType = "Actor" | "Item" | "JournalEntry" | "RollTable" | "Scene" | "Macro" | "Playlist";
+export const LINK_TYPES: readonly LinkType[] = ["Actor", "Item", "JournalEntry", "RollTable", "Scene", "Macro", "Playlist"];
+
+/**
+ * A random table. Each result covers a range of the formula's totals; with no formula, the range comes
+ * from the results' weights and the formula is 1d(total weight). Without replacement, drawn results
+ * stay out until the table is reset.
+ */
+export interface RollTableDoc extends BaseDoc {
+  name: string;
+  img: string | null;
+  description: string;
+  /** Empty = computed from the weights when drawing. */
+  formula: string;
+  replacement: boolean;
+  displayRoll: boolean;
+  folder: string | null;
+  sort: number;
+  /** LIMITED: listed; OBSERVER: see results and draw; OWNER: edit. */
+  ownership: Ownership;
+}
+
+export interface TableResultDoc extends BaseDoc {
+  type: "text" | "document";
+  name: string;
+  img: string | null;
+  description: string;
+  /** For document results (a nested RollTable is drawn from in turn). */
+  document: { type: LinkType; id: string } | null;
+  weight: number;
+  range: [number, number];
+  drawn: boolean;
+}
+
+export interface TableDraw {
+  tableId: string;
+  name: string;
+  img: string | null;
+  results: { name: string; description: string; img: string | null; document: { type: LinkType; id: string } | null; roll: number | null; from: string | null }[];
+}
+
+/** Server-side table actions (socket event `table`). */
+export type TableAction =
+  | { action: "draw"; tableId: string; count?: number; mode?: RollMode }
+  | { action: "reset" | "normalize"; tableId: string };
 
 export interface SettingDoc extends BaseDoc {
   key: string;

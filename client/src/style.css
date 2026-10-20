@@ -387,3 +387,25 @@ textarea.macro-command.code { font-family: ui-monospace, "SF Mono", Menlo, Conso
 .context-menu button { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 12px; background: none; border: none; color: var(--text); text-align: left; border-radius: 0; }
 .context-menu button:hover { background: var(--control-hover); }
 .context-menu i { width: 16px; color: var(--muted); }
+
+/* ---- Roll tables ---- */
+.table-head { display: flex; gap: 12px; align-items: flex-start; }
+.table-head h3 { margin: 0 0 4px; }
+.table-img { padding: 0; border: 1px solid var(--control-border); background: none; border-radius: 6px; overflow: hidden; line-height: 0; }
+.table-name { font-size: 16px; font-weight: 700; }
+.table-settings { align-items: flex-end; gap: 8px 14px; margin: 8px 0; }
+.table-settings .field { min-width: 200px; }
+.table-results { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.table-results th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; padding: 2px 4px; }
+.table-results td { padding: 3px 4px; border-top: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
+.table-results td.grow { width: 100%; }
+.table-results td.grow input { width: 100%; }
+.table-results td.range { white-space: nowrap; }
+.table-results tr.drawn td { opacity: 0.5; }
+.table-results tr.drop-target td { background: rgba(238, 155, 58, 0.12); }
+input.num { width: 58px; }
+.doc-link { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 4px; background: #2b2233; color: #e4d3ff; cursor: pointer; text-decoration: none; font-weight: 600; }
+.doc-link.broken { opacity: 0.5; text-decoration: line-through; }
+.doc-link i { font-size: 11px; }
+.table-draw { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.table-draw li { display: flex; gap: 8px; align-items: flex-start; background: #0f0f14; border-radius: 6px; padding: 6px 8px; }

@@ -1,6 +1,6 @@
 import { DOOR, DOOR_STATE, OWNERSHIP, REGION_VISIBILITY } from "./protocol.ts";
 import type {
-  ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, MacroDoc, PlaylistDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
+  ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, MacroDoc, PlaylistDoc, RollTableDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
   Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
@@ -92,6 +92,12 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
       return (doc as FogExplorationDoc).user === user._id;
     case "Macro":
       return canRunMacro(doc as MacroDoc, user);
+    case "RollTable":
+      return ownershipLevel((doc as RollTableDoc).ownership, user) >= OWNERSHIP.LIMITED;
+    case "TableResult": {
+      const table = docs.get("RollTable", doc._parent ?? "") as RollTableDoc | undefined;
+      return !!table && ownershipLevel(table.ownership, user) >= OWNERSHIP.OBSERVER;
+    }
     case "Combatant":
       return !(doc as CombatantDoc).hidden || ownsActor((doc as CombatantDoc).actorId, user, docs);
     default:
@@ -160,6 +166,13 @@ export function checkWrite(
       if (op === "create") return (doc as MacroDoc).author === user._id ? null : deny;
       if (macroLevel(doc as MacroDoc, user) < OWNERSHIP.OWNER) return deny;
       return op === "update" && "author" in (changes ?? {}) ? deny : null;
+    }
+    case "RollTable":
+      if (op !== "update" || ownershipLevel((doc as RollTableDoc).ownership, user) < OWNERSHIP.OWNER) return deny;
+      return "ownership" in (changes ?? {}) ? deny : null;
+    case "TableResult": {
+      const table = docs.get("RollTable", doc._parent ?? "") as RollTableDoc | undefined;
+      return table && ownershipLevel(table.ownership, user) >= OWNERSHIP.OWNER ? null : deny;
     }
     case "Playlist":
       // Owners run and edit their playlist; only the GM creates playlists or changes who owns them.

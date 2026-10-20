@@ -76,7 +76,9 @@ export function prompt(title: string, fields: { name: string; label: string; val
     const key = `prompt-${Math.random()}`;
     let done = false;
     const body = openWindow(key, title, { width: 340, onClose: () => !done && resolve(null) })!;
-    const inputs = fields.map(f => h("input", { name: f.name, value: f.value ?? "", type: f.type ?? "text" }));
+    const inputs = fields.map(f => f.type === "textarea"
+      ? h("textarea", { name: f.name, value: f.value ?? "", rows: 10 })
+      : h("input", { name: f.name, value: f.value ?? "", type: f.type ?? "text" }));
     const form = h("form.stack", {
       onsubmit: (e: Event) => {
         e.preventDefault();

@@ -72,9 +72,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer: playlists, tracks, ambient sounds (untested against real Foundry data — claude-tests has none)
 - ⬜ Drag a track onto the map to make an ambient sound; sound-effect previews in the config; playlist bulk-import dialog filters; auto-preload of the next track; audio analyser (band levels for modules)
 
-## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`)*
+## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`, tables `ev_9d6d3877…`)*
 - ⬜ Compendium packs (create, browse, import), import OP system packs
-- ⬜ Roll tables (draw, results to chat)
+- ✅ Roll tables (REA `ev_9d6d3877…`): Tables tab + sheet (edit in place, paste a list, weights → ranges via Normalizar, formula or 1dN), text or document results (drag a document onto a result), nested tables, with/without replacement + reset, draw N at once, roll modes; server-side draws posted as a chat card with links; hotbar + `mesa.drawTable`; importer
+- ⬜ Roll tables: result images per row in the sheet, compendium tables, "draw from table" region behaviour
 - ⬜ Cards (decks, hands, piles)
 - ✅ Macros (chat + script): Macros tab, config window (icon, command, sharing none/run/edit), author always owns; players make their own
 - ✅ Hotbar macros: click an empty slot to write one, drop from the directory, keys 1–0, right-click menu (edit/remove/delete), drag between slots

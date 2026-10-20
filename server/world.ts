@@ -204,6 +204,7 @@ export class World implements DocLookup {
       out.html = false;
       out.roll = null;
       out.blind = false;
+      out.table = null;
       if (typeof out.content !== "string" || !out.content.trim()) throw new Error("Mensagem vazia");
       // [[1d20+2]] (or [[/r 1d20]]) in the text rolls on the server; the text keeps the markers.
       const inline = [...out.content.matchAll(/\[\[(?:\/r(?:oll)?\s+)?([^\]]+)\]\]/gi)].slice(0, MAX_INLINE);
