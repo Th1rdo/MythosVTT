@@ -102,6 +102,8 @@ function defaults(type: DocType): Record<string, unknown> {
       return { name: "Nova tabela", img: null, description: "", formula: "", replacement: true, displayRoll: true, folder: null, sort: 0, ownership: { default: OWNERSHIP.NONE } };
     case "TableResult":
       return { type: "text", name: "", img: null, description: "", document: null, weight: 1, range: [1, 1], drawn: false };
+    case "Compendium":
+      return { name: "Novo compêndio", type: "Item", visibility: 0, locked: false, folders: [], source: null, sort: 0 };
     case "Macro":
       return { name: "Nova macro", type: "chat", author: "", img: null, command: "", folder: null, sort: 0, ownership: { default: OWNERSHIP.NONE } };
   }
@@ -220,6 +222,11 @@ export function validate(type: DocType, doc: BaseDoc): void {
     if (!Number.isInteger(level) || (level as number) < 1 || (level as number) > 6) throw new Error("Página: nível do título inválido");
   }
   if (type === "JournalEntry" && !Array.isArray(doc.categories)) throw new Error("Diário: categorias inválidas");
+  if (type === "Compendium") {
+    if (!["Actor", "Item", "JournalEntry", "RollTable", "Macro", "Playlist", "Scene", "Adventure"].includes(doc.type as string)) throw new Error("Compêndio: tipo inválido");
+    if (doc.visibility !== 0 && doc.visibility !== 1) throw new Error("Compêndio: visibilidade inválida");
+    if (!Array.isArray(doc.folders)) throw new Error("Compêndio: pastas inválidas");
+  }
   if (type === "Macro") {
     if (doc.type !== "chat" && doc.type !== "script") throw new Error("Macro: tipo inválido");
     if (typeof doc.command !== "string") throw new Error("Macro: comando inválido");

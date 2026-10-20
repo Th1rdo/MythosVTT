@@ -18,6 +18,7 @@ import { audio } from "./audio/engine.ts";
 import { playlistsPanel } from "./ui/playlists.ts";
 import { macrosPanel } from "./ui/macros.ts";
 import { tablesPanel } from "./ui/tables.ts";
+import { compendiaPanel } from "./ui/compendia.ts";
 import { onRunMacro, setMacroBoard } from "./macros.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -131,6 +132,7 @@ async function startGame(): Promise<void> {
     { id: "tables", icon: "fa-solid fa-table-list", label: "Tabelas", make: tablesPanel },
     { id: "macros", icon: "fa-solid fa-code", label: "Macros", make: macrosPanel },
     { id: "playlists", icon: "fa-solid fa-music", label: "Playlists", make: () => playlistsPanel(playlists) },
+    { id: "compendia", icon: "fa-solid fa-book-atlas", label: "Compêndios", make: compendiaPanel },
     { id: "settings", icon: "fa-solid fa-gears", label: "Definições", make: settingsPanel }
   ];
   stage.append(

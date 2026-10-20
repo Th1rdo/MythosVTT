@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, PackAction, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
 import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE, OWNERSHIP } from "../shared/protocol.ts";
 import { canSee, ownershipLevel, pageLevel } from "../shared/permissions.ts";
@@ -10,6 +10,7 @@ import { roll } from "../shared/dice.ts";
 import { runCombatAction } from "./combat.ts";
 import { runPlaylistAction } from "./playlists.ts";
 import { runTableAction } from "./tables.ts";
+import { packCounts, runPackAction } from "./packs.ts";
 import { processRegionEvents } from "./regions.ts";
 import type { Emit } from "./regions.ts";
 import type { Change, World } from "./world.ts";
@@ -167,6 +168,25 @@ export class Hub {
       } catch (err) {
         ack?.({ ok: false, error: (err as Error).message });
       }
+    });
+
+    socket.on("pack", (action: PackAction, ack?: Ack<{ ok: true; result: unknown } | { ok: false; error: string }>) => {
+      const me = this.#user(socket);
+      if (!me) return ack?.({ ok: false, error: "Sessão inválida" });
+      try {
+        const { result, changes } = runPackAction(this.#world, me, action);
+        this.#broadcast(changes, me._id);
+        // Others looking at the pack refresh their list.
+        if (["export", "exportAdventure", "delete", "move"].includes(action.action)) this.#io.emit("packChanged", action.packId);
+        ack?.({ ok: true, result });
+      } catch (err) {
+        ack?.({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    socket.on("packCounts", (ack?: (counts: Record<string, number>) => void) => {
+      const me = this.#user(socket);
+      if (me) ack?.(packCounts(this.#world, me));
     });
 
     socket.on("table", (action: TableAction, ack?: Ack<DocResponse>) => {

@@ -7,6 +7,7 @@ import { avatar, h, pickFile, safeHtml, upload } from "../dom.ts";
 import type { ActorRef } from "../actors.ts";
 import { deleteEffect, ownEffects, saveEffect, stateOf, tokenOf, updateActor } from "../actors.ts";
 import { closeWindow, openWindow, setWindowTitle } from "./windows.ts";
+import { PACK_DRAG, packAction } from "./compendia.ts";
 import { openItemSheet, rollItem, useItem } from "./item-sheet.ts";
 import { openEffectConfig } from "./effect-config.ts";
 import { openPrototypeConfig } from "./canvas-config.ts";
@@ -50,9 +51,18 @@ export function openSheet(actorId: string, token?: { tokenId: string; sceneId: s
   });
   // Drop items (from the Items directory or another sheet) to give them to this actor.
   body.addEventListener("dragover", e => {
-    if (e.dataTransfer?.types.includes(ITEM_DRAG)) e.preventDefault();
+    if (e.dataTransfer?.types.includes(ITEM_DRAG) || e.dataTransfer?.types.includes(PACK_DRAG)) e.preventDefault();
   });
   body.addEventListener("drop", async e => {
+    // An item from a compendium: the server copies it into this actor.
+    const fromPack = e.dataTransfer?.getData(PACK_DRAG);
+    if (fromPack) {
+      e.preventDefault();
+      const { packId, entryId, type } = JSON.parse(fromPack) as { packId: string; entryId: string; type: string };
+      if (type !== "Item") return toast("Só itens podem ir para uma ficha", "error");
+      await packAction({ action: "importToActor", packId, entryId, actorId });
+      return;
+    }
     const raw = e.dataTransfer?.getData(ITEM_DRAG);
     if (!raw) return;
     e.preventDefault();

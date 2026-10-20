@@ -13,6 +13,7 @@
     "start": "node server/main.ts",
     "world": "node server/cli/world.ts",
     "import": "node server/cli/import-foundry.ts",
+    "import-packs": "node server/cli/import-packs.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test shared/*.test.ts server/*.test.ts"
   },

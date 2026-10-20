@@ -316,7 +316,32 @@ export class World implements DocLookup {
     return out;
   }
 
+  /** The compendium store (entries are read on demand, not kept in memory). */
+  get packs(): Store {
+    return this.#store;
+  }
+
+  /**
+   * Create documents with the ids they come with, as the server (compendium/adventure imports). Existing
+   * documents are replaced when `overwrite`, otherwise skipped. Children must follow their parents.
+   */
+  importDocs(docs: { type: DocType; doc: BaseDoc }[], overwrite: boolean): Change[] {
+    const changes: Change[] = [];
+    const pending = new Set(docs.map(d => `${d.type}:${d.doc._id}`));
+    for (const { type, doc } of docs) {
+      const { _id, _parent, ...data } = doc;
+      const parentType = PARENT_TYPE[type];
+      if (parentType && _parent && !this.get(parentType, _parent) && !pending.has(`${parentType}:${_parent}`)) continue;
+      const before = this.get(type, _id);
+      if (before && !overwrite) continue;
+      changes.push({ type, before, after: prepareCreate(type, data, _id, _parent) });
+    }
+    return this.#commit(changes);
+  }
+
   #commit(changes: Change[]): Change[] {
+    // Deleting a compendium deletes its contents.
+    for (const c of changes) if (c.type === "Compendium" && !c.after) this.#store.deletePackEntries(c.before!._id);
     this.#store.write(
       changes.filter(c => c.after).map(c => ({ type: c.type, doc: c.after! })),
       changes.filter(c => !c.after).map(c => ({ type: c.type, id: c.before!._id }))

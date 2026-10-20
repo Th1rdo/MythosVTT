@@ -12,11 +12,11 @@
 
 export type DocType =
   | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "AmbientSound" | "FogExploration"
-  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro" | "RollTable" | "TableResult" | "JournalEntryPage";
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro" | "RollTable" | "TableResult" | "JournalEntryPage" | "Compendium";
 
 export const DOC_TYPES: readonly DocType[] = [
   "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "AmbientSound", "FogExploration",
-  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro", "RollTable", "TableResult", "JournalEntryPage"
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro", "RollTable", "TableResult", "JournalEntryPage", "Compendium"
 ];
 
 /** Child types whose parent is optional (world-level Items live in the Items directory). */
@@ -673,6 +673,60 @@ export interface TableDraw {
 export type TableAction =
   | { action: "draw"; tableId: string; count?: number; mode?: RollMode }
   | { action: "reset" | "normalize"; tableId: string };
+
+/** What a compendium pack holds. Adventures bundle many documents of several types. */
+export type PackType = "Actor" | "Item" | "JournalEntry" | "RollTable" | "Macro" | "Playlist" | "Scene" | "Adventure";
+export const PACK_TYPES: readonly PackType[] = ["Actor", "Item", "JournalEntry", "RollTable", "Macro", "Playlist", "Scene", "Adventure"];
+
+/**
+ * A compendium pack: a library of documents kept out of the world (its contents are fetched on demand,
+ * not sent to everyone on join). Players may browse it when `visibility` is 1.
+ */
+export interface CompendiumDoc extends BaseDoc {
+  name: string;
+  type: PackType;
+  /** 0 = GM only, 1 = players can browse (and take items into their own characters). */
+  visibility: 0 | 1;
+  /** Locked packs can't be changed (imported system packs start locked). */
+  locked: boolean;
+  /** Folders inside the pack. */
+  folders: { _id: string; name: string; folder: string | null; sort: number; color: string | null }[];
+  /** Where it came from (e.g. "ordemparanormal" for a system pack), for display. */
+  source: string | null;
+  sort: number;
+}
+
+/** A document stored in a pack, with everything under it (an actor's items, a table's results…). */
+export interface PackEntry {
+  _id: string;
+  name: string;
+  img: string | null;
+  /** Sub-type for display and filtering (an item's or actor's type). */
+  subtype: string | null;
+  folder: string | null;
+  sort: number;
+  /** Adventures only: their blurb. */
+  description?: string;
+  /** The documents, by type, with their original ids and parents. */
+  docs: Partial<Record<DocType, BaseDoc[]>>;
+}
+
+export type PackIndexEntry = Omit<PackEntry, "docs" | "description">;
+
+/** Server-side compendium actions (socket event `pack`). */
+export type PackAction =
+  | { action: "index"; packId: string }
+  | { action: "get"; packId: string; entryId: string }
+  /** GM: bring entries into the world (new ids; adventures keep theirs and overwrite). */
+  | { action: "import"; packId: string; entryIds: string[]; folder?: string | null; overwrite?: boolean }
+  /** Copy an Item entry into an actor the user owns. */
+  | { action: "importToActor"; packId: string; entryId: string; actorId: string }
+  /** GM: add world documents (with their children) to the pack. */
+  | { action: "export"; packId: string; docs: { type: DocType; id: string }[]; folder?: string | null }
+  /** GM: bundle world folders and documents as one adventure entry. */
+  | { action: "exportAdventure"; packId: string; name: string; img?: string | null; description?: string; folders: string[]; docs: { type: DocType; id: string }[] }
+  | { action: "delete"; packId: string; entryIds: string[] }
+  | { action: "move"; packId: string; entryIds: string[]; folder: string | null };
 
 export interface SettingDoc extends BaseDoc {
   key: string;

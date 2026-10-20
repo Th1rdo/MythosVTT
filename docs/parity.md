@@ -72,8 +72,9 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer: playlists, tracks, ambient sounds (untested against real Foundry data — claude-tests has none)
 - ⬜ Drag a track onto the map to make an ambient sound; sound-effect previews in the config; playlist bulk-import dialog filters; auto-preload of the next track; audio analyser (band levels for modules)
 
-## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`, tables `ev_9d6d3877…`, journal `ev_91567e39…`)*
-- ⬜ Compendium packs (create, browse, import), import OP system packs
+## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`, tables `ev_9d6d3877…`, journal `ev_91567e39…`, compendia `ev_4223fd20…`)*
+- ✅ Compendium packs (REA `ev_4223fd20…`): stored apart (SQLite table, fetched on demand), Compêndios tab, pack window (search, folders, preview), GM import one/all (into a new folder), drop world documents in to store them, lock, player visibility; players drag items onto their own sheets
+- ✅ `npm run import-packs` — Foundry system/module/world packs (Actor, Item, JournalEntry, RollTable, Macro, Playlist, Adventure); the OP system's 238 entries (weapons, gear, abilities, powers, paths, mission tables) import as locked packs
 - ✅ Roll tables (REA `ev_9d6d3877…`): Tables tab + sheet (edit in place, paste a list, weights → ranges via Normalizar, formula or 1dN), text or document results (drag a document onto a result), nested tables, with/without replacement + reset, draw N at once, roll modes; server-side draws posted as a chat card with links; hotbar + `mesa.drawTable`; importer
 - ⬜ Roll tables: result images per row in the sheet, compendium tables, "draw from table" region behaviour
 - ⬜ Cards (decks, hands, piles)
@@ -86,7 +87,8 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Show to players (optionally granting read access) and share an image with everyone; notes open a page
 - ✅ Text enrichment: `@UUID[…]{…}` / `@Actor[…]` links (pages too, drag documents into the editor), `[[…]]` / `[[/gr …]]` roll buttons, URLs; secret blocks stripped server-side for non-owners, reveal toggle for owners
 - ⬜ `@Embed[…]`, journal page search, page-level "show image" for limited users, ProseMirror-grade editor, PDF page jumps
-- ⬜ Adventure export/import
+- ✅ Adventures: bundle world folders (+ contents, children) and scenes into one entry; import keeps ids, asks before overwriting
+- ⬜ Scenes in Foundry packs/adventures (converter), compendium folders editing, per-role pack ownership, pack search across packs, compendium art mapping
 - ✅ Full dice grammar (own parser, REA `ev_b3b33516…`): + − * / % and parentheses, (N)d(M), functions (floor, max, …), pools `{…}kh`, fate `dF`, coins `dc`, flavour `[…]`; modifiers r rr x xo k kh kl d dh dl min max even odd cs cf df sf ms, coin call `c`
 - ✅ Roll modes /r /gr /br (blind: only GMs see the result) /sr (self); `[[formula]]` inline rolls rolled by the server; `@campo` from the speaker's actor data
 - ✅ Roll card: per-group dice with discarded/rerolled/exploded/success/failure styling; importer keeps Foundry dice results

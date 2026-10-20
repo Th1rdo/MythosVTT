@@ -15,11 +15,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ClassicLevel } from "classic-level";
 import { World } from "../world.ts";
+import type { Bundle, Raw } from "./foundry.ts";
+import {
+  Assets, convertActor, convertItem, convertJournal, convertMacro, convertPlaylist, convertTable, effectData, escapeHtml, lightConfig,
+  mergeBundles, readFoundryDb, tokenSettings, unit
+} from "./foundry.ts";
 import type { BaseDoc, RollResult, RollTerm } from "../../shared/protocol.ts";
 
-type Raw = Record<string, any>;
 
 const args = process.argv.slice(2);
 function flag(name: string): string | undefined {
@@ -43,59 +46,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mesa-import-"));
 // ---------------------------------------------------------------------------
 // Reading Foundry collections
 
-/** Primary docs of a collection, with embedded collections resolved into arrays of objects. */
-async function readCollection(name: string): Promise<Raw[]> {
-  const levelDir = path.join(source, "data", name);
-  const nedbFile = path.join(source, "data", `${name}.db`);
-  if (fs.existsSync(levelDir) && fs.statSync(levelDir).isDirectory()) return readLevel(name, levelDir);
-  if (fs.existsSync(nedbFile)) return readNedb(nedbFile);
-  return [];
-}
-
-async function readLevel(name: string, dir: string): Promise<Raw[]> {
-  const copy = path.join(tmp, name);
-  fs.cpSync(dir, copy, { recursive: true });
-  fs.rmSync(path.join(copy, "LOCK"), { force: true });
-  const db = new ClassicLevel<string, Raw>(copy, { keyEncoding: "utf8", valueEncoding: "json", createIfMissing: false });
-  // sublevel ("actors", "scenes.tokens", "scenes.tokens.delta", …) → id path ("scene.token.delta") → doc
-  const subs = new Map<string, Map<string, Raw>>();
-  for await (const [key, value] of db.iterator()) {
-    const m = /^!([^!]+)!(.+)$/.exec(key);
-    if (!m || (m[1] !== name && !m[1].startsWith(name + "."))) continue;
-    if (!subs.has(m[1])) subs.set(m[1], new Map());
-    subs.get(m[1])!.set(m[2], value);
-  }
-  await db.close();
-
-  // Embedded fields hold either an array of child ids or (for single embeds like a token's delta) one id.
-  const attach = (doc: Raw, sub: string, idPath: string) => {
-    for (const [childSub, children] of subs) {
-      if (!childSub.startsWith(sub + ".") || childSub.slice(sub.length + 1).includes(".")) continue;
-      const field = childSub.slice(sub.length + 1);
-      const resolve = (id: string) => {
-        const child = children.get(`${idPath}.${id}`);
-        if (child) attach(child, childSub, `${idPath}.${id}`);
-        return child;
-      };
-      if (Array.isArray(doc[field])) doc[field] = doc[field].map((c: unknown) => (typeof c === "string" ? resolve(c) : c)).filter(Boolean);
-      else if (typeof doc[field] === "string") doc[field] = resolve(doc[field]) ?? null;
-    }
-  };
-  const primary = [...(subs.get(name) ?? new Map()).entries()];
-  for (const [id, doc] of primary) attach(doc, name, id);
-  return primary.map(([, doc]) => doc);
-}
-
-function readNedb(file: string): Raw[] {
-  const byId = new Map<string, Raw>();
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-    if (!line.trim()) continue;
-    const doc = JSON.parse(line);
-    if (doc.$$deleted) byId.delete(doc._id);
-    else if (!doc.$$indexCreated) byId.set(doc._id, doc);
-  }
-  return [...byId.values()];
-}
+const readCollection = (name: string) => readFoundryDb(path.join(source, "data"), name, tmp);
 
 // ---------------------------------------------------------------------------
 // Assets: copy what the world references from the Foundry user Data folder.
@@ -107,39 +58,8 @@ const target = World.create({
   title: worldJson.title ?? worldJson.id,
   system: worldJson.system ?? "unknown"
 });
-const copied = new Set<string>();
-const dropped = new Set<string>();
-
-function asset(src: unknown): string | null {
-  if (typeof src !== "string" || !src) return null;
-  if (/^(https?:|data:)/i.test(src)) return src;
-  let rel: string;
-  try {
-    rel = decodeURIComponent(src.replace(/^\/+/, "").split(/[?#]/)[0]);
-  } catch {
-    return null;
-  }
-  const file = path.resolve(foundryData, rel);
-  if (!file.startsWith(foundryData + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-    dropped.add(rel);
-    return null;
-  }
-  const dest = path.join(target.assetsDir, "foundry", rel);
-  if (!copied.has(rel)) {
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(file, dest);
-    copied.add(rel);
-  }
-  return "/assets/foundry/" + rel.split("/").map(encodeURIComponent).join("/");
-}
-
-function rewriteHtml(html: unknown): string {
-  return String(html ?? "").replace(/(src|href)="([^"]+)"/g, (whole, attr, url) => {
-    if (/^(https?:|data:|#|mailto:)/i.test(url) || !/\.\w{2,5}($|[?#])/.test(url)) return whole;
-    const mapped = asset(url.replace(/&amp;/g, "&"));
-    return mapped ? `${attr}="${mapped}"` : whole;
-  });
-}
+const assets = new Assets(foundryData, target.assetsDir);
+const { asset, rewriteHtml } = assets;
 
 // Foundry pads the canvas around the scene by `padding` (default 0.25 of each side), rounded up to whole
 // grid squares, and placeable coordinates include that offset. Mesa scenes have no padding.
@@ -149,78 +69,6 @@ function sceneOffset(s: Raw): { padX: number; padY: number } {
   return {
     padX: Math.ceil(((s.width ?? 0) * padding) / size) * size,
     padY: Math.ceil(((s.height ?? 0) * padding) / size) * size
-  };
-}
-
-const ANIMATIONS: Record<string, "torch" | "pulse" | "flicker"> = {
-  torch: "torch", flame: "torch", fairy: "flicker", flickering: "flicker", pulse: "pulse", chroma: "pulse",
-  wave: "pulse", fog: "pulse", sunburst: "pulse", dome: "pulse", emanation: "pulse", hexa: "pulse",
-  ghost: "flicker", energy: "flicker", vortex: "pulse", witchwave: "pulse", rainbowswirl: "pulse", radialrainbow: "pulse",
-  siren: "pulse", smokepatch: "pulse", starlight: "flicker", grid: "pulse", revolving: "pulse"
-};
-
-function lightConfig(l: Raw | undefined) {
-  return {
-    bright: Number(l?.bright) || 0,
-    dim: Number(l?.dim) || 0,
-    color: typeof l?.color === "string" ? l.color : null,
-    alpha: typeof l?.alpha === "number" ? l.alpha : 0.5,
-    angle: typeof l?.angle === "number" ? l.angle : 360,
-    animation: {
-      type: ANIMATIONS[l?.animation?.type ?? ""] ?? null,
-      speed: l?.animation?.speed ?? 5,
-      intensity: l?.animation?.intensity ?? 5
-    }
-  };
-}
-
-// Foundry core status ids → Mesa's Ordem Paranormal conditions.
-const STATUS_MAP: Record<string, string> = {
-  dead: "morto", unconscious: "inconsciente", prone: "caido", blind: "cego", deaf: "surdo", stun: "atordoado",
-  paralysis: "paralisado", restrain: "agarrado", bleeding: "sangrando", poison: "envenenado", invisible: "invisivel",
-  burning: "em-chamas", fear: "apavorado", sleep: "inconsciente", frozen: "paralisado"
-};
-// Foundry ≤ v13 numeric change modes and v14 string types → Mesa change types.
-const MODE_MAP: Record<string, string> = { "1": "multiply", "2": "add", "3": "downgrade", "4": "upgrade", "5": "override", multiply: "multiply", add: "add", subtract: "add", downgrade: "downgrade", upgrade: "upgrade", override: "override" };
-
-function effectData(e: Raw) {
-  const rawChanges: Raw[] = e.system?.changes ?? e.changes ?? [];
-  const changes = rawChanges
-    .map(c => ({ key: String(c.key ?? ""), type: MODE_MAP[String(c.type ?? c.mode)], value: String(c.type === "subtract" ? -Number(c.value) : c.value ?? "") }))
-    .filter(c => c.key && c.type);
-  const rounds = e.duration?.rounds ?? (e.duration?.units === "rounds" ? e.duration?.value : null) ?? null;
-  return {
-    _id: e._id,
-    name: e.name ?? e.label ?? "Efeito",
-    icon: "✨",
-    disabled: !!e.disabled,
-    statuses: [...new Set<string>((e.statuses ?? []).map((id: string) => STATUS_MAP[id] ?? id))],
-    changes,
-    duration: { rounds: typeof rounds === "number" && rounds > 0 ? rounds : null, startRound: null, combat: null },
-    description: String(e.description ?? "")
-  };
-}
-
-const DISPLAY_OK = new Set([0, 10, 20, 30, 40, 50]);
-const display = (v: unknown, fallback: number) => (typeof v === "number" && DISPLAY_OK.has(v) ? v : fallback);
-
-/** Token settings shared by placed tokens and prototype tokens. */
-function tokenSettings(t: Raw) {
-  return {
-    width: t.width ?? 1,
-    height: t.height ?? 1,
-    disposition: Math.max(-1, Math.min(1, t.disposition ?? 0)),
-    actorLink: !!t.actorLink,
-    displayName: display(t.displayName, 30),
-    displayBars: display(t.displayBars, 40),
-    bar1: { attribute: t.bar1?.attribute ?? null },
-    bar2: { attribute: t.bar2?.attribute ?? null },
-    sight: {
-      enabled: t.sight?.enabled ?? !!t.vision,
-      range: Number(t.sight?.range ?? t.dimSight ?? 0) || 0,
-      angle: t.sight?.angle ?? t.sightAngle ?? 360
-    },
-    light: lightConfig(t.light ?? { bright: t.brightLight, dim: t.dimLight, color: t.lightColor, angle: t.lightAngle })
   };
 }
 
@@ -259,27 +107,13 @@ insert("Folder", folders.map(f => ({
   _id: f._id, name: f.name, type: f.type, folder: folderOf(f.folder), color: f.color ?? null, sort: f.sort ?? 0
 })));
 
-const actors = await readCollection("actors");
-insert("Actor", actors.map(a => ({
-  _id: a._id,
-  name: a.name,
-  type: a.type,
-  img: asset(a.img),
-  system: a.system ?? a.data ?? {},
-  ownership: a.ownership ?? a.permission ?? { default: 0 },
-  folder: folderOf(a.folder),
-  token: { ...tokenSettings(a.prototypeToken ?? a.token ?? {}), img: asset(a.prototypeToken?.texture?.src ?? a.token?.img) }
-})));
-insert("Item", actors.flatMap(a => (a.items ?? []).map((i: Raw) => ({
-  _id: i._id, _parent: a._id, name: i.name, type: i.type, img: asset(i.img), system: i.system ?? i.data ?? {}
-}))));
-insert("ActiveEffect", actors.flatMap(a => (a.effects ?? []).map((e: Raw) => ({ ...effectData(e), _parent: a._id }))));
+const ctx = { asset, rewriteHtml, folderOf };
+const insertBundle = (b: Bundle) => {
+  for (const [type, docs] of Object.entries(b) as [Parameters<typeof insert>[0], BaseDoc[]][]) insert(type, docs);
+};
 
-const worldItems = await readCollection("items");
-insert("Item", worldItems.map(i => ({
-  _id: i._id, name: i.name, type: i.type, img: asset(i.img), system: i.system ?? i.data ?? {},
-  ownership: i.ownership ?? i.permission ?? { default: 0 }, folder: folderOf(i.folder), sort: i.sort ?? 0
-})));
+insertBundle(mergeBundles((await readCollection("actors")).map(a => convertActor(a, ctx))));
+insert("Item", (await readCollection("items")).map(i => convertItem(i, ctx)));
 
 const scenes = await readCollection("scenes");
 // Foundry v14 scenes keep their art in Levels. A scene with a single level is just a plain scene in
@@ -531,7 +365,6 @@ const soundEffect = (e: Raw | undefined, fallback: string | null) => ({
   type: SOUND_EFFECTS.has(e?.type) ? e!.type : fallback,
   intensity: Math.min(10, Math.max(1, Math.round(Number(e?.intensity) || 5)))
 });
-const unit = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : d);
 
 // Ambient sounds: radius is in scene units in both. Files that only exist in Foundry's app are dropped.
 insert("AmbientSound", scenes.flatMap(s => {
@@ -557,56 +390,10 @@ insert("AmbientSound", scenes.flatMap(s => {
   }));
 }));
 
-// Playlists arrive stopped; tracks keep a paused position if they had one.
-const CHANNELS = new Set(["music", "environment", "interface"]);
-const playlists = await readCollection("playlists");
-insert("Playlist", playlists.map(p => ({
-  _id: p._id, name: p.name ?? "Playlist", description: p.description ?? "",
-  channel: CHANNELS.has(p.channel) ? p.channel : "music",
-  mode: [-1, 0, 1, 2].includes(p.mode) ? p.mode : 0,
-  playing: false, fade: typeof p.fade === "number" && p.fade > 0 ? Math.min(60_000, p.fade) : null,
-  folder: folderOf(p.folder), sorting: p.sorting === "m" ? "m" : "a", seed: p.seed ?? 0, sort: p.sort ?? 0,
-  ownership: p.ownership ?? { default: 0 }
-})));
-insert("PlaylistSound", playlists.flatMap(p => (p.sounds ?? []).map((t: Raw) => ({
-  _id: t._id, _parent: p._id, name: t.name ?? "Faixa", description: t.description ?? "",
-  path: asset(t.path), channel: CHANNELS.has(t.channel) ? t.channel : "",
-  playing: false, pausedTime: typeof t.pausedTime === "number" && t.pausedTime > 0 ? t.pausedTime : null, startedAt: null,
-  repeat: !!t.repeat, volume: unit(t.volume, 0.5),
-  fade: typeof t.fade === "number" && t.fade > 0 ? Math.min(60_000, t.fade) : null, sort: t.sort ?? 0
-}))));
+insertBundle(mergeBundles((await readCollection("playlists")).map(p => convertPlaylist(p, ctx))));
 
-// Roll tables. Results point at world documents by UUID ("Actor.abc…"); compendium links are dropped.
-const LINKABLE = new Set(["Actor", "Item", "JournalEntry", "RollTable", "Scene", "Macro", "Playlist"]);
-function resultLink(r: Raw): { type: string; id: string } | null {
-  const uuid = typeof r.documentUuid === "string" ? r.documentUuid : r.documentCollection && r.documentId ? `${r.documentCollection}.${r.documentId}` : "";
-  const m = /^(\w+)\.([A-Za-z0-9]{16})$/.exec(uuid);
-  return m && LINKABLE.has(m[1]) ? { type: m[1], id: m[2] } : null;
-}
-const tables = await readCollection("tables");
-insert("RollTable", tables.map(t => ({
-  _id: t._id, name: t.name ?? "Tabela", img: asset(t.img), description: typeof t.description === "string" ? t.description : "",
-  formula: typeof t.formula === "string" ? t.formula : "", replacement: t.replacement ?? true, displayRoll: t.displayRoll ?? true,
-  folder: folderOf(t.folder), sort: t.sort ?? 0, ownership: t.ownership ?? { default: 0 }
-})));
-insert("TableResult", tables.flatMap(t => (t.results ?? []).map((r: Raw) => {
-  const document = resultLink(r);
-  const range = Array.isArray(r.range) && r.range.length === 2 ? r.range.map((n: unknown) => Math.round(Number(n) || 1)) : [1, 1];
-  return {
-    _id: r._id, _parent: t._id, type: document ? "document" : "text",
-    // v13 split "text" into name + description; older results only have text.
-    name: r.name ?? (document ? "" : r.text ?? ""), description: r.description ?? (document ? r.text ?? "" : ""),
-    img: asset(r.img), document, weight: Math.max(1, Math.round(Number(r.weight) || 1)),
-    range: [Math.min(range[0], range[1]), Math.max(range[0], range[1])], drawn: !!r.drawn
-  };
-})));
-
-// Macros keep their command as-is: Foundry script macros call Foundry's API and need adapting to Mesa's.
-insert("Macro", macros.map(m => ({
-  _id: m._id, name: m.name ?? "Macro", type: m.type === "script" ? "script" : "chat",
-  author: typeof m.author === "string" ? m.author : "", img: asset(m.img), command: typeof m.command === "string" ? m.command : "",
-  folder: folderOf(m.folder), sort: m.sort ?? 0, ownership: m.ownership ?? { default: 0 }
-})));
+insertBundle(mergeBundles((await readCollection("tables")).map(t => convertTable(t, ctx))));
+insertBundle(mergeBundles(macros.map(m => convertMacro(m, ctx))));
 
 // Combats: Foundry stores the turn as an index into its sorted order (initiative desc, then id).
 const combats = await readCollection("combats");
@@ -635,30 +422,7 @@ insert("Combatant", combats.flatMap(c => (c.combatants ?? []).map((x: Raw) => ({
   defeated: !!x.defeated
 }))));
 
-const journal = await readCollection("journal");
-// Entries keep their pages (text, image, PDF, video) and categories; pre-v10 entries keep their content
-// (Mesa turns it into a first page when the world opens).
-insert("JournalEntry", journal.map(j => ({
-  _id: j._id, name: j.name, content: j.pages?.length ? "" : rewriteHtml(j.content),
-  ownership: j.ownership ?? j.permission ?? { default: 0 }, folder: folderOf(j.folder), sort: j.sort ?? 0,
-  categories: (j.categories ?? []).map((c: Raw) => ({ _id: c._id, name: c.name ?? "", sort: c.sort ?? 0 }))
-})));
-const PAGE_TYPES = new Set(["text", "image", "pdf", "video"]);
-insert("JournalEntryPage", journal.flatMap(j => (j.pages ?? []).map((p: Raw) => ({
-  _id: p._id, _parent: j._id, name: p.name ?? "Página",
-  // Types Mesa doesn't have (system pages) become text pages with what text they carry.
-  type: PAGE_TYPES.has(p.type) ? p.type : "text",
-  title: { show: p.title?.show ?? true, level: Math.min(6, Math.max(1, Number(p.title?.level) || 1)) },
-  text: {
-    content: rewriteHtml(p.text?.content ?? (PAGE_TYPES.has(p.type) ? "" : `<p><em>(página "${escapeHtml(String(p.type))}" do sistema)</em></p>`)),
-    markdown: typeof p.text?.markdown === "string" ? p.text.markdown : "", format: p.text?.format === 2 ? 2 : 1
-  },
-  src: p.src ? asset(p.src) ?? (/^https?:/i.test(p.src) ? p.src : null) : null,
-  image: { caption: p.image?.caption ?? "" },
-  video: { controls: p.video?.controls ?? true, loop: !!p.video?.loop, autoplay: !!p.video?.autoplay, volume: typeof p.video?.volume === "number" ? p.video.volume : 0.5 },
-  category: typeof p.category === "string" ? p.category : null, sort: p.sort ?? 0,
-  ownership: p.ownership ?? { default: -1 }
-}))));
+insertBundle(mergeBundles((await readCollection("journal")).map(j => convertJournal(j, ctx))));
 
 const messages = await readCollection("messages");
 insert("ChatMessage", messages.map(m => ({
@@ -700,18 +464,14 @@ function importRoll(raw: unknown): RollResult | null {
   }
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-}
-
 target.close();
 fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log(`Imported "${worldJson.title}" → Mesa world "${target.meta.id}" (${target.dir})`);
 for (const [type, n] of Object.entries(counts)) console.log(`  ${type.padEnd(13)} ${n}`);
-console.log(`  assets copied ${copied.size}`);
-if (dropped.size) {
-  const sample = [...dropped].slice(0, 8);
-  console.log(`  assets skipped ${dropped.size} (Foundry built-ins or missing files), e.g.\n    ` + sample.join("\n    "));
+console.log(`  assets copied ${assets.copied.size}`);
+if (assets.dropped.size) {
+  const sample = [...assets.dropped].slice(0, 8);
+  console.log(`  assets skipped ${assets.dropped.size} (Foundry built-ins or missing files), e.g.\n    ` + sample.join("\n    "));
 }
 console.log(`\nPasswords are not imported. Set them with:\n  npm run world -- passwd ${target.meta.id} "<user name>" <password>`);

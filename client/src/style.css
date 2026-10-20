@@ -446,3 +446,12 @@ iframe.page-video { background: #000; height: 40vh; }
 a.inline-roll.deferred { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: 4px; background: #2a2a35; border: 1px solid var(--control-border); font-weight: 700; cursor: pointer; text-decoration: none; color: var(--text); }
 a.inline-roll.deferred i { font-size: 11px; color: var(--accent-2); }
 a.external { color: var(--ok); }
+
+/* ---- Compendia ---- */
+.pack-group h4 { margin: 10px 12px 2px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.pack-group .doc-list li.entry { gap: 8px; }
+.pack-entries { max-height: 60vh; overflow-y: auto; }
+.drop-hint { margin: 2px 0 6px; }
+.adventure-contents { padding-left: 16px; }
+.check-list { display: flex; flex-direction: column; gap: 2px; max-height: 200px; overflow-y: auto; padding: 4px; border: 1px solid var(--line); border-radius: 4px; }
+pre.macro-preview { white-space: pre-wrap; background: #0d0c14; padding: 8px; border-radius: 4px; font-size: 12px; }
