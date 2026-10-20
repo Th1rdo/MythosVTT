@@ -349,9 +349,26 @@ export class Hub {
       socket.broadcast.emit("ruler", { userId: socket.data.userId, sceneId: r.sceneId, points: points.map(p => ({ x: p.x, y: p.y })) });
     });
 
-    socket.on("pull", (sceneId: string) => {
+    /** GM: send everyone (or the listed users) to a scene. */
+    socket.on("pull", (sceneId: string, userIds?: unknown) => {
       if (this.#user(socket)?.role !== "gm" || !this.#world.get("Scene", sceneId)) return;
-      socket.broadcast.emit("pull", sceneId);
+      const only = Array.isArray(userIds) ? new Set(userIds.filter(u => typeof u === "string")) : null;
+      if (!only) return socket.broadcast.emit("pull", sceneId);
+      for (const other of this.#io.sockets.sockets.values()) {
+        const u = this.#user(other);
+        if (other !== socket && u && only.has(u._id)) other.emit("pull", sceneId);
+      }
+    });
+
+    /** GM: send a player back to the join screen (Foundry's Kick); they may log in again. */
+    socket.on("kick", (userId: unknown) => {
+      const me = this.#user(socket);
+      if (me?.role !== "gm" || typeof userId !== "string" || userId === me._id) return;
+      for (const other of this.#io.sockets.sockets.values()) {
+        if (this.#user(other)?._id !== userId) continue;
+        other.emit("kicked", me.name);
+        setTimeout(() => other.disconnect(true), 200);
+      }
     });
 
     /** GM: forget everyone's exploration of a scene. */

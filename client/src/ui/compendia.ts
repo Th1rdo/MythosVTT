@@ -8,6 +8,8 @@ import { game, toast } from "../game.ts";
 import { avatar, h, setChildren } from "../dom.ts";
 import { enrich, markdown } from "../enrich.ts";
 import { closeWindow, confirmDialog, openWindow, setWindowTitle } from "./windows.ts";
+import { bindContextMenu, openContextMenu } from "./context-menu.ts";
+import { t } from "../i18n.ts";
 
 export const PACK_DRAG = "application/x-mesa-pack";
 const DOC_DRAG = "application/x-mesa-doc";
@@ -41,7 +43,7 @@ export function compendiaPanel(): HTMLElement {
       !packs.length ? h("p.muted", null, game.isGM ? "Sem compêndios. Cria um, ou importa os do sistema com npm run import-packs." : "O mestre ainda não partilhou compêndios.") : null,
       byType.map(([type, ps]) => h("section.pack-group", null,
         h("h4", null, h("i", { className: PACK_LABELS[type][1] }), " ", PACK_LABELS[type][0]),
-        h("ul.doc-list", null, ps.map(p => h("li.entry", { onclick: () => openPack(p._id) },
+        h("ul.doc-list", null, ps.map(p => h("li.entry", { dataset: { pack: p._id }, onclick: () => openPack(p._id) },
           h("span.grow", null, p.name),
           p.source ? h("span.tag", { title: `Vem de ${p.source}` }, p.source) : null,
           h("span.muted.small", null, String(counts[p._id] ?? "…")),
@@ -56,6 +58,24 @@ export function compendiaPanel(): HTMLElement {
   game.on("Compendium", refresh);
   game.socket.on("packChanged", refresh);
   refresh();
+  // Right-click a pack: Foundry's compendium directory options.
+  bindContextMenu(list, "li.entry[data-pack]", el => {
+    const p = game.get<CompendiumDoc>("Compendium", el.dataset.pack);
+    if (!p || !game.isGM) return [];
+    const toggle = (data: Partial<CompendiumDoc>) => game.update("Compendium", { _id: p._id, ...data });
+    return [
+      { label: "Abrir", icon: "fa-solid fa-folder-open", onClick: () => openPack(p._id) },
+      { label: p.visibility ? "Esconder dos jogadores" : "Mostrar aos jogadores", icon: p.visibility ? "fa-solid fa-eye-slash" : "fa-solid fa-eye", group: "manage", onClick: () => toggle({ visibility: p.visibility ? 0 : 1 }) },
+      { label: p.locked ? "Destrancar" : "Trancar", icon: p.locked ? "fa-solid fa-lock-open" : "fa-solid fa-lock", group: "manage", onClick: () => toggle({ locked: !p.locked }) },
+      { label: "Importar todo o conteúdo", icon: "fa-solid fa-file-import", group: "manage", visible: FOLDER_TYPES.has(p.type) && !!counts[p._id],
+        onClick: async () => {
+          const index = (await packAction<PackIndexEntry[]>({ action: "index", packId: p._id })) ?? [];
+          if (index.length) importEntries(p, index.map(e => e._id), true);
+        } },
+      { label: "Apagar", icon: "fa-solid fa-trash", group: "delete", classes: "danger", visible: !p.locked,
+        onClick: async () => { if (await confirmDialog(t("Apagar o compêndio «{nome}» e tudo o que tem?", { nome: p.name }))) game.delete("Compendium", p._id); } }
+    ];
+  }, "Compendium");
   return h("div.panel", null,
     game.isGM ? h("div.dir-create", null, h("button", { onclick: createPack }, h("i.fa-solid.fa-book-atlas"), " Criar compêndio")) : null,
     list);
@@ -102,23 +122,19 @@ export function openPack(packId: string): void {
 
   const entryRow = (pack: CompendiumDoc, e: PackIndexEntry) => h("li.entry", {
     draggable: true,
+    oncontextmenu: (ev: MouseEvent) => openContextMenu(ev, [
+      { label: "Ver", icon: "fa-solid fa-eye", onClick: () => previewEntry(packId, e._id) },
+      { label: pack.type === "Adventure" ? "Importar aventura" : "Importar para o mundo", icon: "fa-solid fa-file-import", group: "manage", visible: game.isGM, onClick: () => importEntries(pack, [e._id]) },
+      { label: "Copiar ID", icon: "fa-solid fa-passport", group: "manage", visible: game.isGM, onClick: () => navigator.clipboard?.writeText(e._id).then(() => toast(t("ID copiado"))) },
+      { label: "Apagar do compêndio", icon: "fa-solid fa-trash", group: "delete", classes: "danger", visible: game.isGM && !pack.locked,
+        onClick: async () => { if (await confirmDialog(t("Apagar «{nome}» do compêndio?", { nome: e.name }))) packAction({ action: "delete", packId, entryIds: [e._id] }); } }
+    ], e, "CompendiumEntry"),
     ondragstart: (ev: DragEvent) => ev.dataTransfer?.setData(PACK_DRAG, JSON.stringify({ packId, entryId: e._id, type: pack.type })),
     onclick: () => previewEntry(packId, e._id)
   },
     avatar(e.img, e.name, 32),
     h("span.grow", null, e.name),
-    e.subtype ? h("span.muted.small", null, subtypeLabel(e.subtype)) : null,
-    game.isGM && h("button.icon.small", {
-      title: pack.type === "Adventure" ? "Importar aventura" : "Importar para o mundo",
-      onclick: (ev: Event) => { ev.stopPropagation(); importEntries(pack, [e._id]); }
-    }, h("i.fa-solid.fa-file-import")),
-    game.isGM && !pack.locked && h("button.icon.small", {
-      title: "Apagar do compêndio",
-      onclick: async (ev: Event) => {
-        ev.stopPropagation();
-        if (await confirmDialog(`Apagar "${e.name}" do compêndio?`)) packAction({ action: "delete", packId, entryIds: [e._id] });
-      }
-    }, "✕"));
+    e.subtype ? h("span.muted.small", null, subtypeLabel(e.subtype)) : null);
 
   const renderList = () => {
     const pack = game.get<CompendiumDoc>("Compendium", packId);
@@ -151,16 +167,8 @@ export function openPack(packId: string): void {
       h("div.row.wrap.toolbar", null,
         h("span.muted.small", null, `${PACK_LABELS[pack.type][0]} · ${index.length} entradas${pack.source ? ` · ${pack.source}` : ""}`),
         h("span.grow"),
-        game.isGM && FOLDER_TYPES.has(pack.type) && index.length ? h("button.small", { onclick: () => importEntries(pack, index.map(e => e._id), true) }, h("i.fa-solid.fa-file-import"), " Importar tudo") : null,
         canChange && pack.type === "Adventure" ? h("button.small", { onclick: () => createAdventure(packId) }, h("i.fa-solid.fa-plus"), " Criar aventura") : null,
-        game.isGM && h("button.small", { title: pack.visibility ? "Esconder dos jogadores" : "Mostrar aos jogadores", onclick: () => toggle({ visibility: pack.visibility ? 0 : 1 }) },
-          h("i", { className: pack.visibility ? "fa-solid fa-eye" : "fa-solid fa-eye-slash" })),
-        game.isGM && h("button.small", { title: pack.locked ? "Destrancar (permite mudar o conteúdo)" : "Trancar", onclick: () => toggle({ locked: !pack.locked }) },
-          h("i", { className: pack.locked ? "fa-solid fa-lock" : "fa-solid fa-lock-open" })),
-        canChange && h("button.small.danger", {
-          title: "Apagar o compêndio",
-          onclick: async () => { if (await confirmDialog(`Apagar o compêndio "${pack.name}" e tudo o que tem?`)) game.delete("Compendium", packId); }
-        }, h("i.fa-solid.fa-trash"))),
+        pack.locked ? h("i.fa-solid.fa-lock.muted", { title: t("Trancado — botão direito no compêndio para destrancar") }) : null),
       h("div.dir-search-row", null, h("i.fa-solid.fa-magnifying-glass"), search),
       canChange && pack.type !== "Adventure" ? h("p.muted.small.drop-hint", null, `Arrasta ${PACK_LABELS[pack.type][0].toLowerCase()} da barra lateral para aqui para os guardar.`) : null,
       list);

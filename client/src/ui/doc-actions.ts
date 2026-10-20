@@ -4,6 +4,7 @@ import { game, toast } from "../game.ts";
 import { pickFile } from "../dom.ts";
 import { t } from "../i18n.ts";
 import { confirmDialog, openWindow } from "./windows.ts";
+import type { OwnedType } from "./sheet.ts";
 import { ownershipEditor } from "./sheet.ts";
 
 /**
@@ -93,7 +94,7 @@ export async function importDoc(type: DocType, id: string): Promise<void> {
 }
 
 /** The ownership grid in its own window — Foundry's "Configure Ownership". */
-export function openOwnership(type: "Actor" | "JournalEntry" | "Item" | "Cards", id: string): void {
+export function openOwnership(type: OwnedType, id: string): void {
   const doc = game.get(type, id) as (BaseDoc & { name?: string; ownership: Record<string, number | null> }) | undefined;
   if (!doc) return;
   const body = openWindow(`ownership-${id}`, t("Permissões: {nome}", { nome: doc.name ?? "" }), { width: 360 });

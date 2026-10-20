@@ -4,6 +4,7 @@ import { h } from "../dom.ts";
 import { confirmDialog, prompt } from "./windows.ts";
 import type { ContextEntry } from "./context-menu.ts";
 import { bindContextMenu } from "./context-menu.ts";
+import type { OwnedType } from "./sheet.ts";
 import { deleteDoc, duplicateDoc, exportDoc, importDoc, openOwnership } from "./doc-actions.ts";
 import { t } from "../i18n.ts";
 
@@ -196,7 +197,7 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
     const common: ContextEntry<T>[] = [
       { label: "Abrir", icon: "fa-solid fa-folder-open", onClick: () => opts.onOpen(d) },
       { label: "Permissões", icon: "fa-solid fa-lock", group: "manage", visible: !!opts.ownership && game.isGM,
-        onClick: () => openOwnership(opts.type as "Actor" | "JournalEntry" | "Item" | "Cards", d._id) },
+        onClick: () => openOwnership(opts.type as OwnedType, d._id) },
       { label: "Duplicar", icon: "fa-regular fa-copy", group: "manage", visible: manage(d), onClick: () => duplicateDoc(opts.type, d._id) },
       { label: "Exportar dados", icon: "fa-solid fa-file-export", group: "data", visible: manage(d), onClick: () => exportDoc(opts.type, d._id) },
       { label: "Importar dados", icon: "fa-solid fa-file-import", group: "data", visible: manage(d), onClick: () => importDoc(opts.type, d._id) },

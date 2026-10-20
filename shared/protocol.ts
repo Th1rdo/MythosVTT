@@ -444,6 +444,8 @@ export interface PlaylistSoundDoc extends BaseDoc {
 export type PlaylistAction =
   | { action: "playAll" | "stopAll" | "next" | "previous" | "cycleMode"; playlistId: string }
   | { action: "play" | "pause" | "stop"; playlistId: string; soundId: string }
+  /** Pick a playback mode directly (right-click menu); stops what was playing, like cycleMode. */
+  | { action: "setMode"; playlistId: string; mode: PlaylistMode }
   /** A client heard a track reach its natural end. `startedAt` identifies which playback ended. */
   | { action: "ended"; playlistId: string; soundId: string; startedAt: number | null };
 

@@ -87,6 +87,11 @@ export class Game implements DocLookup {
         this.#emitSimple("presence");
       });
       this.socket.on("connect", () => this.socket.emit("viewing", this.viewedSceneId));
+      // Kicked by the GM: log out, back to the join screen.
+      this.socket.on("kicked", async () => {
+        await fetch("/api/logout", { method: "POST" }).catch(() => {});
+        location.reload();
+      });
       setInterval(async () => {
         const t = performance.now();
         try {
@@ -274,8 +279,9 @@ export class Game implements DocLookup {
     if (this.viewedSceneId) this.socket.emit("ping", { sceneId: this.viewedSceneId, x, y });
   }
 
-  pullPlayers(sceneId: string): void {
-    this.socket.emit("pull", sceneId);
+  /** Send everyone (or only `userIds`) to a scene. */
+  pullPlayers(sceneId: string, userIds?: string[]): void {
+    this.socket.emit("pull", sceneId, userIds);
   }
 }
 

@@ -293,10 +293,13 @@ function genericSheet(ref: ActorRef): HTMLElement {
   );
 }
 
+/** Document types with per-user ownership. */
+export type OwnedType = "Actor" | "JournalEntry" | "Item" | "Cards" | "RollTable" | "Macro" | "Playlist";
+
 /** GM-only: who can see / control a document. */
 export function ownershipEditor(
   doc: { _id: string; _parent?: string; ownership: Record<string, number | null> },
-  type: "Actor" | "JournalEntry" | "Item" | "Cards" = "Actor"
+  type: OwnedType = "Actor"
 ): HTMLElement {
   const players = game.all<UserDoc>("User").filter(u => u.role !== "gm");
   // Per-user entries can be "Padrão" (null), which falls back to the default level.

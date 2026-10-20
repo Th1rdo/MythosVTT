@@ -29,33 +29,27 @@ export function drawTable(tableId: string, count = 1, mode: RollMode = settings.
 export function tablesPanel(): HTMLElement {
   const dir = directory<RollTableDoc>({
     type: "RollTable",
-    create: { label: "Criar tabela", icon: "fa-solid fa-table-list", run: () => createTable() },
+    create: { label: "Criar tabela", icon: "fa-solid fa-table-list", run: folder => createTable(folder) },
+    ownership: true,
+    contextOptions: t => [
+      { label: "Rolar resultado", icon: "fa-solid fa-dice-d20", group: "view", visible: level(t) >= OWNERSHIP.OBSERVER, onClick: () => drawTable(t._id) }
+    ],
     docs: () => game.all<RollTableDoc>("RollTable"),
     empty: game.isGM ? "Sem tabelas." : "O mestre ainda não partilhou tabelas.",
     sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
     onOpen: t => (level(t) >= OWNERSHIP.OBSERVER ? openTableSheet(t._id) : undefined),
     entry: t => [
       avatar(t.img, t.name, 32),
-      h("span.grow", null, t.name),
-      level(t) >= OWNERSHIP.OBSERVER && h("button.icon.small", {
-        title: "Rolar na tabela", onclick: (e: Event) => { e.stopPropagation(); drawTable(t._id); }
-      }, h("i.fa-solid.fa-dice-d20")),
-      game.isGM && h("button.icon.small", {
-        title: "Apagar",
-        onclick: async (e: Event) => {
-          e.stopPropagation();
-          if (await confirmDialog(`Apagar a tabela "${t.name}"?`)) game.delete("RollTable", t._id);
-        }
-      }, "✕")
+      h("span.grow", null, t.name)
     ]
   });
   return h("div.panel", null, dir.element);
 }
 
-async function createTable(): Promise<void> {
+async function createTable(folder?: string | null): Promise<void> {
   const v = await prompt("Nova tabela", [{ name: "name", label: "Nome" }]);
   if (!v?.name.trim()) return;
-  const [t] = await game.create<RollTableDoc>("RollTable", { name: v.name.trim(), sort: Date.now() });
+  const [t] = await game.create<RollTableDoc>("RollTable", { name: v.name.trim(), sort: Date.now(), folder: folder ?? null });
   if (t) openTableSheet(t._id);
 }
 

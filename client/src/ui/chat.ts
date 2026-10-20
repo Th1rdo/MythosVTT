@@ -5,6 +5,10 @@ import { replaceFormulaData } from "../../../shared/dice.ts";
 import { game, toast } from "../game.ts";
 import { avatar, h, safeHtml, timeLabel } from "../dom.ts";
 import { hooks } from "../hooks.ts";
+import type { ContextEntry } from "./context-menu.ts";
+import { openContextMenu } from "./context-menu.ts";
+import { openWindow } from "./windows.ts";
+import { t } from "../i18n.ts";
 
 const HELP = "Escreve uma mensagem, ou rola dados:\n" +
   "/r 2d20kh+5 # Luta — rola, com descrição após #\n" +
@@ -119,16 +123,33 @@ export function messageView(m: ChatMessageDoc): HTMLElement {
       avatar(actor?.img ?? (m.speaker.actor ? null : author?.avatar), name, 24),
       h("strong.grow", null, name),
       m.whisper && h("span.tag", null, m.blind ? "às cegas" : m.whisper.length === 1 && m.whisper[0] === m.author ? "só para mim" : "privado"),
-      h("time.muted.small", null, timeLabel(m.timestamp)),
-      game.isGM && h("button.icon.small", { title: "Apagar", onclick: () => game.delete("ChatMessage", m._id) }, "✕")
+      h("time.muted.small", null, timeLabel(m.timestamp))
     ),
     m.flavor && h("div.flavor", null, m.flavor),
     body,
     m.roll && rollView(m.roll),
     m.table && tableCard(m.table)
   );
+  el.addEventListener("contextmenu", e => openContextMenu(e, messageContextOptions(m), m, "ChatMessage"));
   hooks.callAll("renderChatMessage", m, el);
   return el;
+}
+
+/** Right-click on a message: Foundry's Pop Out, Reveal To Everyone, Make Private, Delete. */
+function messageContextOptions(m: ChatMessageDoc): ContextEntry<ChatMessageDoc>[] {
+  const mine = game.isGM || m.author === game.userId;
+  const gms = game.all<UserDoc>("User").filter(u => u.role === "gm").map(u => u._id);
+  return [
+    { label: "Abrir numa janela", icon: "fa-solid fa-up-right-from-square", onClick: () => {
+      const body = openWindow(`chat-${m._id}`, t("Mensagem"), { width: 360 });
+      body?.append(h("div.chat-popout", null, messageView(game.get<ChatMessageDoc>("ChatMessage", m._id) ?? m)));
+    } },
+    { label: "Revelar a todos", icon: "fa-solid fa-eye", group: "visibility", visible: game.isGM && (!!m.whisper?.length || !!m.blind),
+      onClick: () => game.update("ChatMessage", { _id: m._id, whisper: [], blind: false }) },
+    { label: "Tornar privada", icon: "fa-solid fa-eye-slash", group: "visibility", visible: game.isGM && !m.whisper?.length,
+      onClick: () => game.update("ChatMessage", { _id: m._id, whisper: [...new Set([...gms, m.author])] }) },
+    { label: "Apagar", icon: "fa-solid fa-trash", group: "delete", classes: "danger", visible: mine, onClick: () => game.delete("ChatMessage", m._id) }
+  ];
 }
 
 /** What a table draw produced: each result with its picture, text and linked document. */

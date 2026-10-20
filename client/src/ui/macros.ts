@@ -27,6 +27,11 @@ export function macrosPanel(): HTMLElement {
   const dir = directory<MacroDoc>({
     type: "Macro",
     create: { label: "Criar macro", icon: "fa-solid fa-code", run: () => openMacroConfig(), everyone: true },
+    ownership: true,
+    canManage: m => owns(m),
+    contextOptions: m => [
+      { label: "Executar", icon: "fa-solid fa-play", group: "view", onClick: () => executeMacro(m) }
+    ],
     docs: () => game.all<MacroDoc>("Macro"),
     empty: "Sem macros. Cria uma, ou clica numa casa vazia da barra de macros.",
     sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
@@ -34,15 +39,7 @@ export function macrosPanel(): HTMLElement {
     entry: m => [
       macroIcon(m, 32),
       h("span.grow", null, m.name),
-      h("span.muted.small", null, m.type === "script" ? "script" : "chat"),
-      h("button.icon.small", { title: "Executar", onclick: (e: Event) => { e.stopPropagation(); executeMacro(m); } }, h("i.fa-solid.fa-play")),
-      owns(m) && h("button.icon.small", {
-        title: "Apagar",
-        onclick: async (e: Event) => {
-          e.stopPropagation();
-          if (await confirmDialog(`Apagar a macro "${m.name}"?`)) game.delete("Macro", m._id);
-        }
-      }, "✕")
+      h("span.muted.small", null, m.type === "script" ? "script" : "chat")
     ]
   });
   return h("div.panel", null, dir.element);

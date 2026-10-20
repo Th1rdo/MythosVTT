@@ -76,8 +76,13 @@ export function runPlaylistAction(world: World, user: UserDoc, a: PlaylistAction
       only(adjacentSound(playbackOrder(playlist, sounds), current, a.action === "next" ? 1 : -1), false);
       break;
     }
+    case "setMode":
     case "cycleMode": {
-      const mode = playlist.mode >= PLAYLIST_MODE.SIMULTANEOUS ? PLAYLIST_MODE.DISABLED : ((playlist.mode + 1) as PlaylistDoc["mode"]);
+      const mode = a.action === "setMode"
+        ? a.mode
+        : playlist.mode >= PLAYLIST_MODE.SIMULTANEOUS ? PLAYLIST_MODE.DISABLED : ((playlist.mode + 1) as PlaylistDoc["mode"]);
+      if (![-1, 0, 1, 2].includes(mode)) throw new Error("Modo inválido");
+      if (mode === playlist.mode) break;
       playlistUpdate = { mode, playing: false };
       updates = sounds.filter(s => s.playing || s.pausedTime).map(stop);
       break;
