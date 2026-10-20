@@ -10,6 +10,6 @@ import { HookRegistry } from "../../shared/hooks.ts";
  *   canvasReady(board) · controlToken(tokenDoc, controlled) · dropCanvasData(board, data) (false = handled)
  *   getSceneControlButtons(groups) · renderWindow(key, body, el) · closeWindow(key)
  *   renderActorSheet(actor, body) · renderChatMessage(message, el) · chatMessage(text, {speaker}) (false = don't send)
- *   hotbarDrop(data, slot) (false = handled) · clientSettingChanged(key, value) · error(hook, err)
+ *   prePlaylistAction(action) (false = don't send) · hotbarDrop(data, slot) (false = handled) · clientSettingChanged(key, value) · error(hook, err)
  */
 export const hooks = new HookRegistry();

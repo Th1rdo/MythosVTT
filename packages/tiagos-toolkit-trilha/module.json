@@ -1,0 +1,16 @@
+{
+  "id": "tiagos-toolkit-trilha",
+  "title": "Tiago's Toolkit: Trilha",
+  "description": "Trocar de música sem sobrepor: a música anterior desvanece por inteiro e só depois entra a nova.",
+  "version": "0.2.0-mesa.1",
+  "authors": [{ "name": "Th1rdo" }],
+  "url": "https://github.com/Th1rdo/tiagos-toolkit-trilha",
+  "mesa": {
+    "compatibility": { "minimum": "0.1.0" },
+    "esmodules": ["scripts/main.js"],
+    "languages": [
+      { "lang": "pt-BR", "name": "Português (Brasil)", "path": "lang/pt-BR.json" },
+      { "lang": "en", "name": "English", "path": "lang/en.json" }
+    ]
+  }
+}

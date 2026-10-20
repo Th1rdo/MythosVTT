@@ -2,6 +2,7 @@ import type { PlaylistAction, PlaylistDoc, PlaylistSoundDoc } from "../../../sha
 import { playbackPosition } from "../../../shared/audio.ts";
 import { game, toast } from "../game.ts";
 import { audio, Track } from "./engine.ts";
+import { hooks } from "../hooks.ts";
 
 interface Playing {
   track: Track;
@@ -107,7 +108,17 @@ export class PlaylistPlayer {
   }
 
   async request(action: PlaylistAction): Promise<void> {
-    const res = await game.socket.timeout(10_000).emitWithAck("playlist", action);
-    if (!res.ok && action.action !== "ended") toast(res.error, "error");
+    await playlistAction(action, { noHook: action.action === "ended" });
   }
+}
+
+/**
+ * Ask the server to play/stop/… a playlist. The `prePlaylistAction(action)` hook runs first (false = don't send; a
+ * package may send its own actions instead, with `noHook`). Track ends reported by listeners skip the hook.
+ */
+export async function playlistAction(action: PlaylistAction, opts: { noHook?: boolean } = {}): Promise<boolean> {
+  if (!opts.noHook && !hooks.call("prePlaylistAction", action)) return false;
+  const res = await game.socket.timeout(10_000).emitWithAck("playlist", action);
+  if (!res.ok && action.action !== "ended") toast(res.error, "error");
+  return !!res.ok;
 }

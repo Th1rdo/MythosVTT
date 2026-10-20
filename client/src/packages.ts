@@ -11,6 +11,7 @@ import { registerKey } from "./keybindings.ts";
 import type { Board } from "./canvas/board.ts";
 import { closeWindow, confirmDialog, isOpen, openWindow, prompt } from "./ui/windows.ts";
 import { audio } from "./audio/engine.ts";
+import { playlistAction } from "./audio/playlists.ts";
 import type { AudioChannel } from "../../shared/protocol.ts";
 import { browseFiles } from "./ui/file-picker.ts";
 import { openSheet } from "./ui/sheet.ts";
@@ -192,6 +193,8 @@ export const mesa = {
     volume: (channel: AudioChannel) => (audio.settings.muted ? 0 : audio.settings[channel]),
     playOnce: (src: string, opts?: { volume?: number; channel?: AudioChannel; loop?: boolean }) => audio.playOnce(src, opts)
   },
+  /** Playlist actions, as the playlist buttons send them (`{noHook: true}` skips prePlaylistAction). */
+  playlists: { action: playlistAction },
   chat: (text: string) => send(text),
   utils: {
     randomId,

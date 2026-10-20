@@ -1,0 +1,6 @@
+{
+  "TRILHA.Config.SairAntes": "The previous track leaves before the next one starts",
+  "TRILHA.Config.SairAntesHint": "In sequential or shuffle playlists, picking another track fades the current one out completely (the playlist's Fade) and only then starts the new one, also fading in.",
+  "TRILHA.Config.Entrada": "The new track starts when the fade-out reaches (%)",
+  "TRILHA.Config.EntradaHint": "Where in the fade-out the next track begins. 100 = only once the previous is silent (a gap). 75 = in the previous track's last moments, the tails touch. 0 = at the same time (crossfade)."
+}

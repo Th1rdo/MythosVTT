@@ -54,8 +54,11 @@ global `mesa`. A script that throws shows a notice and the table still opens.
 | `mesa.notify`, `mesa.toast` | notices (`info`, `warning`, `error`, `success`) |
 | `mesa.dialogs` | `confirm(message, label)`, `prompt(title, fields)` |
 | `mesa.files` | `browse(kind, current)` — the file picker |
-| `mesa.ui` | `openWindow(key, title, {width})` (returns the body to fill), `closeWindow`, `openSheet`, `openJournal`, `openImagePopout` |
+| `mesa.ui` | `openWindow(key, title, {width, onClose})` (returns the body to fill), `closeWindow`, `isOpen`, `openSheet`, `openJournal`, `openImagePopout` |
 | `mesa.chat(text)` | post to the chat (or `/r 1d20`) as the current speaker |
+| `mesa.time.serverNow()` | the server's clock (ms), the same instant on every client |
+| `mesa.audio` | `volume(channel)` (this browser's 0–1), `playOnce(src, {volume, channel, loop})` |
+| `mesa.playlists.action(action, {noHook})` | playlist actions as the buttons send them (`prePlaylistAction` hook first) |
 | `mesa.utils` | `randomId`, `getProperty`, `escapeHtml`, `debounce` |
 
 Useful hooks for packages: `init` (register settings and keys), `ready`, `canvasReady`, `getSceneControlButtons(groups)`

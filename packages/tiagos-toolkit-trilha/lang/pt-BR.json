@@ -1,0 +1,6 @@
+{
+  "TRILHA.Config.SairAntes": "A música anterior sai antes de a nova entrar",
+  "TRILHA.Config.SairAntesHint": "Em playlists sequenciais ou aleatórias, escolher outra música faz a atual desvanecer por inteiro (o «Fade» da playlist) e só depois começa a nova, também em fade.",
+  "TRILHA.Config.Entrada": "A nova música entra quando a saída vai em (%)",
+  "TRILHA.Config.EntradaHint": "Em que ponto do fade de saída começa a música seguinte. 100 = só quando a anterior se calou (fica um silêncio). 75 = nos últimos instantes da anterior, as caudas tocam-se. 0 = ao mesmo tempo (crossfade)."
+}

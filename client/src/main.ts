@@ -145,7 +145,7 @@ async function startGame(): Promise<void> {
   new TurnMarker(board);
   perception.refresh();
   // window.mesa is the package API; in development it also carries the canvas modules for debugging.
-  if (import.meta.env.DEV) Object.assign(mesa, { perception, walls, audio, ambient, playlists });
+  if (import.meta.env.DEV) Object.assign(mesa, { dev: { perception, walls, audio, ambient, playlists } });
 
   const tabs: SidebarTab[] = [
     { id: "chat", icon: "fa-solid fa-comments", label: t("Chat"), make: chatPanel },
