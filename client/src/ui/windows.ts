@@ -1,5 +1,6 @@
 import { h } from "../dom.ts";
 import { t } from "../i18n.ts";
+import { hooks } from "../hooks.ts";
 
 interface Win {
   el: HTMLElement;
@@ -33,6 +34,8 @@ export function openWindow(key: string, title: string, opts: { width?: number; o
   dragBy(el.querySelector(".win-head")!, el);
   document.getElementById("windows")!.append(el);
   open.set(key, { el, body, onClose: opts.onClose });
+  // Callers fill the body right after this returns; listeners see it filled.
+  queueMicrotask(() => open.get(key)?.body === body && hooks.callAll("renderWindow", key, body, el));
   return body;
 }
 
@@ -47,6 +50,7 @@ export function closeWindow(key: string): void {
   w.onClose?.();
   w.el.remove();
   open.delete(key);
+  hooks.callAll("closeWindow", key);
 }
 
 export function isOpen(key: string): boolean {

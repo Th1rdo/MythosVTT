@@ -12,6 +12,7 @@ import { PACK_DRAG, packAction } from "./compendia.ts";
 import { openItemSheet, rollItem, useItem } from "./item-sheet.ts";
 import { openEffectConfig } from "./effect-config.ts";
 import { openPrototypeConfig } from "./canvas-config.ts";
+import { hooks } from "../hooks.ts";
 
 const RESOURCES: [key: string, label: string][] = [["PV", "PV"], ["SAN", "SAN"], ["PE", "PE"], ["PD", "PD"]];
 const OWNERSHIP_LABELS: [number, string][] = [
@@ -38,6 +39,7 @@ export function openSheet(actorId: string, token?: { tokenId: string; sceneId: s
     if (!s) return closeWindow(key);
     setWindowTitle(key, s.source.name + (token ? " (token)" : ""));
     body.replaceChildren(isOrdemActor(s.source) ? ordemSheet(ref) : genericSheet(ref));
+    hooks.callAll("renderActorSheet", s.source, body, { token });
   };
   const refresh = () => {
     // Don't yank an input out from under the user while they type.

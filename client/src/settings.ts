@@ -1,6 +1,7 @@
 import type { SettingDoc } from "../../shared/protocol.ts";
 import { SETTING_MAP, userSetting, userStorageKey, worldSetting } from "../../shared/settings.ts";
 import { game, toast } from "./game.ts";
+import { hooks } from "./hooks.ts";
 
 const KEY = "mesa.settings";
 
@@ -74,6 +75,8 @@ class Settings {
 
   #fire(key: string, value: unknown): void {
     for (const fn of this.#listeners.get(key) ?? []) fn(value);
+    hooks.callAll("settingChanged", key, value);
+    if (SETTING_MAP.get(key)?.scope === "client") hooks.callAll("clientSettingChanged", key, value);
   }
 
   /** The Setting document behind a world setting (if it was ever changed). */

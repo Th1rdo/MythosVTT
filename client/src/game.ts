@@ -1,13 +1,30 @@
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
-  ActorDoc, BaseDoc, RollMode, DocEvent, DocRequest, DocResponse, DocType, LevelDoc, PingEvent, RollRequest, SceneDoc, TokenDoc, UserDoc, WorldSnapshot
+  ActorDoc, BaseDoc, CombatDoc, RollMode, DocEvent, DocRequest, DocResponse, DocType, LevelDoc, PingEvent, RollRequest, SceneDoc, TokenDoc, UserDoc, WorldSnapshot
 } from "../../shared/protocol.ts";
 import { DOC_TYPES } from "../../shared/protocol.ts";
 import type { DocLookup } from "../../shared/permissions.ts";
 import { ownsActor } from "../../shared/permissions.ts";
 import { defaultLevel, sceneLevels } from "../../shared/levels.ts";
 import { userSetting } from "../../shared/settings.ts";
+import { hooks } from "./hooks.ts";
+
+/** Hook options for document requests: `noHook` skips the pre* hooks (Foundry's option of the same name). */
+export interface DocOptions {
+  noHook?: boolean;
+}
+
+/** Top-level fields that differ between two versions of a document (what an update hook gets as `changes`). */
+function changedFields(before: BaseDoc | undefined, after: BaseDoc): Record<string, unknown> {
+  if (!before) return { ...after };
+  const out: Record<string, unknown> = { _id: after._id };
+  const a = before as unknown as Record<string, unknown>, b = after as unknown as Record<string, unknown>;
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out[k] = b[k];
+  }
+  return out;
+}
 
 type Listener = (e: { op: DocEvent["op"] | "reset"; docs: BaseDoc[]; ids: string[] }) => void;
 
@@ -55,7 +72,10 @@ export class Game implements DocLookup {
       });
       this.socket.on("doc", (e: DocEvent) => this.#onDoc(e));
       this.socket.on("presence", (ids: string[]) => {
+        const before = new Set(this.online);
         this.online = ids;
+        for (const id of ids) if (!before.has(id)) hooks.callAll("userConnected", this.get("User", id), true);
+        for (const id of before) if (!ids.includes(id)) hooks.callAll("userConnected", this.get("User", id), false);
         this.#emitSimple("presence");
       });
       this.socket.on("ping", (p: PingEvent) => this.#emitSimple("ping", p));
@@ -83,13 +103,22 @@ export class Game implements DocLookup {
 
   #onDoc(e: DocEvent): void {
     const map = this.#docs.get(e.type)!;
+    const options = { parent: undefined as string | undefined };
     if (e.op === "delete") {
       const docs = e.result.map(id => map.get(id)).filter((d): d is BaseDoc => !!d);
       for (const id of e.result) map.delete(id);
       this.#emit(e.type, { op: "delete", docs, ids: e.result });
+      for (const d of docs) hooks.callAll(`delete${e.type}`, d, { ...options, parent: d._parent }, e.userId);
     } else {
+      const before = e.result.map(d => map.get(d._id));
       for (const d of e.result) map.set(d._id, d);
       this.#emit(e.type, { op: e.op, docs: e.result, ids: e.result.map(d => d._id) });
+      e.result.forEach((d, i) => {
+        const changes = changedFields(before[i], d);
+        if (e.op === "create" || !before[i]) hooks.callAll(`create${e.type}`, d, { ...options, parent: d._parent }, e.userId);
+        else hooks.callAll(`update${e.type}`, d, changes, { ...options, parent: d._parent }, e.userId);
+        this.#derivedHooks(e.type, d, before[i], changes);
+      });
     }
     // Players follow their own token when it changes level (stairs, HUD).
     if (e.type === "Token" && e.op === "update" && !this.isGM) {
@@ -100,6 +129,20 @@ export class Game implements DocLookup {
     if (e.type === "Scene" && !this.isGM) {
       const active = this.activeScene?._id ?? null;
       if (active !== this.viewedSceneId) this.view(active);
+    }
+  }
+
+  /** Hooks that follow from a document change: combat turns/rounds, pause. */
+  #derivedHooks(type: DocType, doc: BaseDoc, before: BaseDoc | undefined, changes: Record<string, unknown>): void {
+    if (type === "Combat" && before) {
+      // Mesa keeps the turn as the current combatant's id.
+      const c = doc as CombatDoc, b = before as CombatDoc;
+      const info = { round: c.round, combatantId: c.current, previous: { round: b.round, combatantId: b.current } };
+      if (c.round !== b.round) hooks.callAll("combatRound", doc, info);
+      if (c.round !== b.round || c.current !== b.current) hooks.callAll("combatTurn", doc, info);
+    }
+    if (type === "Setting" && (doc as unknown as { key: string }).key === "core.paused" && "value" in changes) {
+      hooks.callAll("pauseGame", !!(doc as unknown as { value: unknown }).value);
     }
   }
 
@@ -193,16 +236,28 @@ export class Game implements DocLookup {
     return res.result as T[];
   }
 
-  create<T = BaseDoc>(type: DocType, data: Record<string, unknown> | Record<string, unknown>[], parent?: string) {
-    return this.request<T>({ op: "create", type, parent, data: Array.isArray(data) ? data : [data] });
+  // The pre* hooks run here, on the requesting client, before the server sees anything (as in Foundry);
+  // a listener returning false drops that document from the request.
+
+  async create<T = BaseDoc>(type: DocType, data: Record<string, unknown> | Record<string, unknown>[], parent?: string, opts: DocOptions = {}): Promise<T[]> {
+    let list = Array.isArray(data) ? data : [data];
+    if (!opts.noHook) list = list.filter(d => hooks.call(`preCreate${type}`, d, { parent }, this.userId));
+    if (!list.length) return [];
+    return this.request<T>({ op: "create", type, parent, data: list });
   }
 
-  update<T = BaseDoc>(type: DocType, updates: ({ _id: string } & Record<string, unknown>) | ({ _id: string } & Record<string, unknown>)[], parent?: string) {
-    return this.request<T>({ op: "update", type, parent, updates: Array.isArray(updates) ? updates : [updates] });
+  async update<T = BaseDoc>(type: DocType, updates: ({ _id: string } & Record<string, unknown>) | ({ _id: string } & Record<string, unknown>)[], parent?: string, opts: DocOptions = {}): Promise<T[]> {
+    let list = Array.isArray(updates) ? updates : [updates];
+    if (!opts.noHook) list = list.filter(u => hooks.call(`preUpdate${type}`, this.get(type, u._id), u, { parent }, this.userId));
+    if (!list.length) return [];
+    return this.request<T>({ op: "update", type, parent, updates: list });
   }
 
-  delete(type: DocType, ids: string | string[], parent?: string) {
-    return this.request<string>({ op: "delete", type, parent, ids: Array.isArray(ids) ? ids : [ids] });
+  async delete(type: DocType, ids: string | string[], parent?: string, opts: DocOptions = {}): Promise<string[]> {
+    let list = Array.isArray(ids) ? ids : [ids];
+    if (!opts.noHook) list = list.filter(id => hooks.call(`preDelete${type}`, this.get(type, id), { parent }, this.userId));
+    if (!list.length) return [];
+    return this.request<string>({ op: "delete", type, parent, ids: list });
   }
 
   /** Roll on the server. Without a mode, the user's default roll mode (setting core.rollMode) applies. */
@@ -292,3 +347,9 @@ export function notify(message: string, kind: NoticeKind = "info", opts: { perma
 export function toast(message: string, kind: NoticeKind = "info"): void {
   notify(message, kind);
 }
+
+// A failing hook listener (a module or macro) shows a notice instead of breaking Mesa.
+hooks.onError = (hook, error) => {
+  console.error(`Hook "${hook}" failed:`, error);
+  toast(`Erro num hook (${hook}): ${error instanceof Error ? error.message : String(error)}`, "error");
+};

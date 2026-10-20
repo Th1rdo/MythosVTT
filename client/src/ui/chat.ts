@@ -4,6 +4,7 @@ import { enrich } from "../enrich.ts";
 import { replaceFormulaData } from "../../../shared/dice.ts";
 import { game, toast } from "../game.ts";
 import { avatar, h, safeHtml, timeLabel } from "../dom.ts";
+import { hooks } from "../hooks.ts";
 
 const HELP = "Escreve uma mensagem, ou rola dados:\n" +
   "/r 2d20kh+5 # Luta — rola, com descrição após #\n" +
@@ -68,6 +69,7 @@ export function withActorData(formula: string, actorId: string | null): string {
 }
 
 export async function send(text: string, as = speaker()): Promise<void> {
+  if (!hooks.call("chatMessage", text, { speaker: as })) return;
   const cmd = /^\/([a-z]+)\s+(.+)$/is.exec(text);
   if (cmd && cmd[1].toLowerCase() in ROLL_COMMANDS) {
     const [formula, ...flavor] = cmd[2].split("#");
@@ -112,7 +114,7 @@ export function messageView(m: ChatMessageDoc): HTMLElement {
   const body = hidden
     ? h("div.text.muted", null, "🎲 Rolagem às cegas — só o mestre vê o resultado.")
     : redundant || !m.content ? null : m.html ? h("div.prose", null, enrich(m.content)) : h("div.text", null, withInlineRolls(m.content, m.inline ?? []));
-  return h("article.msg", { className: m.whisper ? "msg whisper" : "msg", style: { borderLeftColor: author?.color ?? "#555" } },
+  const el = h("article.msg", { className: m.whisper ? "msg whisper" : "msg", style: { borderLeftColor: author?.color ?? "#555" } },
     h("header.row", null,
       avatar(actor?.img ?? (m.speaker.actor ? null : author?.avatar), name, 24),
       h("strong.grow", null, name),
@@ -125,6 +127,8 @@ export function messageView(m: ChatMessageDoc): HTMLElement {
     m.roll && rollView(m.roll),
     m.table && tableCard(m.table)
   );
+  hooks.callAll("renderChatMessage", m, el);
+  return el;
 }
 
 /** What a table draw produced: each result with its picture, text and linked document. */

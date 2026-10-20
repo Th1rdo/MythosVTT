@@ -26,6 +26,7 @@ import { pauseBanner } from "./shell/pause.ts";
 import { openUserConfig } from "./ui/user-config.ts";
 import { setupScreen } from "./setup.ts";
 import { offerFirstTour } from "./tours.ts";
+import { hooks } from "./hooks.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { openSettingsConfig } from "./ui/settings.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -108,6 +109,8 @@ async function startGame(): Promise<void> {
   app.replaceChildren(stage);
 
   await game.connect();
+  hooks.callAll("init");
+  hooks.callAll("setup");
 
   const board = new Board();
   await board.mount(boardHost);
@@ -135,7 +138,7 @@ async function startGame(): Promise<void> {
   new TurnMarker(board);
   perception.refresh();
   // Debug handle for development only (stripped from production builds).
-  if (import.meta.env.DEV) Object.assign(window, { mesa: { game, board, perception, walls, audio, ambient, playlists } });
+  if (import.meta.env.DEV) Object.assign(window, { mesa: { game, board, perception, walls, audio, ambient, playlists, hooks } });
 
   const tabs: SidebarTab[] = [
     { id: "chat", icon: "fa-solid fa-comments", label: t("Chat"), make: chatPanel },
@@ -151,6 +154,8 @@ async function startGame(): Promise<void> {
     { id: "compendia", icon: "fa-solid fa-book-atlas", label: t("Compêndios"), make: compendiaPanel },
     { id: "settings", icon: "fa-solid fa-gears", label: t("Definições"), make: settingsPanel }
   ];
+  // Packages can add sidebar tabs (before Definições) or change the list.
+  hooks.callAll("getSidebarTabs", tabs);
   stage.append(
     sceneControls(board, walls, lights, sounds, tiles, drawings, regions),
     sceneNavigation(),
@@ -159,6 +164,7 @@ async function startGame(): Promise<void> {
     hotbar(),
     sidebar(tabs)
   );
+  hooks.callAll("ready");
 }
 
 function settingsPanel(): HTMLElement {

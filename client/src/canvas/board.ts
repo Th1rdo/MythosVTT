@@ -12,10 +12,11 @@ import { CONDITION_BY_ID, DEAD } from "../../../shared/conditions.ts";
 import { defaultLevel, tokenOnLevel } from "../../../shared/levels.ts";
 import { game, toast } from "../game.ts";
 import { settings } from "../settings.ts";
-import { initials } from "../dom.ts";
+import { dragData, initials } from "../dom.ts";
 import { openSheet } from "../ui/sheet.ts";
 import { toggleCombat } from "../ui/combat.ts";
 import { openTokenHUD } from "./token-hud.ts";
+import { hooks } from "../hooks.ts";
 
 const DISPOSITION_COLOR: Record<number, number> = { [-1]: 0xd9534f, 0: 0xe0b84a, 1: 0x4fa3d9 };
 const MIN_ZOOM = 0.1;
@@ -296,6 +297,7 @@ export class Board {
     };
     await Promise.all([art(level?.background.src ?? scene.img, bg), art(level?.foreground.src, fg)]);
     this.emit("scene");
+    if (resetView && this.scene?._id === scene._id) hooks.callAll("canvasReady", this);
   }
 
   #drawGrid(scene: SceneDoc): void {
@@ -354,12 +356,18 @@ export class Board {
     const changed = next.size !== this.#selected.size || [...next].some(id => !this.#selected.has(id));
     if (!changed) return;
     const touched = new Set([...this.#selected, ...next]);
+    const was = this.#selected;
     this.#selected = next;
     for (const id of touched) {
       const v = this.tokens.get(id);
       if (v) this.#decorate(v);
     }
     this.emit("selection");
+    for (const id of touched) {
+      if (was.has(id) === next.has(id)) continue;
+      const v = this.tokens.get(id);
+      if (v) hooks.callAll("controlToken", v.doc, next.has(id));
+    }
   }
 
   #onTokens(op: string, docs: TokenDoc[], ids: string[]): void {
@@ -738,6 +746,8 @@ export class Board {
 
   async #onDrop(e: DragEvent): Promise<void> {
     e.preventDefault();
+    const where = this.eventToWorld(e);
+    if (!hooks.call("dropCanvasData", this, { ...dragData(e.dataTransfer), x: where.x, y: where.y })) return;
     const actorId = e.dataTransfer?.getData("application/x-mesa-actor");
     const actor = game.get<ActorDoc>("Actor", actorId);
     const scene = this.scene;

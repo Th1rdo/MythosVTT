@@ -117,7 +117,9 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ⬜ Tours registered by systems/modules, canvas-placed steps
 
 ## Phase 8 — Extensibility  *(helpers/hooks, packages)*
-- ⬜ Hooks API, module/system package format, enable/disable modules, hot reload
+- ✅ Hooks (REA `ev_bf37a5b7…`): on/once/off, `call` (false cancels) / `callAll`, failing listeners reported as a notice and skipped, `error` hook; core events: init/setup/ready, pre/create/update/delete<Type> (pre* on the requesting client, can edit or cancel; update gets the changed fields), combatRound/combatTurn, pauseGame, userConnected, canvasReady, controlToken, dropCanvasData, getSceneControlButtons, getSidebarTabs, renderWindow/closeWindow, renderActorSheet, renderChatMessage, chatMessage, hotbarDrop, settingChanged/clientSettingChanged; `mesa.hooks` in script macros
+- ⬜ Hooks still missing: per-placeable draw/refresh/hover, render hooks for every window class, targetToken, preMoveToken/moveToken, chat bubbles
+- ⬜ Module/system package format, enable/disable modules, hot reload
 - ⬜ Port Tiago's own modules (toolkit, cinema-sync, rituals) to Mesa's API
 
 ## Phase 9 — Audio/video chat  *(av/*)*

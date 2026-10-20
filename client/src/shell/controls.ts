@@ -10,8 +10,9 @@ import type { DrawingsLayer } from "../canvas/drawings.ts";
 import type { RegionsLayer } from "../canvas/regions.ts";
 import { confirmDialog } from "../ui/windows.ts";
 import { t } from "../i18n.ts";
+import { hooks } from "../hooks.ts";
 
-interface ToolDef {
+export interface ToolDef {
   name: string;
   icon: string;
   title: string;
@@ -20,7 +21,7 @@ interface ToolDef {
   run: () => void;
 }
 
-interface GroupDef {
+export interface GroupDef {
   name: string;
   icon: string;
   title: string;
@@ -142,6 +143,9 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
       ]
     }
   ];
+
+  // Packages add their own groups/tools here (or change the core ones).
+  hooks.callAll("getSceneControlButtons", groups, board);
 
   const select = (g: GroupDef, t: ToolDef) => {
     if (t.button) return t.run();

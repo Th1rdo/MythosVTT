@@ -83,3 +83,18 @@ export function imageSize(src: string): Promise<{ width: number; height: number 
     img.src = src;
   });
 }
+
+/** Everything a drag carries, by type (JSON values parsed), for hooks such as dropCanvasData/hotbarDrop. */
+export function dragData(dt: DataTransfer | null | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const type of dt?.types ?? []) {
+    if (type === "Files") continue;
+    const raw = dt!.getData(type);
+    try {
+      out[type] = JSON.parse(raw);
+    } catch {
+      out[type] = raw;
+    }
+  }
+  return out;
+}

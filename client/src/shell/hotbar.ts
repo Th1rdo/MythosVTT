@@ -3,7 +3,7 @@ import { drawTable } from "../ui/tables.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { macroLevel } from "../../../shared/permissions.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, setChildren } from "../dom.ts";
+import { avatar, dragData, h, setChildren } from "../dom.ts";
 import { ITEM_DRAG, openSheet } from "../ui/sheet.ts";
 import { openItemSheet, rollItem, useItem } from "../ui/item-sheet.ts";
 import { openJournal } from "../ui/journal.ts";
@@ -14,6 +14,7 @@ import { executeMacro } from "../macros.ts";
 import { macroIcon, openMacroConfig } from "../ui/macros.ts";
 import { confirmDialog, contextMenu } from "../ui/windows.ts";
 import { t } from "../i18n.ts";
+import { hooks } from "../hooks.ts";
 
 const PAGES = 5;
 const DOC_DRAG = "application/x-mesa-doc";
@@ -63,6 +64,7 @@ export function hotbar(): HTMLElement {
     ev.preventDefault();
     if (locked) return toast(t("A barra está trancada"));
     const dt = ev.dataTransfer;
+    if (!hooks.call("hotbarDrop", dragData(dt), slot)) return;
     const item = dt?.getData(ITEM_DRAG);
     const doc = dt?.getData(DOC_DRAG);
     const actor = dt?.getData("application/x-mesa-actor");

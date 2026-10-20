@@ -2,6 +2,7 @@ import type { ActorDoc, AudioChannel, MacroDoc, RollMode, RollTableDoc, RunMacro
 import { drawTable } from "./ui/tables.ts";
 import { canRunMacro } from "../../shared/permissions.ts";
 import { game, toast } from "./game.ts";
+import { hooks } from "./hooks.ts";
 import type { Board } from "./canvas/board.ts";
 import { audio } from "./audio/engine.ts";
 import { send, speaker as defaultSpeaker } from "./ui/chat.ts";
@@ -13,6 +14,8 @@ type Speaker = { actor: string | null; alias: string };
 /** What script macros get besides speaker/actor/token/character/scope: Mesa's API. */
 export interface MacroApi {
   game: typeof game;
+  /** Hooks: mesa.hooks.on("updateActor", fn) etc. (see client/src/hooks.ts). */
+  hooks: typeof hooks;
   board: Board | null;
   audio: typeof audio;
   /** Tokens the user has selected on the map. */
@@ -94,6 +97,7 @@ export async function executeMacro(macro: MacroDoc, scope: MacroScope = {}): Pro
 function api(speaker: Speaker): MacroApi {
   return {
     game,
+    hooks,
     board,
     audio,
     selected: () => board?.selected.map(v => v.doc) ?? [],
