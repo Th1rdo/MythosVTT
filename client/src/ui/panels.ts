@@ -1,4 +1,6 @@
-import type { ActorDoc, ItemDoc, JournalEntryDoc, LevelDoc, SceneDoc, UserDoc } from "../../../shared/protocol.ts";
+import type { ActorDoc, ItemDoc, JournalEntryDoc, LevelDoc, NoteDoc, SceneDoc, UserDoc } from "../../../shared/protocol.ts";
+import type { ContextEntry } from "./context-menu.ts";
+import { mesa } from "../packages.ts";
 import { sceneLevels } from "../../../shared/levels.ts";
 import { ITEM_TYPES, itemTemplate } from "../../../shared/ordem.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
@@ -6,7 +8,7 @@ import { game, toast } from "../game.ts";
 import { avatar, h, imageSize, setChildren } from "../dom.ts";
 import { browseFiles } from "./file-picker.ts";
 import { ITEM_DRAG, openSheet } from "./sheet.ts";
-import { openJournal } from "./journal.ts";
+import { openImagePopout, openJournal } from "./journal.ts";
 import { openItemSheet } from "./item-sheet.ts";
 import { directory } from "./directory.ts";
 import { closeWindow, confirmDialog, openWindow, prompt } from "./windows.ts";
@@ -17,7 +19,12 @@ import { closeWindow, confirmDialog, openWindow, prompt } from "./windows.ts";
 export function actorsPanel(): HTMLElement {
   const dir = directory<ActorDoc>({
     type: "Actor",
-    create: { label: "Criar ator", icon: "fa-solid fa-user", run: () => add() },
+    create: { label: "Criar ator", icon: "fa-solid fa-user", run: folder => add(folder) },
+    ownership: true,
+    contextOptions: a => [
+      { label: "Ver arte do personagem", icon: "fa-solid fa-image", group: "view", visible: !!a.img, onClick: () => openImagePopout(a.img!, a.name) },
+      { label: "Ver arte do token", icon: "fa-solid fa-image-portrait", group: "view", visible: !!a.token?.img && a.token.img !== a.img, onClick: () => openImagePopout(a.token.img!, a.name) }
+    ],
     docs: () => game.all<ActorDoc>("Actor"),
     empty: "Sem atores.",
     onOpen: a => openSheet(a._id),
@@ -25,23 +32,16 @@ export function actorsPanel(): HTMLElement {
     entry: a => [
       avatar(a.img, a.name, 44),
       h("span.grow", null, a.name),
-      h("span.muted.small", null, a.type),
-      game.isGM && h("button.icon.small", {
-        title: "Apagar",
-        onclick: async (e: Event) => {
-          e.stopPropagation();
-          if (await confirmDialog(`Apagar "${a.name}"?`)) game.delete("Actor", a._id);
-        }
-      }, "✕")
+      h("span.muted.small", null, a.type)
     ]
   });
 
-  const add = async () => {
+  const add = async (folder?: string | null) => {
     const v = await prompt("Novo ator", [{ name: "name", label: "Nome" }, { name: "type", label: "Tipo (agent / threat)", value: "agent" }]);
     if (!v?.name) return;
     const agent = v.type !== "threat";
     const [actor] = await game.create<ActorDoc>("Actor", {
-      name: v.name, type: agent ? "agent" : "threat", system: blankAgent(),
+      name: v.name, type: agent ? "agent" : "threat", system: blankAgent(), folder: folder ?? null,
       // Agents are player characters: linked tokens that see; threats are copies.
       token: agent
         ? { actorLink: true, disposition: 1, sight: { enabled: true, range: 0, angle: 360 }, bar1: { attribute: "PV" }, bar2: { attribute: "SAN" } }
@@ -59,7 +59,11 @@ export function actorsPanel(): HTMLElement {
 export function itemsPanel(): HTMLElement {
   const dir = directory<ItemDoc>({
     type: "Item",
-    create: { label: "Criar item", icon: "fa-solid fa-suitcase", run: () => add() },
+    create: { label: "Criar item", icon: "fa-solid fa-suitcase", run: folder => add(folder) },
+    ownership: true,
+    contextOptions: i => [
+      { label: "Ver arte do item", icon: "fa-solid fa-image", group: "view", visible: !!i.img, onClick: () => openImagePopout(i.img!, i.name) }
+    ],
     docs: () => game.all<ItemDoc>("Item").filter(i => !i._parent),
     empty: game.isGM ? "Sem itens. Cria um com + Item." : "O mestre ainda não partilhou itens.",
     onOpen: i => openItemSheet(i._id),
@@ -67,20 +71,13 @@ export function itemsPanel(): HTMLElement {
     entry: i => [
       avatar(i.img, i.name, 36),
       h("span.grow", null, i.name),
-      h("span.muted.small", null, ITEM_TYPES.find(([t]) => t === i.type)?.[1] ?? i.type),
-      game.isGM && h("button.icon.small", {
-        title: "Apagar",
-        onclick: async (e: Event) => {
-          e.stopPropagation();
-          if (await confirmDialog(`Apagar "${i.name}"?`)) game.delete("Item", i._id);
-        }
-      }, "✕")
+      h("span.muted.small", null, ITEM_TYPES.find(([t]) => t === i.type)?.[1] ?? i.type)
     ]
   });
-  const add = async () => {
+  const add = async (folder?: string | null) => {
     const v = await prompt("Novo item", [{ name: "name", label: "Nome" }]);
     if (!v?.name) return;
-    const [item] = await game.create<ItemDoc>("Item", { name: v.name, type: "generalEquipment", system: itemTemplate("generalEquipment") });
+    const [item] = await game.create<ItemDoc>("Item", { name: v.name, type: "generalEquipment", system: itemTemplate("generalEquipment"), folder: folder ?? null });
     if (item) openItemSheet(item._id);
   };
   return h("div.panel", null, dir.element);
@@ -111,46 +108,45 @@ function blankAgent(): Record<string, unknown> {
 export function scenesPanel(): HTMLElement {
   const dir = directory<SceneDoc>({
     type: "Scene",
-    create: { label: "Criar cena", icon: "fa-solid fa-map", run: () => add() },
+    create: { label: "Criar cena", icon: "fa-solid fa-map", run: folder => add(folder) },
     banner: s => s.img,
+    contextOptions: s => sceneContextOptions(s),
     docs: () => game.all<SceneDoc>("Scene"),
     empty: "Sem cenas.",
     sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
     rowClass: s => (s._id === game.viewedSceneId ? "current" : ""),
     onOpen: s => game.view(s._id),
     entry: s => [
-      h("span.grow.scene-title", null, s.active ? h("i.fa-solid.fa-bullseye", { title: "Ativa" }) : null, " ", s.name),
-      !s.active && h("button.small", { title: "Ativar para todos", onclick: (e: Event) => (e.stopPropagation(), game.update("Scene", { _id: s._id, active: true })) }, "Ativar"),
-      h("button.icon.small", { title: "Configurar", onclick: (e: Event) => (e.stopPropagation(), sceneConfig(s._id)) }, "⚙"),
-      h("button.icon.small", {
-        title: "Apagar",
-        onclick: async (e: Event) => {
-          e.stopPropagation();
-          if (await confirmDialog(`Apagar a cena "${s.name}" e os seus tokens?`)) game.delete("Scene", s._id);
-        }
-      }, "✕")
+      h("span.grow.scene-title", null, s.active ? h("i.fa-solid.fa-bullseye", { title: "Ativa" }) : null, " ", s.name)
     ]
   });
   game.on("view", dir.render);
   const list = dir.element;
 
-  const add = async () => {
+  const add = async (folder?: string | null) => {
     const v = await prompt("Nova cena", [{ name: "name", label: "Nome" }]);
     if (!v?.name) return;
-    const [scene] = await game.create<SceneDoc>("Scene", { name: v.name });
+    const [scene] = await game.create<SceneDoc>("Scene", { name: v.name, folder: folder ?? null });
     game.view(scene._id);
     sceneConfig(scene._id);
   };
 
-  return h("div.panel", null,
-    h("div.row.toolbar", null,
-      h("button", { title: "Levar os jogadores para a cena que estás a ver", onclick: () => game.viewedSceneId && game.pullPlayers(game.viewedSceneId) }, "Puxar jogadores")
-    ),
-    list
-  );
+  return h("div.panel", null, list);
 }
 
-function sceneConfig(sceneId: string): void {
+/** Right-click on a scene (directory and navigation bar): Foundry's View, Activate, Pull Everyone, Edit, Toggle Navigation. */
+export function sceneContextOptions(s: SceneDoc): ContextEntry<SceneDoc>[] {
+  return [
+    { label: "Ver", icon: "fa-solid fa-eye", visible: s._id !== game.viewedSceneId, onClick: () => game.view(s._id) },
+    { label: "Ativar", icon: "fa-solid fa-bullseye", visible: game.isGM && !s.active, onClick: () => game.update("Scene", { _id: s._id, active: true }) },
+    { label: "Puxar todos para aqui", icon: "fa-solid fa-person-walking-arrow-right", visible: game.isGM, onClick: () => game.pullPlayers(s._id) },
+    { label: "Configurar", icon: "fa-solid fa-gear", group: "manage", visible: game.isGM, onClick: () => sceneConfig(s._id) },
+    { label: s.navigation ? "Esconder da navegação" : "Mostrar na navegação", icon: s.navigation ? "fa-solid fa-eye-slash" : "fa-solid fa-compass", group: "manage", visible: game.isGM,
+      onClick: () => game.update("Scene", { _id: s._id, navigation: !s.navigation }) }
+  ];
+}
+
+export function sceneConfig(sceneId: string): void {
   const key = `scene-${sceneId}`;
   const scene = game.get<SceneDoc>("Scene", sceneId);
   if (!scene) return;
@@ -309,7 +305,12 @@ function levelsEditor(sceneId: string): HTMLElement {
 export function journalPanel(): HTMLElement {
   const dir = directory<JournalEntryDoc>({
     type: "JournalEntry",
-    create: { label: "Criar entrada", icon: "fa-solid fa-book-open", run: () => add() },
+    create: { label: "Criar entrada", icon: "fa-solid fa-book-open", run: folder => add(folder) },
+    ownership: true,
+    contextOptions: j => {
+      const pin = game.all<NoteDoc>("Note").find(n => n.entryId === j._id);
+      return [{ label: "Ir para o pin", icon: "fa-solid fa-crosshairs", group: "view", visible: !!pin, onClick: () => pin && goToNote(pin) }];
+    },
     docs: () => game.all<JournalEntryDoc>("JournalEntry"),
     empty: "Sem entradas.",
     sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
@@ -320,10 +321,10 @@ export function journalPanel(): HTMLElement {
     ]
   });
 
-  const add = async () => {
+  const add = async (folder?: string | null) => {
     const v = await prompt("Nova entrada", [{ name: "name", label: "Título" }]);
     if (!v?.name) return;
-    const [entry] = await game.create<JournalEntryDoc>("JournalEntry", { name: v.name });
+    const [entry] = await game.create<JournalEntryDoc>("JournalEntry", { name: v.name, folder: folder ?? null });
     if (!entry) return;
     await game.create("JournalEntryPage", { name: v.name, sort: 0 }, entry._id);
     openJournal(entry._id, true);
@@ -380,4 +381,11 @@ export function playersPanel(): HTMLElement {
 
 function randomColor(): string {
   return "#" + Array.from(crypto.getRandomValues(new Uint8Array(3)), b => (96 + (b % 160)).toString(16).padStart(2, "0")).join("");
+}
+
+/** Jump to a journal entry's map pin: view its scene (and level) and centre on it. */
+function goToNote(n: NoteDoc): void {
+  if (n._parent !== game.viewedSceneId) game.view(n._parent!, n.levels?.[0] ?? undefined);
+  // The scene redraws (and restores its saved view) first; then centre on the pin.
+  setTimeout(() => mesa.board?.panToPoint(n.x, n.y), 300);
 }

@@ -318,8 +318,13 @@ export class Board {
     const v = this.tokens.get(tokenId);
     if (!v || !v.root.visible) return;
     const c = this.tokenCenter(v);
+    this.panToPoint(c.x, c.y);
+  }
+
+  /** Centre the view on a point of the scene without changing the zoom. */
+  panToPoint(x: number, y: number): void {
     const s = this.world.scale.x;
-    this.world.position.set(this.app.screen.width / 2 - c.x * s, this.app.screen.height / 2 - c.y * s);
+    this.world.position.set(this.app.screen.width / 2 - x * s, this.app.screen.height / 2 - y * s);
   }
 
   /** Zoom to fit the whole scene in the viewport. */

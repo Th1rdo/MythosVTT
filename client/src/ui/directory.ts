@@ -2,6 +2,10 @@ import type { BaseDoc, FolderDoc } from "../../../shared/protocol.ts";
 import { game } from "../game.ts";
 import { h } from "../dom.ts";
 import { confirmDialog, prompt } from "./windows.ts";
+import type { ContextEntry } from "./context-menu.ts";
+import { bindContextMenu } from "./context-menu.ts";
+import { deleteDoc, duplicateDoc, exportDoc, importDoc, openOwnership } from "./doc-actions.ts";
+import { t } from "../i18n.ts";
 
 type DirType = FolderDoc["type"];
 const DOC_DRAG = "application/x-mesa-doc";
@@ -38,8 +42,14 @@ export interface DirectoryOptions<T extends BaseDoc> {
   /** Manual order (e.g. scene sort); the header's sort button toggles between this and A→Z. */
   sort?: (a: T, b: T) => number;
   empty: string;
-  /** "Create X" button in the header (GM, or everyone with `everyone`). */
-  create?: { label: string; icon: string; run: () => void; everyone?: boolean };
+  /** "Create X" button in the header (GM, or everyone with `everyone`); `folder` when created from a folder's menu. */
+  create?: { label: string; icon: string; run: (folder?: string | null) => void; everyone?: boolean };
+  /** Entries of this type's right-click menu, before the common ones (open, ownership, duplicate, export, delete). */
+  contextOptions?: (doc: T) => ContextEntry<T>[];
+  /** Has per-user ownership (adds "Permissões" to the menu). */
+  ownership?: boolean;
+  /** Who may use the common entries (default: the GM). */
+  canManage?: (doc: T) => boolean;
   /** Image used as a banner background for the row (scene thumbnails). */
   banner?: (doc: T) => string | null;
 }
@@ -131,6 +141,7 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
     const searching = !!query;
 
     const entryRow = (d: T) => h("li", {
+      dataset: { id: d._id },
       className: ["entry", opts.rowClass?.(d), opts.banner && "banner"].filter(Boolean).join(" "),
       style: opts.banner?.(d) ? { backgroundImage: `linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.35)), url("${opts.banner(d)}")` } : undefined,
       draggable: true,
@@ -145,6 +156,7 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
       if ((!game.isGM || searching) && !hasContent(f._id)) return null;
       const open = searching || !collapsed.has(f._id);
       const head = h("div.folder-head", {
+        dataset: { folder: f._id },
         style: { borderLeftColor: f.color ?? "transparent" },
         draggable: game.isGM,
         ondragstart: (e: DragEvent) => e.dataTransfer?.setData(FOLDER_DRAG, f._id),
@@ -156,26 +168,7 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
         }
       },
         h("span.chevron", null, open ? "▾" : "▸"),
-        h("span.grow", null, "📁 ", f.name),
-        game.isGM && h("button.icon.small", {
-          title: "Nova subpasta",
-          onclick: (e: Event) => { e.stopPropagation(); createFolder(opts.type, f._id); }
-        }, "＋"),
-        game.isGM && h("button.icon.small", {
-          title: "Editar pasta",
-          onclick: async (e: Event) => {
-            e.stopPropagation();
-            const v = await prompt("Pasta", [{ name: "name", label: "Nome", value: f.name }, { name: "color", label: "Cor", value: f.color ?? "#555555", type: "color" }]);
-            if (v) game.update("Folder", { _id: f._id, name: v.name.trim() || f.name, color: v.color });
-          }
-        }, "✎"),
-        game.isGM && h("button.icon.small", {
-          title: "Apagar pasta (o conteúdo sobe um nível)",
-          onclick: async (e: Event) => {
-            e.stopPropagation();
-            if (await confirmDialog(`Apagar a pasta "${f.name}"? O conteúdo fica na pasta de cima.`)) game.delete("Folder", f._id);
-          }
-        }, "✕")
+        h("span.grow", null, "📁 ", f.name)
       );
       acceptDrop(head, f._id);
       const inner = h("ul.doc-list");
@@ -193,6 +186,53 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
     list.replaceChildren(...top);
     if (!top.length) list.append(h("li.muted", null, opts.empty));
   };
+
+  // ---- Right-click menus (Foundry's directory context options)
+  const manage = (d: T) => opts.canManage?.(d) ?? game.isGM;
+  const docOf = (el: HTMLElement) => game.get<T>(opts.type, el.dataset.id);
+  bindContextMenu(list, "li.entry[data-id]", el => {
+    const d = docOf(el);
+    if (!d) return [];
+    const common: ContextEntry<T>[] = [
+      { label: "Abrir", icon: "fa-solid fa-folder-open", onClick: () => opts.onOpen(d) },
+      { label: "Permissões", icon: "fa-solid fa-lock", group: "manage", visible: !!opts.ownership && game.isGM,
+        onClick: () => openOwnership(opts.type as "Actor" | "JournalEntry" | "Item" | "Cards", d._id) },
+      { label: "Duplicar", icon: "fa-regular fa-copy", group: "manage", visible: manage(d), onClick: () => duplicateDoc(opts.type, d._id) },
+      { label: "Exportar dados", icon: "fa-solid fa-file-export", group: "data", visible: manage(d), onClick: () => exportDoc(opts.type, d._id) },
+      { label: "Importar dados", icon: "fa-solid fa-file-import", group: "data", visible: manage(d), onClick: () => importDoc(opts.type, d._id) },
+      { label: "Apagar", icon: "fa-solid fa-trash", group: "delete", classes: "danger", visible: manage(d), onClick: () => deleteDoc(opts.type, d._id) }
+    ];
+    const extra = opts.contextOptions?.(d) ?? [];
+    const wrap = (x: ContextEntry<T>): ContextEntry<HTMLElement> => ({ ...x, visible: typeof x.visible === "function" ? () => (x.visible as (t: T) => boolean)(d) : x.visible, onClick: () => x.onClick(d) });
+    return [...[common[0], ...extra, ...common.slice(1)].map(wrap)];
+  }, opts.type);
+
+  bindContextMenu(list, ".folder-head[data-folder]", el => {
+    const f = game.get<FolderDoc>("Folder", el.dataset.folder);
+    if (!f || !game.isGM) return [];
+    const docsInside = (id: string): string[] => [
+      ...opts.docs().filter(d => d.folder === id).map(d => d._id),
+      ...game.all<FolderDoc>("Folder").filter(x => x.folder === id).flatMap(x => docsInside(x._id))
+    ];
+    const foldersInside = (id: string): string[] => game.all<FolderDoc>("Folder").filter(x => x.folder === id).flatMap(x => [x._id, ...foldersInside(x._id)]);
+    return [
+      { label: "Editar pasta", icon: "fa-solid fa-pen-to-square", onClick: async () => {
+        const v = await prompt(t("Pasta"), [{ name: "name", label: t("Nome"), value: f.name }, { name: "color", label: t("Cor"), value: f.color ?? "#555555", type: "color" }]);
+        if (v) game.update("Folder", { _id: f._id, name: v.name.trim() || f.name, color: v.color });
+      } },
+      { label: "Criar subpasta", icon: "fa-solid fa-folder-plus", onClick: () => createFolder(opts.type, f._id) },
+      ...(opts.create ? [{ label: opts.create.label, icon: opts.create.icon, onClick: () => opts.create!.run(f._id) }] : []),
+      { label: "Remover pasta", icon: "fa-solid fa-folder-minus", group: "delete", onClick: async () => {
+        if (await confirmDialog(t("Remover a pasta «{nome}»? O conteúdo fica na pasta de cima.", { nome: f.name }), t("Remover"))) game.delete("Folder", f._id);
+      } },
+      { label: "Apagar tudo", icon: "fa-solid fa-dumpster", group: "delete", classes: "danger", onClick: async () => {
+        const docs = docsInside(f._id);
+        if (!(await confirmDialog(t("Apagar a pasta «{nome}», as subpastas e os {n} documentos lá dentro? Isto não se pode desfazer.", { nome: f.name, n: docs.length })))) return;
+        if (docs.length) await game.delete(opts.type, docs);
+        await game.delete("Folder", [...foldersInside(f._id).reverse(), f._id]);
+      } }
+    ];
+  }, "Folder");
 
   for (const t of [opts.type, "Folder"] as const) game.on(t, render);
   game.on("ready", render);

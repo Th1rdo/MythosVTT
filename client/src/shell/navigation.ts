@@ -3,6 +3,8 @@ import { game } from "../game.ts";
 import { h, setChildren } from "../dom.ts";
 import { sceneLevels } from "../../../shared/levels.ts";
 import { t } from "../i18n.ts";
+import { openContextMenu } from "../ui/context-menu.ts";
+import { sceneContextOptions } from "../ui/panels.ts";
 
 /**
  * Scene navigation (top-left, like Foundry's): the viewed scene as a pill with the players who are
@@ -22,12 +24,9 @@ export function sceneNavigation(): HTMLElement {
 
   const pill = (s: SceneDoc, viewed: boolean) => h("li", {
     className: ["scene-pill", viewed && "viewed", s.active && "active"].filter(Boolean).join(" "),
-    title: game.isGM ? t("Clique: ver · Botão direito: ativar para todos") : s.name,
+    title: game.isGM ? t("Clique: ver · Botão direito: opções") : s.name,
     onclick: () => game.isGM && game.view(s._id),
-    oncontextmenu: (e: Event) => {
-      e.preventDefault();
-      if (game.isGM && !s.active) game.update("Scene", { _id: s._id, active: true });
-    }
+    oncontextmenu: (e: MouseEvent) => game.isGM && openContextMenu(e, sceneContextOptions(s), s, "SceneNavigation")
   },
     h("span.scene-name", null, s.name),
     s.active && h("i.fa-solid.fa-bullseye", { title: t("Cena ativa") }),

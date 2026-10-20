@@ -388,10 +388,6 @@ button.icon.on { color: var(--accent-2); }
 #hotbar .slot .avatar.macro-icon { border-radius: 0; background: transparent; width: 100% !important; height: 100% !important; font-size: calc(var(--slot) * 0.5) !important; }
 textarea.macro-command { width: 100%; resize: vertical; min-height: 160px; }
 textarea.macro-command.code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.45; tab-size: 2; }
-.context-menu { position: fixed; z-index: 1000; margin: 0; padding: 4px 0; list-style: none; min-width: 170px; background: var(--panel-solid); border: 1px solid var(--control-border); border-radius: var(--radius); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); }
-.context-menu button { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 12px; background: none; border: none; color: var(--text); text-align: left; border-radius: 0; }
-.context-menu button:hover { background: var(--control-hover); }
-.context-menu i { width: 16px; color: var(--muted); }
 
 /* ---- Roll tables ---- */
 .table-head { display: flex; gap: 12px; align-items: flex-start; }
@@ -577,3 +573,19 @@ main.setup { max-width: 1100px; margin: 0 auto; padding: 24px; overflow-y: auto;
 .module-problem { color: #f0ad4e; }
 .module-filters button.active { border-color: var(--accent-2); color: var(--accent-2); }
 .setting-group { margin: 14px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; color: var(--accent-2); }
+
+/* ---- Right-click menus ---- */
+#context-menu { position: fixed; z-index: 1500; margin: 0; padding: 4px; list-style: none; min-width: 190px; max-width: 320px;
+  background: var(--panel-solid); border: 1px solid var(--control-border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+  animation: context-in 90ms ease-out; transform-origin: top left; }
+#context-menu.expand-up { transform-origin: bottom left; }
+@keyframes context-in { from { opacity: 0; transform: scale(0.97); } }
+#context-menu li { margin: 0; }
+#context-menu .context-item { display: flex; gap: 10px; align-items: center; width: 100%; padding: 6px 10px; background: none; border: none;
+  border-radius: 4px; color: var(--text); text-align: left; font-size: 13px; cursor: pointer; }
+#context-menu .context-item:hover, #context-menu .context-item:focus-visible { background: var(--control-hover); outline: none; }
+#context-menu .context-item i { width: 16px; text-align: center; color: var(--muted); }
+#context-menu .context-item:hover i { color: var(--accent-2); }
+#context-menu .context-item.danger:hover { color: #ff8a80; }
+#context-menu .context-item.danger:hover i { color: #ff8a80; }
+#context-menu .context-separator { height: 1px; margin: 4px 6px; background: rgba(255, 255, 255, 0.08); }

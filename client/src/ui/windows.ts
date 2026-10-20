@@ -1,5 +1,6 @@
 import { h } from "../dom.ts";
 import { t } from "../i18n.ts";
+import { openContextMenu } from "./context-menu.ts";
 import { hooks } from "../hooks.ts";
 
 interface Win {
@@ -123,36 +124,10 @@ export interface MenuItem {
   label: string;
   icon: string;
   run: () => void;
+  group?: string;
 }
 
-/** A small right-click menu at the pointer; closes on any click elsewhere or Escape. */
-export function contextMenu(e: MouseEvent, items: MenuItem[]): void {
-  e.preventDefault();
-  document.querySelector(".context-menu")?.remove();
-  if (!items.length) return;
-  const menu = h("menu.context-menu", null, items.map(it => h("li", null, h("button", {
-    onclick: () => {
-      close();
-      it.run();
-    }
-  }, h("i", { className: it.icon }), " ", it.label))));
-  document.body.append(menu);
-  const { innerWidth: w, innerHeight: hgt } = window;
-  const r = menu.getBoundingClientRect();
-  menu.style.left = `${Math.min(e.clientX, w - r.width - 4)}px`;
-  menu.style.top = `${Math.min(e.clientY, hgt - r.height - 4)}px`;
-  const away = (ev: Event) => {
-    if (ev instanceof KeyboardEvent && ev.key !== "Escape") return;
-    if (ev.target instanceof Node && menu.contains(ev.target) && !(ev instanceof KeyboardEvent)) return;
-    close();
-  };
-  const close = () => {
-    menu.remove();
-    window.removeEventListener("pointerdown", away, true);
-    window.removeEventListener("keydown", away, true);
-  };
-  setTimeout(() => {
-    window.addEventListener("pointerdown", away, true);
-    window.addEventListener("keydown", away, true);
-  });
+/** A small right-click menu at the pointer (see context-menu.ts, which this now uses). */
+export function contextMenu(e: MouseEvent, items: MenuItem[], name?: string): void {
+  openContextMenu(e, items.map(it => ({ label: it.label, icon: it.icon, group: it.group, onClick: () => it.run() })), e.target as HTMLElement, name);
 }
