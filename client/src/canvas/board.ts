@@ -95,6 +95,8 @@ export class Board {
   #selected = new Set<string>();
   #drag: Drag | null = null;
   #space = false;
+  /** Whether the view was dragged while Space was held (so releasing Space shouldn't pause the game). */
+  spacePanned = false;
   #sceneId: string | null = null;
   #views = new Map<string, { x: number; y: number; scale: number }>();
   #listeners = new Map<BoardEvent, Set<() => void>>();
@@ -600,6 +602,7 @@ export class Board {
 
   #onStageDown(e: FederatedPointerEvent): void {
     const pan = () => (this.#drag = { kind: "pan", sx: e.global.x, sy: e.global.y, wx: this.world.x, wy: this.world.y });
+    if (this.#space) this.spacePanned = true;
     if (e.button === 1 || e.button === 2 || this.#space) return void pan();
     if (e.button !== 0) return;
     const tool = this.#tools.get(this.tool);
@@ -757,6 +760,7 @@ export class Board {
   #onKey(e: KeyboardEvent): void {
     if ((e.target as HTMLElement)?.closest("input, textarea, select, [contenteditable]")) return;
     if (e.key === " ") {
+      if (!e.repeat) this.spacePanned = false;
       this.#space = true;
       if (this.tool !== "ruler") e.preventDefault();
     }

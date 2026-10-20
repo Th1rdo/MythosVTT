@@ -180,6 +180,11 @@ input[type="color"] { padding: 0; height: 32px; width: 48px; }
 #toasts { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 10000; }
 .toast { background: var(--panel-2); border: 1px solid var(--line); padding: 8px 14px; border-radius: 8px; white-space: pre-line; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
 .toast.error { border-color: #6b2222; color: #ffb3b3; }
+.toast { cursor: pointer; position: relative; overflow: hidden; min-width: 240px; max-width: 560px; text-align: center; transition: opacity 0.2s, transform 0.2s; }
+.toast.warning { border-color: #6b5a22; color: #ffe2a3; }
+.toast.success { border-color: #22603a; color: #b3f0c8; }
+.toast.leaving { opacity: 0; transform: translateY(-6px); }
+.toast-progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent-2); transition: width 0.2s; }
 
 /* ---------- combat ---------- */
 .combat-head { padding: 10px 12px; border-bottom: 1px solid var(--line); }
@@ -502,3 +507,16 @@ kbd { display: inline-block; min-width: 26px; padding: 2px 7px; border-radius: 4
 kbd.fixed { opacity: 0.55; cursor: default; }
 kbd.clash { border-color: #c9a227; color: #ffd76a; }
 kbd.capturing, .capturing { border-color: var(--accent-2); color: var(--accent-2); font-style: italic; }
+
+/* ---- Pause, main menu, user config ---- */
+#pause { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px; padding: 10px 22px; border-radius: 999px; background: rgba(11, 10, 19, 0.88); border: 1px solid var(--accent-2); box-shadow: 0 0 24px rgba(238, 155, 58, 0.35); font-size: 20px; font-weight: 700; letter-spacing: 0.04em; pointer-events: auto; }
+#pause[hidden] { display: none; }
+#pause i { color: var(--accent-2); font-size: 26px; }
+#main-menu { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; }
+#main-menu menu { list-style: none; margin: 0; padding: 10px; min-width: 260px; background: var(--panel-solid); border: 1px solid var(--control-border); border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 4px; }
+#main-menu .menu-title { text-align: center; font-weight: 700; color: var(--accent-2); padding: 4px 0 8px; }
+#main-menu button { width: 100%; text-align: left; padding: 9px 12px; }
+.player.editable { cursor: pointer; }
+.player-avatar { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; border: 2px solid var(--player-color); }
+.player-pronouns { color: var(--muted); font-size: 11px; margin-left: 4px; }
+.user-avatar-preview .avatar { border-radius: 50%; }

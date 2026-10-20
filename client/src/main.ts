@@ -22,6 +22,8 @@ import { compendiaPanel } from "./ui/compendia.ts";
 import { cardsPanel } from "./ui/cards.ts";
 import { onRunMacro, setMacroBoard } from "./macros.ts";
 import { registerCoreKeys } from "./shell/keys.ts";
+import { pauseBanner } from "./shell/pause.ts";
+import { openUserConfig } from "./ui/user-config.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { openSettingsConfig } from "./ui/settings.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -144,6 +146,7 @@ async function startGame(): Promise<void> {
     sceneControls(board, walls, lights, sounds, tiles, drawings, regions),
     sceneNavigation(),
     playersList(board),
+    pauseBanner(board),
     hotbar(),
     sidebar(tabs)
   );
@@ -156,6 +159,7 @@ function settingsPanel(): HTMLElement {
       h("p.muted.small", null, `Mesa · ${game.world.system}`),
       h("p", null, "Ligado como ", h("strong", null, game.user.name), game.isGM ? " (mestre)" : ""),
       h("div.stack", null,
+        h("button", { onclick: () => openUserConfig(game.userId) }, h("i.fa-solid.fa-user-gear"), " A minha conta"),
         h("button", { onclick: () => openSettingsConfig() }, h("i.fa-solid.fa-gears"), " Definições"),
         h("button", { onclick: async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); } }, h("i.fa-solid.fa-right-from-bracket"), " Sair"))
     ),

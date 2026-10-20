@@ -48,7 +48,7 @@ function input(def: SettingDef, value: unknown): { node: HTMLElement; read: () =
 }
 
 /** The settings a user may change: world ones only for the GM. */
-const visible = () => SETTINGS.filter(d => d.scope !== "world" || game.isGM);
+const visible = () => SETTINGS.filter(d => !d.hidden && (d.scope !== "world" || game.isGM));
 
 /**
  * Definições: categories on the left, the category's settings on the right. "Guardar" applies the

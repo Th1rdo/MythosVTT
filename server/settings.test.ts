@@ -64,3 +64,24 @@ test("user settings live on the user and are validated", () => {
   assert.throws(() => world.apply({ op: "update", type: "User", updates: [{ _id: alice._id, settings: { "core:rollMode": "loud" } }] }, alice), /opção inválida/);
   assert.throws(() => world.apply({ op: "update", type: "User", updates: [{ _id: alice._id, settings: { "core:playerUpload": true } }] }, alice), /desconhecida/);
 });
+
+test("pause: players can't move tokens; a region can pause the game; players set their own character", async () => {
+  const { world, gm, alice, scene, set } = setup();
+  const { processRegionEvents } = await import("./regions.ts");
+  const [actor] = world.createAsSystem("Actor", [{ name: "Omar", ownership: { default: 0, [alice._id]: 3 } }]);
+  const [other] = world.createAsSystem("Actor", [{ name: "Cultista" }]);
+  const [token] = world.createAsSystem("Token", [{ actorId: actor._id, x: 0, y: 0 }], scene._id);
+  set("core.paused", true);
+  assert.throws(() => world.apply({ op: "update", type: "Token", parent: scene._id, updates: [{ _id: token._id, x: 100 }] }, alice), /pausa/);
+  world.apply({ op: "update", type: "Token", parent: scene._id, updates: [{ _id: token._id, x: 100 }] }, gm);
+  world.setWorldSetting("core.paused", false);
+
+  world.createAsSystem("Region", [{ name: "Alarme", shapes: [{ type: "rectangle", x: 300, y: 0, width: 300, height: 300 }],
+    behaviors: [{ _id: "p1", name: "", disabled: false, type: "pauseGame", system: { onlyPlayers: true } }] }], scene._id);
+  const changes = world.apply({ op: "update", type: "Token", parent: scene._id, updates: [{ _id: token._id, x: 400 }] }, alice);
+  processRegionEvents(world, changes, alice._id);
+  assert.equal(worldSetting(world, "core.paused"), true);
+
+  world.apply({ op: "update", type: "User", updates: [{ _id: alice._id, character: actor._id, pronouns: "ela", avatar: "/assets/a.png" }] }, alice);
+  assert.throws(() => world.apply({ op: "update", type: "User", updates: [{ _id: alice._id, character: other._id }] }, alice), /personagem tua/);
+});

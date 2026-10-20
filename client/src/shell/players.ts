@@ -2,6 +2,7 @@ import type { ActorDoc, UserDoc } from "../../../shared/protocol.ts";
 import { game } from "../game.ts";
 import { h, setChildren } from "../dom.ts";
 import type { Board } from "../canvas/board.ts";
+import { openUserConfig } from "../ui/user-config.ts";
 
 /** Players (bottom-left): who's online, their character, and connection/frame-rate stats. */
 export function playersList(board: Board): HTMLElement {
@@ -12,9 +13,15 @@ export function playersList(board: Board): HTMLElement {
 
   const row = (u: UserDoc) => {
     const character = game.get<ActorDoc>("Actor", u.character);
-    return h("li", { className: game.online.includes(u._id) ? "player online" : "player", style: { "--player-color": u.color } },
-      h("span.player-dot"),
-      h("span.player-name", null, u.name, u.role === "gm" ? " [GM]" : character ? ` (${character.name})` : ""));
+    const editable = game.isGM || u._id === game.userId;
+    return h("li", {
+      className: `${game.online.includes(u._id) ? "player online" : "player"}${editable ? " editable" : ""}`, style: { "--player-color": u.color },
+      title: editable ? "Clica para configurar" : u.pronouns || "",
+      onclick: () => editable && openUserConfig(u._id)
+    },
+      u.avatar ? h("img.player-avatar", { src: u.avatar, alt: "" }) : h("span.player-dot"),
+      h("span.player-name", null, u.name, u.role === "gm" ? " [GM]" : character ? ` (${character.name})` : ""),
+      u.pronouns ? h("span.player-pronouns", null, u.pronouns) : null);
   };
 
   const render = () => {

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {
-  BaseDoc, CombatDoc, CombatantDoc, DocRequest, DocType, FogExplorationDoc, FolderDoc, JournalEntryDoc, SceneDoc, TokenDoc, UserDoc, WallDoc
+  BaseDoc, CombatDoc, CombatantDoc, DocRequest, DocType, FogExplorationDoc, FolderDoc, JournalEntryDoc, SceneDoc, SettingDoc, TokenDoc, UserDoc, WallDoc
 } from "../shared/protocol.ts";
 import { DOC_TYPES, OPTIONAL_PARENT, PARENT_TYPE } from "../shared/protocol.ts";
 import { checkWrite } from "../shared/permissions.ts";
@@ -167,9 +167,18 @@ export class World implements DocLookup {
     return this.#commit(changes);
   }
 
-  /** Players can't walk through walls. The path is checked centre to centre. */
+  /** Set a world setting as the server (pause from a region, etc.). */
+  setWorldSetting(key: string, value: unknown): Change[] {
+    const existing = this.all<SettingDoc>("Setting").find(s => s.key === key);
+    return existing
+      ? this.applyAsSystem({ op: "update", type: "Setting", updates: [{ _id: existing._id, value }] })
+      : this.applyAsSystem({ op: "create", type: "Setting", data: [{ key, value }] });
+  }
+
+  /** Players can't walk through walls, nor move while the game is paused. The path is checked centre to centre. */
   #assertCanMove(before: TokenDoc, after: TokenDoc): void {
     if (before.x === after.x && before.y === after.y) return;
+    if (worldSetting(this, "core.paused")) throw new Error("O jogo está em pausa");
     const scene = this.get("Scene", before._parent!) as SceneDoc | undefined;
     if (!scene) return;
     const half = scene.grid.size / 2;

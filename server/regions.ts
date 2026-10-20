@@ -3,6 +3,7 @@ import { randomId } from "../shared/objects.ts";
 import { randomPointIn, tokenInRegion } from "../shared/regions.ts";
 import { defaultLevel } from "../shared/levels.ts";
 import { canRunMacro } from "../shared/permissions.ts";
+import { worldSetting } from "../shared/settings.ts";
 import type { Change, World } from "./world.ts";
 
 /** A message to send to some users (null = everyone). */
@@ -139,6 +140,13 @@ function run(
       const ranked = eligible.sort((a, c) => (a._id === actingUserId ? -1 : c._id === actingUserId ? 1 : 0)
         || (a.role === c.role ? a._id.localeCompare(c._id) : a.role === "gm" ? -1 : 1));
       if (ranked.length) emits.push({ to: ranked.map(u => u._id), event: "runMacro", data, once: true });
+      return;
+    }
+    case "pauseGame": {
+      if (event !== "tokenEnter" || worldSetting(world, "core.paused")) return;
+      const mover = world.get("User", actingUserId) as UserDoc | undefined;
+      if (b.system.onlyPlayers && (!mover || mover.role === "gm")) return;
+      out.push(...world.setWorldSetting("core.paused", true));
       return;
     }
     case "adjustDarkness":

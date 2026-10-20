@@ -223,11 +223,72 @@ export class Game implements DocLookup {
 
 export const game = new Game();
 
-export function toast(message: string, kind: "info" | "error" = "info"): void {
-  const host = document.getElementById("toasts")!;
+export type NoticeKind = "info" | "warning" | "error" | "success";
+
+export interface Notice {
+  /** Change the text and/or the progress (0–1). At 1 a progress notice closes shortly after. */
+  update(message?: string, progress?: number): void;
+  remove(): void;
+}
+
+const MAX_NOTICES = 3;
+const NOTICE_MS = 5000;
+const waiting: { el: HTMLElement; permanent: boolean }[] = [];
+
+/** Show the next waiting notices while there's room. */
+function pumpNotices(): void {
+  const host = document.getElementById("toasts");
+  if (!host) return;
+  while (waiting.length && host.childElementCount < MAX_NOTICES) {
+    const { el, permanent } = waiting.shift()!;
+    host.append(el);
+    if (!permanent) setTimeout(() => dismiss(el), NOTICE_MS);
+  }
+}
+
+function dismiss(el: HTMLElement): void {
+  if (!el.isConnected) {
+    const i = waiting.findIndex(w => w.el === el);
+    if (i >= 0) waiting.splice(i, 1);
+    return;
+  }
+  el.classList.add("leaving");
+  setTimeout(() => {
+    el.remove();
+    pumpNotices();
+  }, 200);
+}
+
+/**
+ * Notifications at the top of the screen (Foundry's ui.notifications): at most three at a time, the rest
+ * wait their turn; the same message twice just restarts its timer; click one to dismiss it.
+ */
+export function notify(message: string, kind: NoticeKind = "info", opts: { permanent?: boolean; progress?: boolean } = {}): Notice {
+  const host = document.getElementById("toasts");
+  const same = host && [...host.children].find(c => c.textContent === message && c.classList.contains(kind)) as HTMLElement | undefined;
+  if (same && !opts.progress) return { update: () => {}, remove: () => dismiss(same) };
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
-  el.textContent = message;
-  host.append(el);
-  setTimeout(() => el.remove(), 4000);
+  const text = document.createElement("span");
+  text.textContent = message;
+  el.append(text);
+  const bar = opts.progress ? Object.assign(document.createElement("div"), { className: "toast-progress" }) : null;
+  if (bar) el.append(bar);
+  el.addEventListener("click", () => dismiss(el));
+  waiting.push({ el, permanent: !!opts.permanent || !!opts.progress });
+  pumpNotices();
+  return {
+    update: (m, p) => {
+      if (m !== undefined) text.textContent = m;
+      if (bar && p !== undefined) {
+        bar.style.width = `${Math.round(Math.min(1, Math.max(0, p)) * 100)}%`;
+        if (p >= 1) setTimeout(() => dismiss(el), 1200);
+      }
+    },
+    remove: () => dismiss(el)
+  };
+}
+
+export function toast(message: string, kind: NoticeKind = "info"): void {
+  notify(message, kind);
 }

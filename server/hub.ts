@@ -285,6 +285,7 @@ export class Hub {
         const changes = existing
           ? this.#world.apply({ op: "update", type: "Setting", updates: [{ _id: existing._id, value: e.value }] }, me)
           : this.#world.apply({ op: "create", type: "Setting", data: [{ key: e?.key, value: e?.value }] }, me);
+        if (e?.key === "core.paused") this.#announce(e.value ? `${me.name} pôs o jogo em pausa.` : `${me.name} retomou o jogo.`);
         this.#broadcast(changes, me._id);
         ack?.({ ok: true, result: [] });
       } catch (err) {
@@ -396,6 +397,12 @@ export class Hub {
       }
       for (const e of events.values()) socket.emit("doc", e);
     }
+  }
+
+  /** A short system line in everyone's chat. */
+  #announce(text: string): void {
+    const [msg] = this.#world.createAsSystem("ChatMessage", [{ author: "", speaker: { actor: null, alias: "Mesa" }, content: text, timestamp: Date.now() }]);
+    this.#broadcast([{ type: "ChatMessage", after: msg }], "");
   }
 
   /** Deliver region messages to the users they're for. */

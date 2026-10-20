@@ -14,7 +14,8 @@ const BEHAVIORS: [RegionBehavior["type"], string][] = [
   ["displayScrollingText", "Mostrar texto"],
   ["adjustDarkness", "Ajustar escuridão"],
   ["toggleBehavior", "Ligar/desligar comportamentos"],
-  ["executeMacro", "Executar macro"]
+  ["executeMacro", "Executar macro"],
+  ["pauseGame", "Pôr o jogo em pausa"]
 ];
 
 function defaultSystem(type: RegionBehavior["type"]): RegionBehavior["system"] {
@@ -26,6 +27,7 @@ function defaultSystem(type: RegionBehavior["type"]): RegionBehavior["system"] {
     case "adjustDarkness": return { mode: "brighten", amount: 1 };
     case "toggleBehavior": return { events: ["tokenEnter"], enable: [], disable: [] };
     case "executeMacro": return { macroId: null, events: ["tokenEnter"], everyone: false };
+    case "pauseGame": return { onlyPlayers: true };
   }
 }
 
@@ -116,6 +118,10 @@ export function openRegionConfig(regionId: string, sceneId: string): void {
               field("Ligar", multiSelect(sceneBehaviors(), s.enable, ids => set({ enable: ids }))),
               field("Desligar", multiSelect(sceneBehaviors(), s.disable, ids => set({ disable: ids }))))
           ];
+          break;
+        case "pauseGame":
+          fields = [h("label.row", null, h("input", { type: "checkbox", checked: s.onlyPlayers, onchange: (e: Event) => set({ onlyPlayers: (e.target as HTMLInputElement).checked }) }),
+            "Só quando é um jogador a entrar (o mestre passa sem pausar)")];
           break;
         case "executeMacro": {
           const macros = game.all<MacroDoc>("Macro").sort((a, c) => a.name.localeCompare(c.name, "pt"));

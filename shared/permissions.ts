@@ -132,7 +132,7 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
 
 /** Fields a player may change on a token they own. */
 const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "level", "delta"]);
-const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar", "settings"]);
+const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar", "settings", "avatar", "pronouns", "character"]);
 
 /**
  * Whether `user` may apply `op` to `doc` (for updates, `changes` is the requested diff).
@@ -164,6 +164,8 @@ export function checkWrite(
       return Object.keys(changes ?? {}).every(k => PLAYER_TOKEN_FIELDS.has(k)) ? null : deny;
     case "User":
       if (op !== "update" || doc._id !== user._id) return deny;
+      // A player picks their character among the actors they own.
+      if (changes?.character && !ownsActor(changes.character as string, user, docs)) return "Só podes escolher uma personagem tua";
       return Object.keys(changes ?? {}).every(k => PLAYER_USER_FIELDS.has(k)) ? null : deny;
     case "Wall": {
       // Players may open and close ordinary doors that aren't locked. Nothing else.

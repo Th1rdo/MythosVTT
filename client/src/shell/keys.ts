@@ -3,6 +3,7 @@ import { game, toast } from "../game.ts";
 import type { Board } from "../canvas/board.ts";
 import { registerKey, startKeybindings } from "../keybindings.ts";
 import { openSheet } from "../ui/sheet.ts";
+import { closeMainMenu, toggleMainMenu } from "./main-menu.ts";
 
 /**
  * The core keyboard shortcuts (Foundry's set, where Mesa has the feature). Defaults follow Foundry;
@@ -13,13 +14,17 @@ export function registerCoreKeys(board: Board): void {
     id: "core.dismiss", name: "Fechar / largar a seleção", category: "Geral", bindings: [], fixed: [{ key: "Escape" }], precedence: 10,
     onDown: () => {
       // The newest window first, then the selection.
+      if (closeMainMenu()) return true;
       const wins = [...document.querySelectorAll<HTMLElement>("#windows .win")];
       const top = wins.sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
       if (top) {
         top.querySelector<HTMLButtonElement>(".win-head button")?.click();
         return true;
       }
-      return board.deselect();
+      if (board.deselect()) return true;
+      // Nothing else to close: the main menu.
+      toggleMainMenu();
+      return true;
     }
   });
   registerKey({ id: "core.delete", name: "Apagar o selecionado", category: "Mapa", bindings: [{ key: "Backspace" }], fixed: [{ key: "Delete" }], onDown: () => board.deleteSelected() });

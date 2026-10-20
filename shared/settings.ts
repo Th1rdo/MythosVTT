@@ -26,6 +26,8 @@ export interface SettingDef {
   default: unknown;
   /** Needs a page reload to take effect. */
   reload?: boolean;
+  /** Kept out of the Definições window (state rather than a preference, e.g. the pause). */
+  hidden?: boolean;
 }
 
 export type SettingCategory = "game" | "permissions" | "canvas" | "chat" | "interface";
@@ -37,6 +39,7 @@ const bool = (key: string, scope: SettingScope, category: SettingCategory, name:
   ({ key, scope, category, name, hint, type: { kind: "boolean" }, default: def });
 
 export const SETTINGS: SettingDef[] = [
+  { key: "core.paused", scope: "world", category: "game", name: "Jogo em pausa", hidden: true, type: { kind: "boolean" }, default: false },
   // World: the table's rules
   {
     key: "core.gridDiagonals", scope: "world", category: "game", name: "Diagonais na grelha quadrada",

@@ -97,6 +97,8 @@ insert("User", users.map(u => ({
   color: typeof u.color === "string" ? u.color : "#7c8cff",
   character: u.character ?? null,
   hotbar: hotbarOf(u),
+  avatar: asset(u.avatar),
+  pronouns: typeof u.pronouns === "string" ? u.pronouns : "",
   passwordHash: null
 })));
 

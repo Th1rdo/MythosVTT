@@ -95,14 +95,17 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Roll card: per-group dice with discarded/rerolled/exploded/success/failure styling; importer keeps Foundry dice results
 - ⬜ Roll resolver (manual/physical dice entry), dice config (fulfilment methods), deferred inline rolls `[[/r …]]` as buttons, Dice So Nice-style 3D
 
-## Phase 7 — UX and administration  *(applications/ui, settings, sidebar, helpers — shell REA `ev_9483b78d…`, settings `ev_e0b8ff40…`, keys `ev_2d5e38e7…`)*
+## Phase 7 — UX and administration  *(applications/ui, settings, sidebar, helpers — shell REA `ev_9483b78d…`, settings `ev_e0b8ff40…`, keys `ev_2d5e38e7…`, user/pause `ev_6b3ceeb4…`)*
 - ✅ Foundry-like shell: two-column scene controls (layer groups + tools), scene navigation pill with user pips, players list with latency/FPS, hotbar (10 slots × 5 pages, drop items/actors/journal, keys 1–0, lock/clear), collapsible sidebar icon strip with floating chat dock + notifications, directory headers (create, folder, search, sort, collapse all), scene banners
 - ✅ GUI size per browser: left bar, right sidebar, hotbar (60–160%)
 - ✅ Settings framework: one shared registry (world / user / client scope), world values as Setting docs validated and enforced by the server, user values on the User, client in localStorage; Definições window (categories, save, reset) with Som and Tamanho da interface inside
 - ✅ First settings: square-grid diagonal rule (1-1-1, 1-2-1, exact, rectilinear), player permissions (drawings, templates, script macros, uploads, pings, ruler, whispers), default roll mode (per user), chat notifications, light animation, max FPS, reduce motion; `/w` whispers
 - ✅ Keybindings (REA `ev_2d5e38e7…`): registry with editable + fixed bindings by physical key, modifiers, repeat, precedence (shared keys fall through: C = combat with a selection, else your sheet); Definições → Teclas (rebind, add, remove, conflicts, reset); core set: Esc, Delete/Backspace, Ctrl+A, H, C, WASD/arrows/numpad moves, PgUp/PgDn zoom, Enter → chat, 1–0 hotbar (+ page keys)
-- ⬜ Pause, notifications area, chat bubbles, sendToBack/bringToFront, target (T), ruler key
-- ⬜ User config (avatar, colour, character), invitation links
+- ✅ Pause (REA `ev_6b3ceeb4…`): GM Space (released without dragging the view) or main menu; banner for everyone; the server refuses players' token moves while paused; chat announces it; region behaviour "Pôr o jogo em pausa"
+- ✅ Main menu on Esc (account, settings, keys, pause, reload, log out); notifications queue (max 3, info/warning/error/success, permanent, progress, click to dismiss, duplicates merge)
+- ⬜ Chat bubbles, sendToBack/bringToFront, target (T), ruler key
+- ✅ User config: colour, avatar, pronouns, character (players: their own actors), GM: name + password; open from the players list
+- ⬜ Invitation links
 - ✅ Image popout + share image with everyone (Phase 6.4)
 - ⬜ File picker / browser, video popouts
 - ⬜ Setup screen (multiple worlds), world config, backups

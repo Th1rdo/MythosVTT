@@ -62,6 +62,9 @@ export interface UserDoc extends BaseDoc {
   hotbar?: Record<string, HotbarEntry | null>;
   /** User-scope settings (see shared/settings.ts). */
   settings?: Record<string, unknown>;
+  /** Picture shown in the players list and chat (when not speaking as a character). */
+  avatar?: string | null;
+  pronouns?: string;
   /** Server-only. Never sent to clients. */
   passwordHash?: string | null;
 }
@@ -271,6 +274,8 @@ export type RegionBehavior = { _id: string; name: string; disabled: boolean } & 
   | { type: "toggleBehavior"; system: { events: RegionEvent[]; enable: string[]; disable: string[] } }
   /** Runs on a client: the moving user if they may run it, else the highest-ranked online user who may; or everyone. */
   | { type: "executeMacro"; system: { macroId: string | null; events: RegionEvent[]; everyone: boolean } }
+  /** Pause the game when a player's token enters (Foundry's "Pause Game"). */
+  | { type: "pauseGame"; system: { onlyPlayers: boolean } }
 );
 
 /** Sent to the client(s) that should run a macro for a region behaviour. */

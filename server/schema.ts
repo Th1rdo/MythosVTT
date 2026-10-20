@@ -9,7 +9,7 @@ const NO_LIGHT = { bright: 0, dim: 0, color: null, alpha: 0.5, angle: 360, anima
 function defaults(type: DocType): Record<string, unknown> {
   switch (type) {
     case "User":
-      return { name: "Jogador", role: "player", color: "#7c8cff", character: null, hotbar: {}, settings: {}, passwordHash: null };
+      return { name: "Jogador", role: "player", color: "#7c8cff", character: null, hotbar: {}, settings: {}, avatar: null, pronouns: "", passwordHash: null };
     case "Actor":
       return {
         name: "Novo ator", type: "agent", img: null, system: {}, ownership: { default: OWNERSHIP.NONE }, folder: null,
@@ -147,7 +147,7 @@ const LINK_TYPES = new Set(["Actor", "Item", "JournalEntry", "RollTable", "Scene
 const AUDIO_CHANNELS = new Set(["music", "environment", "interface"]);
 const SOUND_EFFECTS = new Set([null, "lowpass", "highpass", "reverb"]);
 const DRAWING_TYPES = new Set(["rectangle", "ellipse", "polygon", "freehand", "text"]);
-const BEHAVIOR_TYPES = new Set(["teleportToken", "changeLevel", "applyActiveEffect", "displayScrollingText", "adjustDarkness", "toggleBehavior", "executeMacro"]);
+const BEHAVIOR_TYPES = new Set(["teleportToken", "changeLevel", "applyActiveEffect", "displayScrollingText", "adjustDarkness", "toggleBehavior", "executeMacro", "pauseGame"]);
 const SHAPE_FIELDS: Record<string, string[]> = {
   rectangle: ["x", "y", "width", "height"], circle: ["x", "y", "radius"], ellipse: ["x", "y", "radiusX", "radiusY"],
   cone: ["x", "y", "radius", "angle"], line: ["x", "y", "length", "width"]

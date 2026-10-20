@@ -114,7 +114,7 @@ export function messageView(m: ChatMessageDoc): HTMLElement {
     : redundant || !m.content ? null : m.html ? h("div.prose", null, enrich(m.content)) : h("div.text", null, withInlineRolls(m.content, m.inline ?? []));
   return h("article.msg", { className: m.whisper ? "msg whisper" : "msg", style: { borderLeftColor: author?.color ?? "#555" } },
     h("header.row", null,
-      avatar(actor?.img, name, 24),
+      avatar(actor?.img ?? (m.speaker.actor ? null : author?.avatar), name, 24),
       h("strong.grow", null, name),
       m.whisper && h("span.tag", null, m.blind ? "às cegas" : m.whisper.length === 1 && m.whisper[0] === m.author ? "só para mim" : "privado"),
       h("time.muted.small", null, timeLabel(m.timestamp)),
