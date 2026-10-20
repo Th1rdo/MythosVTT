@@ -3,7 +3,7 @@ import { game, toast } from "../game.ts";
 import { h } from "../dom.ts";
 import { openSheet } from "./sheet.ts";
 import { openItemSheet } from "./item-sheet.ts";
-import { openJournal } from "./panels.ts";
+import { openJournal } from "./journal.ts";
 
 export const LINK_ICONS: Record<LinkType, string> = {
   Actor: "fa-solid fa-user", Item: "fa-solid fa-suitcase", JournalEntry: "fa-solid fa-book-open", RollTable: "fa-solid fa-table-list",
@@ -11,13 +11,13 @@ export const LINK_ICONS: Record<LinkType, string> = {
 };
 
 /** Open whatever a link points at (sheet, journal, table…). Macros run. */
-export async function openLink(type: LinkType, id: string): Promise<void> {
+export async function openLink(type: LinkType, id: string, pageId?: string): Promise<void> {
   const doc = game.get(type, id);
   if (!doc) return toast("Já não existe (ou não tens acesso).", "error");
   switch (type) {
     case "Actor": return openSheet(id);
     case "Item": return openItemSheet(id);
-    case "JournalEntry": return openJournal(id);
+    case "JournalEntry": return openJournal(id, { pageId });
     case "RollTable": return (await import("./tables.ts")).openTableSheet(id);
     case "Scene": return game.isGM ? game.view(id) : undefined;
     case "Macro": return void (await import("../macros.ts")).executeMacro(doc as never);

@@ -12,11 +12,11 @@
 
 export type DocType =
   | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "AmbientSound" | "FogExploration"
-  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro" | "RollTable" | "TableResult";
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro" | "RollTable" | "TableResult" | "JournalEntryPage";
 
 export const DOC_TYPES: readonly DocType[] = [
   "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "AmbientSound", "FogExploration",
-  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro", "RollTable", "TableResult"
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro", "RollTable", "TableResult", "JournalEntryPage"
 ];
 
 /** Child types whose parent is optional (world-level Items live in the Items directory). */
@@ -38,7 +38,8 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   FogExploration: "Scene",
   Combatant: "Combat",
   PlaylistSound: "Playlist",
-  TableResult: "RollTable"
+  TableResult: "RollTable",
+  JournalEntryPage: "JournalEntry"
 };
 
 export interface BaseDoc {
@@ -47,8 +48,8 @@ export interface BaseDoc {
   [key: string]: unknown;
 }
 
-/** Ownership levels, per user, on Actors and JournalEntries. */
-export const OWNERSHIP = { NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 } as const;
+/** Ownership levels, per user, on Actors and JournalEntries. INHERIT (journal pages): use the entry's. */
+export const OWNERSHIP = { INHERIT: -1, NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 } as const;
 export type Ownership = { default: number; [userId: string]: number | null };
 
 export interface UserDoc extends BaseDoc {
@@ -228,6 +229,8 @@ export interface DrawingDoc extends BaseDoc {
 /** A map pin linked to a journal entry. */
 export interface NoteDoc extends BaseDoc {
   entryId: string | null;
+  /** Page of the entry to open (null = the first). */
+  pageId: string | null;
   x: number;
   y: number;
   /** Emoji (or short text) shown as the pin. */
@@ -566,10 +569,44 @@ export interface ChatMessageDoc extends BaseDoc {
 
 export interface JournalEntryDoc extends BaseDoc {
   name: string;
+  /** Before pages existed; moved into a first page when a world loads. */
   content: string;
   ownership: Ownership;
   folder: string | null;
   sort: number;
+  /** Groups for the pages (Foundry v13 categories). */
+  categories: { _id: string; name: string; sort: number }[];
+}
+
+export const PAGE_FORMAT = { HTML: 1, MARKDOWN: 2 } as const;
+export type PageType = "text" | "image" | "pdf" | "video";
+
+/** One page of a journal entry: text (HTML or Markdown), an image, a PDF or a video. */
+export interface JournalEntryPageDoc extends BaseDoc {
+  name: string;
+  type: PageType;
+  title: { show: boolean; level: number };
+  text: { content: string; markdown: string; format: 1 | 2 };
+  /** Image/PDF/video file or URL. */
+  src: string | null;
+  image: { caption: string };
+  video: { controls: boolean; loop: boolean; autoplay: boolean; volume: number };
+  category: string | null;
+  sort: number;
+  /** default −1 = same as the entry. */
+  ownership: Ownership;
+}
+
+/** GM → players: open this journal entry (at a page). */
+export interface ShowEntryEvent {
+  entryId: string;
+  pageId: string | null;
+}
+
+/** GM → players: look at this picture. */
+export interface ShareImageEvent {
+  src: string;
+  title: string;
 }
 
 /**

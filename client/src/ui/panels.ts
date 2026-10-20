@@ -3,11 +3,12 @@ import { sceneLevels } from "../../../shared/levels.ts";
 import { ITEM_TYPES, itemTemplate } from "../../../shared/ordem.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, imageSize, pickFile, safeHtml, setChildren, upload } from "../dom.ts";
-import { ITEM_DRAG, openSheet, ownershipEditor } from "./sheet.ts";
+import { avatar, h, imageSize, pickFile, setChildren, upload } from "../dom.ts";
+import { ITEM_DRAG, openSheet } from "./sheet.ts";
+import { openJournal } from "./journal.ts";
 import { openItemSheet } from "./item-sheet.ts";
 import { directory } from "./directory.ts";
-import { closeWindow, confirmDialog, openWindow, prompt, setWindowTitle } from "./windows.ts";
+import { closeWindow, confirmDialog, openWindow, prompt } from "./windows.ts";
 
 // ---------------------------------------------------------------------------
 // Actors
@@ -322,48 +323,16 @@ export function journalPanel(): HTMLElement {
   const add = async () => {
     const v = await prompt("Nova entrada", [{ name: "name", label: "Título" }]);
     if (!v?.name) return;
-    const [entry] = await game.create<JournalEntryDoc>("JournalEntry", { name: v.name, content: "<p></p>" });
+    const [entry] = await game.create<JournalEntryDoc>("JournalEntry", { name: v.name });
+    if (!entry) return;
+    await game.create("JournalEntryPage", { name: v.name, sort: 0 }, entry._id);
     openJournal(entry._id, true);
   };
 
   return h("div.panel", null, dir.element);
 }
 
-export function openJournal(id: string, startEditing = false): void {
-  const key = `journal-${id}`;
-  let off = () => {};
-  const body = openWindow(key, game.get<JournalEntryDoc>("JournalEntry", id)?.name ?? "", { width: 620, onClose: () => off() });
-  if (!body) return;
-  let editing = startEditing;
-
-  const render = () => {
-    const j = game.get<JournalEntryDoc>("JournalEntry", id);
-    if (!j) return closeWindow(key);
-    setWindowTitle(key, j.name);
-    const content = h("div.prose.journal", { contentEditable: editing ? "true" : "false" }, safeHtml(j.content));
-    const shared = (j.ownership.default ?? 0) >= OWNERSHIP.LIMITED;
-    body.replaceChildren(...[
-      game.isGM ? h("div.row.toolbar", null,
-        editing
-          ? h("button.primary", { onclick: async () => { await game.update("JournalEntry", { _id: id, content: content.innerHTML }); editing = false; render(); } }, "Guardar")
-          : h("button", { onclick: () => { editing = true; render(); } }, "Editar"),
-        h("button", {
-          onclick: () => game.update("JournalEntry", { _id: id, "ownership.default": shared ? OWNERSHIP.NONE : OWNERSHIP.OBSERVER })
-        }, shared ? "Deixar de partilhar" : "Partilhar com todos"),
-        h("span.grow"),
-        h("button.danger", { onclick: async () => { if (await confirmDialog(`Apagar "${j.name}"?`)) game.delete("JournalEntry", id); } }, "Apagar")
-      ) : null,
-      content,
-      game.isGM ? ownershipEditor(j, "JournalEntry") : null
-    ].filter((n): n is HTMLElement => !!n));
-    if (editing) content.focus();
-  };
-  off = game.on("JournalEntry", e => {
-    if (e.ids.includes(id) && !editing) render();
-    if (e.op === "delete" && e.ids.includes(id)) closeWindow(key);
-  });
-  render();
-}
+export { openJournal } from "./journal.ts";
 
 // ---------------------------------------------------------------------------
 // Players (GM)

@@ -4,7 +4,8 @@ import "@fontsource/signika/700.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./style.css";
 import type { UserDoc } from "../../shared/protocol.ts";
-import type { PlayAudioEvent, RunMacroEvent } from "../../shared/protocol.ts";
+import type { PlayAudioEvent, RunMacroEvent, ShareImageEvent, ShowEntryEvent } from "../../shared/protocol.ts";
+import { openImagePopout, openJournal } from "./ui/journal.ts";
 import { game, toast } from "./game.ts";
 import { Board } from "./canvas/board.ts";
 import { Perception } from "./canvas/perception.ts";
@@ -104,6 +105,8 @@ async function startGame(): Promise<void> {
   const playlists = new PlaylistPlayer();
   setMacroBoard(board);
   game.socket.on("runMacro", (e: RunMacroEvent) => onRunMacro(e));
+  game.socket.on("showEntry", (e: ShowEntryEvent) => game.get("JournalEntry", e.entryId) && openJournal(e.entryId, { pageId: e.pageId }));
+  game.socket.on("shareImage", (e: ShareImageEvent) => openImagePopout(e.src, e.title));
   game.socket.on("playAudio", (e: PlayAudioEvent) => audio.playOnce(e.src, e));
   game.socket.on("preloadAudio", (src: string) => audio.whenReady(() => fetch(src).catch(() => {})));
   // Browsers keep audio off until the page is used; say so if something is waiting to play.

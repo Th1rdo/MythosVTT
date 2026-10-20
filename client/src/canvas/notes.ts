@@ -7,7 +7,7 @@ import { game, toast } from "../game.ts";
 import type { Board, Tool } from "./board.ts";
 import type { Perception } from "./perception.ts";
 import { openNoteConfig } from "../ui/canvas-config.ts";
-import { openJournal } from "../ui/panels.ts";
+import { openJournal } from "../ui/journal.ts";
 
 /**
  * Map notes: pins linked to journal entries. Players see a pin when they can see its entry and the
@@ -89,7 +89,7 @@ export class NotesLayer implements Tool {
     if (e.detail >= 2 || this.#board.tool !== "notes" || !game.isGM) {
       // Double-click (or any click outside the GM's notes tool) opens the entry.
       if (e.detail >= 2 || this.#board.tool !== "notes") {
-        if (n.entryId && game.get("JournalEntry", n.entryId)) openJournal(n.entryId);
+        if (n.entryId && game.get("JournalEntry", n.entryId)) openJournal(n.entryId, { pageId: n.pageId });
         else if (game.isGM) openNoteConfig(id, n._parent!);
       }
       return;

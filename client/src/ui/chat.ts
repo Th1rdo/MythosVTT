@@ -1,5 +1,6 @@
 import type { BaseDoc, ActorDoc, ChatMessageDoc, DieResult, RollMode, RollResult, RollTerm, TableDraw, UserDoc } from "../../../shared/protocol.ts";
 import { linkChip } from "./links.ts";
+import { enrich } from "../enrich.ts";
 import { replaceFormulaData } from "../../../shared/dice.ts";
 import { game, toast } from "../game.ts";
 import { avatar, h, safeHtml, timeLabel } from "../dom.ts";
@@ -91,7 +92,7 @@ export function messageView(m: ChatMessageDoc): HTMLElement {
   const hidden = m.blind && !game.isGM;
   const body = hidden
     ? h("div.text.muted", null, "🎲 Rolagem às cegas — só o mestre vê o resultado.")
-    : redundant || !m.content ? null : m.html ? h("div.prose", null, safeHtml(m.content)) : h("div.text", null, withInlineRolls(m.content, m.inline ?? []));
+    : redundant || !m.content ? null : m.html ? h("div.prose", null, enrich(m.content)) : h("div.text", null, withInlineRolls(m.content, m.inline ?? []));
   return h("article.msg", { className: m.whisper ? "msg whisper" : "msg", style: { borderLeftColor: author?.color ?? "#555" } },
     h("header.row", null,
       avatar(actor?.img, name, 24),

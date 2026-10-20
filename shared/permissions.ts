@@ -1,6 +1,6 @@
 import { DOOR, DOOR_STATE, OWNERSHIP, REGION_VISIBILITY } from "./protocol.ts";
 import type {
-  ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, MacroDoc, PlaylistDoc, RollTableDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
+  ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, JournalEntryPageDoc, MacroDoc, PlaylistDoc, RollTableDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
   Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
@@ -21,6 +21,15 @@ export function ownsPlaylist(playlistId: string | null | undefined, user: UserDo
   if (user.role === "gm") return true;
   const p = playlistId ? (docs.get("Playlist", playlistId) as PlaylistDoc | undefined) : undefined;
   return !!p && ownershipLevel(p.ownership, user) >= OWNERSHIP.OWNER;
+}
+
+/** A journal page's level for `user`: its own setting, or the entry's when it inherits. */
+export function pageLevel(page: JournalEntryPageDoc, user: UserDoc, docs: DocLookup): number {
+  if (user.role === "gm") return OWNERSHIP.OWNER;
+  const own = page.ownership?.[user._id] ?? page.ownership?.default ?? OWNERSHIP.INHERIT;
+  if (own !== OWNERSHIP.INHERIT && own !== null) return own;
+  const entry = docs.get("JournalEntry", page._parent ?? "") as JournalEntryDoc | undefined;
+  return entry ? ownershipLevel(entry.ownership, user) : OWNERSHIP.NONE;
 }
 
 /** Ownership level of a macro: its author always owns it. */
@@ -61,6 +70,12 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
     }
     case "JournalEntry":
       return ownershipLevel((doc as JournalEntryDoc).ownership, user) >= OWNERSHIP.LIMITED;
+    case "JournalEntryPage": {
+      // Only within an entry the user can see.
+      const entry = docs.get("JournalEntry", doc._parent ?? "") as JournalEntryDoc | undefined;
+      if (!entry || ownershipLevel(entry.ownership, user) < OWNERSHIP.LIMITED) return false;
+      return pageLevel(doc as JournalEntryPageDoc, user, docs) >= OWNERSHIP.LIMITED;
+    }
     case "Token":
       return !(doc as TokenDoc).hidden || ownsActor((doc as TokenDoc).actorId, user, docs);
     case "ChatMessage": {
@@ -166,6 +181,16 @@ export function checkWrite(
       if (op === "create") return (doc as MacroDoc).author === user._id ? null : deny;
       if (macroLevel(doc as MacroDoc, user) < OWNERSHIP.OWNER) return deny;
       return op === "update" && "author" in (changes ?? {}) ? deny : null;
+    }
+    case "JournalEntry":
+      // Owners edit their entries (not who else owns them); only the GM creates or deletes entries.
+      if (op !== "update" || ownershipLevel((doc as JournalEntryDoc).ownership, user) < OWNERSHIP.OWNER) return deny;
+      return "ownership" in (changes ?? {}) ? deny : null;
+    case "JournalEntryPage": {
+      const entry = docs.get("JournalEntry", doc._parent ?? "") as JournalEntryDoc | undefined;
+      const owner = (entry && ownershipLevel(entry.ownership, user) >= OWNERSHIP.OWNER) || pageLevel(doc as JournalEntryPageDoc, user, docs) >= OWNERSHIP.OWNER;
+      if (!owner) return deny;
+      return op === "update" && "ownership" in (changes ?? {}) && !(entry && ownershipLevel(entry.ownership, user) >= OWNERSHIP.OWNER) ? deny : null;
     }
     case "RollTable":
       if (op !== "update" || ownershipLevel((doc as RollTableDoc).ownership, user) < OWNERSHIP.OWNER) return deny;

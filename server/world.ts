@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {
-  BaseDoc, CombatDoc, CombatantDoc, DocRequest, DocType, FogExplorationDoc, FolderDoc, SceneDoc, TokenDoc, UserDoc, WallDoc
+  BaseDoc, CombatDoc, CombatantDoc, DocRequest, DocType, FogExplorationDoc, FolderDoc, JournalEntryDoc, SceneDoc, TokenDoc, UserDoc, WallDoc
 } from "../shared/protocol.ts";
 import { DOC_TYPES, OPTIONAL_PARENT, PARENT_TYPE } from "../shared/protocol.ts";
 import { checkWrite } from "../shared/permissions.ts";
@@ -57,6 +57,16 @@ export class World implements DocLookup {
     for (const t of DOC_TYPES) this.#docs.set(t, new Map());
     this.#store = new Store(path.join(dir, "world.db"));
     for (const { type, doc } of this.#store.loadAll()) this.#docs.get(type)?.set(doc._id, normalize(type, doc));
+    this.#migrate();
+  }
+
+  /** One-off upgrades of stored data. Journal entries from before pages get their text as a first page. */
+  #migrate(): void {
+    const withPages = new Set(this.all("JournalEntryPage").map(p => p._parent));
+    const old = this.all<JournalEntryDoc>("JournalEntry").filter(j => j.content && !withPages.has(j._id));
+    if (!old.length) return;
+    this.insertRaw("JournalEntryPage", old.map(j => prepareCreate("JournalEntryPage", { name: j.name, text: { content: j.content, markdown: "", format: 1 } }, this.#newId("JournalEntryPage"), j._id)));
+    this.insertRaw("JournalEntry", old.map(j => ({ ...j, content: "" })));
   }
 
   static exists(id: string): boolean {

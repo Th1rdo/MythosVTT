@@ -72,7 +72,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer: playlists, tracks, ambient sounds (untested against real Foundry data — claude-tests has none)
 - ⬜ Drag a track onto the map to make an ambient sound; sound-effect previews in the config; playlist bulk-import dialog filters; auto-preload of the next track; audio analyser (band levels for modules)
 
-## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`, tables `ev_9d6d3877…`)*
+## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`, tables `ev_9d6d3877…`, journal `ev_91567e39…`)*
 - ⬜ Compendium packs (create, browse, import), import OP system packs
 - ✅ Roll tables (REA `ev_9d6d3877…`): Tables tab + sheet (edit in place, paste a list, weights → ranges via Normalizar, formula or 1dN), text or document results (drag a document onto a result), nested tables, with/without replacement + reset, draw N at once, roll modes; server-side draws posted as a chat card with links; hotbar + `mesa.drawTable`; importer
 - ⬜ Roll tables: result images per row in the sheet, compendium tables, "draw from table" region behaviour
@@ -82,8 +82,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Script API for macros (`speaker, actor, token, character, scope, mesa`); GM confirms before running a player's script; `mesa.playAudio` = one-off sounds UI
 - ✅ Region behaviour "Executar macro" (mover if allowed, else highest-ranked online user; or everyone); importer: macros + users' hotbars
 - ⬜ Script-macro permission setting (Foundry MACRO_SCRIPT, Phase 7); macro compendia; Foundry script macros need porting to Mesa's API
-- ⬜ Journal: multiple pages (text, image, PDF, video, markdown), categories, show-to-players, share image
-- ⬜ Text enrichment: document links, inline rolls `[[/r 1d20]]`, embeds, secret blocks
+- ✅ Journal pages (REA `ev_91567e39…`): text (HTML editor or Markdown), image, PDF, video (files or YouTube/Vimeo); categories; per-page ownership (inherit/none/limited/observer/owner); page list + one/all pages; reorder; old entries migrate to a first page; importer keeps Foundry pages
+- ✅ Show to players (optionally granting read access) and share an image with everyone; notes open a page
+- ✅ Text enrichment: `@UUID[…]{…}` / `@Actor[…]` links (pages too, drag documents into the editor), `[[…]]` / `[[/gr …]]` roll buttons, URLs; secret blocks stripped server-side for non-owners, reveal toggle for owners
+- ⬜ `@Embed[…]`, journal page search, page-level "show image" for limited users, ProseMirror-grade editor, PDF page jumps
 - ⬜ Adventure export/import
 - ✅ Full dice grammar (own parser, REA `ev_b3b33516…`): + − * / % and parentheses, (N)d(M), functions (floor, max, …), pools `{…}kh`, fate `dF`, coins `dc`, flavour `[…]`; modifiers r rr x xo k kh kl d dh dl min max even odd cs cf df sf ms, coin call `c`
 - ✅ Roll modes /r /gr /br (blind: only GMs see the result) /sr (self); `[[formula]]` inline rolls rolled by the server; `@campo` from the speaker's actor data

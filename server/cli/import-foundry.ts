@@ -396,6 +396,7 @@ insert("Note", scenes.flatMap(s => {
     _id: n._id,
     _parent: s._id,
     entryId: n.entryId ?? null,
+    pageId: n.pageId ?? null,
     x: (n.x ?? 0) - padX,
     y: (n.y ?? 0) - padY,
     icon: "📌",
@@ -635,21 +636,29 @@ insert("Combatant", combats.flatMap(c => (c.combatants ?? []).map((x: Raw) => ({
 }))));
 
 const journal = await readCollection("journal");
-insert("JournalEntry", journal.map(j => {
-  const pages: Raw[] = [...(j.pages ?? [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
-  const content = pages.length
-    ? pages.map(p => {
-        const title = pages.length > 1 && p.title?.show !== false ? `<h2>${escapeHtml(p.name ?? "")}</h2>` : "";
-        if (p.type === "image" && p.src) {
-          const src = asset(p.src);
-          return title + (src ? `<p><img src="${src}"></p>` : "");
-        }
-        if (p.type === "text") return title + rewriteHtml(p.text?.content);
-        return title + `<p><em>(página "${escapeHtml(p.type)}" não importada)</em></p>`;
-      }).join("\n")
-    : rewriteHtml(j.content);
-  return { _id: j._id, name: j.name, content, ownership: j.ownership ?? j.permission ?? { default: 0 }, folder: folderOf(j.folder), sort: j.sort ?? 0 };
-}));
+// Entries keep their pages (text, image, PDF, video) and categories; pre-v10 entries keep their content
+// (Mesa turns it into a first page when the world opens).
+insert("JournalEntry", journal.map(j => ({
+  _id: j._id, name: j.name, content: j.pages?.length ? "" : rewriteHtml(j.content),
+  ownership: j.ownership ?? j.permission ?? { default: 0 }, folder: folderOf(j.folder), sort: j.sort ?? 0,
+  categories: (j.categories ?? []).map((c: Raw) => ({ _id: c._id, name: c.name ?? "", sort: c.sort ?? 0 }))
+})));
+const PAGE_TYPES = new Set(["text", "image", "pdf", "video"]);
+insert("JournalEntryPage", journal.flatMap(j => (j.pages ?? []).map((p: Raw) => ({
+  _id: p._id, _parent: j._id, name: p.name ?? "Página",
+  // Types Mesa doesn't have (system pages) become text pages with what text they carry.
+  type: PAGE_TYPES.has(p.type) ? p.type : "text",
+  title: { show: p.title?.show ?? true, level: Math.min(6, Math.max(1, Number(p.title?.level) || 1)) },
+  text: {
+    content: rewriteHtml(p.text?.content ?? (PAGE_TYPES.has(p.type) ? "" : `<p><em>(página "${escapeHtml(String(p.type))}" do sistema)</em></p>`)),
+    markdown: typeof p.text?.markdown === "string" ? p.text.markdown : "", format: p.text?.format === 2 ? 2 : 1
+  },
+  src: p.src ? asset(p.src) ?? (/^https?:/i.test(p.src) ? p.src : null) : null,
+  image: { caption: p.image?.caption ?? "" },
+  video: { controls: p.video?.controls ?? true, loop: !!p.video?.loop, autoplay: !!p.video?.autoplay, volume: typeof p.video?.volume === "number" ? p.video.volume : 0.5 },
+  category: typeof p.category === "string" ? p.category : null, sort: p.sort ?? 0,
+  ownership: p.ownership ?? { default: -1 }
+}))));
 
 const messages = await readCollection("messages");
 insert("ChatMessage", messages.map(m => ({

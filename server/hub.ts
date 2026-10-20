@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, ChatMessageDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
-import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE } from "../shared/protocol.ts";
-import { canSee } from "../shared/permissions.ts";
+import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE, OWNERSHIP } from "../shared/protocol.ts";
+import { canSee, ownershipLevel, pageLevel } from "../shared/permissions.ts";
+import type { DocLookup } from "../shared/permissions.ts";
 import { roll } from "../shared/dice.ts";
 import { runCombatAction } from "./combat.ts";
 import { runPlaylistAction } from "./playlists.ts";
@@ -16,8 +17,27 @@ import { Sessions, parseCookies } from "./auth.ts";
 
 type Ack<T> = (response: T) => void;
 
-/** Strip server-only fields before a document leaves the server; secret doors look like walls to players. */
-export function publicDoc(type: DocType, doc: BaseDoc, viewer: UserDoc): BaseDoc {
+/** Secret blocks (<section class="secret">) that haven't been revealed. */
+const SECRET = /<section\b[^>]*\bclass="(?![^"]*\brevealed\b)[^"]*\bsecret\b[^"]*"[^>]*>[\s\S]*?<\/section>/gi;
+
+/** Remove unrevealed secret blocks from HTML for readers who don't own it. */
+export function stripSecrets(html: string): string {
+  return html.replace(SECRET, "");
+}
+
+/**
+ * Strip server-only fields before a document leaves the server; secret doors look like walls to players;
+ * journal secrets only reach owners (`docs` is needed to work out page ownership).
+ */
+export function publicDoc(type: DocType, doc: BaseDoc, viewer: UserDoc, docs?: DocLookup): BaseDoc {
+  if (type === "JournalEntryPage" && viewer.role !== "gm" && docs && pageLevel(doc as JournalEntryPageDoc, viewer, docs) < OWNERSHIP.OWNER) {
+    const p = doc as JournalEntryPageDoc;
+    return { ...p, text: { ...p.text, content: stripSecrets(p.text?.content ?? "") } };
+  }
+  if (type === "JournalEntry" && viewer.role !== "gm" && (doc as JournalEntryDoc).content
+    && ownershipLevel((doc as JournalEntryDoc).ownership, viewer) < OWNERSHIP.OWNER) {
+    return { ...doc, content: stripSecrets((doc as JournalEntryDoc).content) };
+  }
   if (type === "User") {
     const { passwordHash, ...rest } = doc as UserDoc;
     return { ...rest, hasPassword: !!passwordHash };
@@ -89,7 +109,7 @@ export class Hub {
         const primary = changes.filter(c => c.type === req.type);
         ack?.({
           ok: true,
-          result: req.op === "delete" ? primary.map(c => c.before!._id) : primary.map(c => publicDoc(c.type, c.after!, me))
+          result: req.op === "delete" ? primary.map(c => c.before!._id) : primary.map(c => publicDoc(c.type, c.after!, me, this.#world))
         });
       } catch (err) {
         ack?.({ ok: false, error: (err as Error).message });
@@ -179,6 +199,38 @@ export class Hub {
       if (this.#user(socket)?.role === "gm" && typeof src === "string") socket.broadcast.emit("preloadAudio", src.slice(0, 1000));
     });
 
+    /**
+     * GM: open a journal entry (at a page) for players. With `grant`, players who can't see it are given
+     * read access first (LIMITED); otherwise only those who can already see it get it.
+     */
+    socket.on("showEntry", (e: ShowEntryEvent & { users?: string[] | null; grant?: boolean }, ack?: Ack<DocResponse>) => {
+      const me = this.#user(socket);
+      if (me?.role !== "gm") return ack?.({ ok: false, error: "Sem permissão" });
+      const entry = this.#world.get("JournalEntry", e?.entryId) as JournalEntryDoc | undefined;
+      if (!entry) return ack?.({ ok: false, error: "Entrada não existe" });
+      const targets = this.#world.all<UserDoc>("User").filter(u => u._id !== me._id && (!Array.isArray(e.users) || e.users.includes(u._id)));
+      try {
+        if (e.grant) {
+          const ownership = { ...entry.ownership };
+          if (!Array.isArray(e.users)) ownership.default = Math.max(ownership.default ?? 0, OWNERSHIP.LIMITED);
+          else for (const u of targets) ownership[u._id] = Math.max(ownership[u._id] ?? 0, OWNERSHIP.LIMITED);
+          this.#broadcast(this.#world.apply({ op: "update", type: "JournalEntry", updates: [{ _id: entry._id, ownership }] }, me), me._id);
+        }
+        const ids = new Set(targets.map(u => u._id));
+        const data: ShowEntryEvent = { entryId: entry._id, pageId: typeof e.pageId === "string" ? e.pageId : null };
+        for (const s of this.#io.sockets.sockets.values()) if (ids.has(s.data.userId)) s.emit("showEntry", data);
+        ack?.({ ok: true, result: [] });
+      } catch (err) {
+        ack?.({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    /** GM: show a picture to everyone (no permissions involved — it's just the image). */
+    socket.on("shareImage", (e: ShareImageEvent) => {
+      if (this.#user(socket)?.role !== "gm" || typeof e?.src !== "string" || !e.src) return;
+      socket.broadcast.emit("shareImage", { src: e.src.slice(0, 2000), title: String(e.title ?? "").slice(0, 200) } satisfies ShareImageEvent);
+    });
+
     /** Server clock, so clients can line up playback positions. */
     socket.on("time", (ack?: (now: number) => void) => ack?.(Date.now()));
 
@@ -224,7 +276,7 @@ export class Hub {
   #snapshot(user: UserDoc): WorldSnapshot {
     const docs: WorldSnapshot["docs"] = {};
     for (const type of DOC_TYPES) {
-      docs[type] = this.#world.all(type).filter(d => canSee(type, d, user, this.#world)).map(d => publicDoc(type, d, user));
+      docs[type] = this.#world.all(type).filter(d => canSee(type, d, user, this.#world)).map(d => publicDoc(type, d, user, this.#world));
     }
     const { id, title, system } = this.#world.meta;
     return { world: { id, title, system }, userId: user._id, docs, online: this.online() };
@@ -248,7 +300,7 @@ export class Hub {
         const sawBefore = !!c.before && canSee(c.type, c.before, user, this.#world);
         const seesAfter = !!c.after && canSee(c.type, c.after, user, this.#world);
         if (seesAfter) {
-          push(sawBefore ? "update" : "create", c.type, publicDoc(c.type, c.after!, user));
+          push(sawBefore ? "update" : "create", c.type, publicDoc(c.type, c.after!, user, this.#world));
           // An actor that just became visible brings its items along.
           if (!sawBefore && c.type === "Actor") {
             for (const item of this.#world.all("Item")) {
@@ -259,10 +311,21 @@ export class Hub {
           if (!sawBefore && c.type === "JournalEntry") {
             for (const n of this.#world.all("Note")) if ((n as { entryId?: string }).entryId === c.after!._id) push("create", "Note", n);
           }
+          // Pages follow their entry's ownership: re-send them (they may appear, vanish or show secrets now).
+          if (c.type === "JournalEntry" && c.before && !changes.some(x => x.type === "JournalEntryPage" && x.after?._parent === c.after!._id)) {
+            for (const p of this.#world.all("JournalEntryPage")) {
+              if (p._parent !== c.after!._id) continue;
+              const pageBefore = sawBefore && canSee("JournalEntryPage", p, { ...user }, { get: (t, id) => (t === "JournalEntry" && id === c.before!._id ? c.before : this.#world.get(t, id)), all: t => this.#world.all(t) });
+              const pageNow = canSee("JournalEntryPage", p, user, this.#world);
+              if (pageNow) push(pageBefore ? "update" : "create", "JournalEntryPage", publicDoc("JournalEntryPage", p, user, this.#world));
+              else if (pageBefore) push("delete", "JournalEntryPage", p._id);
+            }
+          }
         } else if (sawBefore) {
           push("delete", c.type, c.before!._id);
           if (c.type === "JournalEntry") {
             for (const n of this.#world.all("Note")) if ((n as { entryId?: string }).entryId === c.before!._id) push("delete", "Note", n._id);
+            for (const p of this.#world.all("JournalEntryPage")) if (p._parent === c.before!._id) push("delete", "JournalEntryPage", p._id);
           }
         }
       }

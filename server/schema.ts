@@ -49,7 +49,7 @@ function defaults(type: DocType): Record<string, unknown> {
         text: "", fontSize: 48, textColor: "#ffffff", hidden: false, locked: false, sort: 0, levels: []
       };
     case "Note":
-      return { entryId: null, x: 0, y: 0, icon: "📌", iconSize: 40, text: "", textColor: "#ffffff", fontSize: 24, global: false, levels: [] };
+      return { entryId: null, pageId: null, x: 0, y: 0, icon: "📌", iconSize: 40, text: "", textColor: "#ffffff", fontSize: 24, global: false, levels: [] };
     case "Region":
       return {
         name: "Região", color: "#d9534f", shapes: [], elevation: { bottom: null, top: null }, levels: [], visibility: 0,
@@ -89,7 +89,13 @@ function defaults(type: DocType): Record<string, unknown> {
     case "ChatMessage":
       return { author: "", speaker: { actor: null, alias: "" }, content: "", html: false, flavor: null, roll: null, whisper: null, blind: false, inline: [], table: null, timestamp: 0 };
     case "JournalEntry":
-      return { name: "Nova entrada", content: "", ownership: { default: OWNERSHIP.NONE }, folder: null, sort: 0 };
+      return { name: "Nova entrada", content: "", ownership: { default: OWNERSHIP.NONE }, folder: null, sort: 0, categories: [] };
+    case "JournalEntryPage":
+      return {
+        name: "Página", type: "text", title: { show: true, level: 1 }, text: { content: "", markdown: "", format: 1 }, src: null,
+        image: { caption: "" }, video: { controls: true, loop: false, autoplay: false, volume: 0.5 }, category: null, sort: 0,
+        ownership: { default: OWNERSHIP.INHERIT }
+      };
     case "Setting":
       return { key: "", value: null };
     case "RollTable":
@@ -116,6 +122,7 @@ const NUMBER_FIELDS: Partial<Record<DocType, string[]>> = {
   JournalEntry: ["sort"],
   Macro: ["sort"],
   RollTable: ["sort"],
+  JournalEntryPage: ["sort"],
   TableResult: ["weight"]
 };
 
@@ -204,6 +211,15 @@ export function validate(type: DocType, doc: BaseDoc): void {
     if (d !== null && (!LINK_TYPES.has(d?.type as string) || typeof d?.id !== "string")) throw new Error("Resultado: ligação inválida");
   }
   if (type === "RollTable" && typeof doc.formula !== "string") throw new Error("Tabela: fórmula inválida");
+  if (type === "JournalEntryPage") {
+    if (!["text", "image", "pdf", "video"].includes(doc.type as string)) throw new Error("Página: tipo inválido");
+    const t = doc.text as { content?: unknown; markdown?: unknown; format?: unknown };
+    if (typeof t?.content !== "string" || typeof t.markdown !== "string" || (t.format !== 1 && t.format !== 2)) throw new Error("Página: texto inválido");
+    if (t.content.length > MAX_CONTENT || t.markdown.length > MAX_CONTENT) throw new Error("Página demasiado longa");
+    const level = (doc.title as { level?: unknown })?.level;
+    if (!Number.isInteger(level) || (level as number) < 1 || (level as number) > 6) throw new Error("Página: nível do título inválido");
+  }
+  if (type === "JournalEntry" && !Array.isArray(doc.categories)) throw new Error("Diário: categorias inválidas");
   if (type === "Macro") {
     if (doc.type !== "chat" && doc.type !== "script") throw new Error("Macro: tipo inválido");
     if (typeof doc.command !== "string") throw new Error("Macro: comando inválido");

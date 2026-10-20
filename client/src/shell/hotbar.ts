@@ -6,7 +6,7 @@ import { game, toast } from "../game.ts";
 import { avatar, h, setChildren } from "../dom.ts";
 import { ITEM_DRAG, openSheet } from "../ui/sheet.ts";
 import { openItemSheet, rollItem, useItem } from "../ui/item-sheet.ts";
-import { openJournal } from "../ui/panels.ts";
+import { openJournal } from "../ui/journal.ts";
 import { stateOf } from "../actors.ts";
 import { audio } from "../audio/engine.ts";
 import { executeMacro } from "../macros.ts";
