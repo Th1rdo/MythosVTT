@@ -158,7 +158,7 @@ app.post("/api/files/folder", express.json(), (req, res) => {
   const name = String(req.body?.name ?? "").trim().normalize("NFKD").replace(/[^\w .-]+/g, "").replace(/^[.\s]+/, "").slice(0, 80);
   if (!parent || !name) return res.status(400).json({ error: "Nome de pasta inválido" });
   const abs = path.join(parent.abs, name);
-  if (fs.existsSync(abs)) return res.status(400).json({ error: "Já existe" });
+  if (fs.existsSync(abs)) return res.status(409).json({ error: "Já existe" });
   fs.mkdirSync(abs);
   res.json({ path: parent.rel ? `${parent.rel}/${name}` : name });
 });

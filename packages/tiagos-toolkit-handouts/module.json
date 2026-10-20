@@ -1,0 +1,18 @@
+{
+  "id": "tiagos-toolkit-handouts",
+  "title": "Tiago's Toolkit: Handouts",
+  "description": "Documentos como papéis na mesa: o mestre arruma-os numa biblioteca e mostra-os a quem quer num clique; o papel pousa só no ecrã dessa pessoa, que o arrasta, aproxima e guarda na sua coleção.",
+  "version": "0.1.0-mesa.1",
+  "authors": [{ "name": "Th1rdo" }],
+  "url": "https://github.com/Th1rdo/tiagos-toolkit-handouts",
+  "socket": true,
+  "mesa": {
+    "compatibility": { "minimum": "0.1.0" },
+    "esmodules": ["scripts/main.js"],
+    "styles": ["styles/handouts.css"],
+    "languages": [
+      { "lang": "pt-BR", "name": "Português (Brasil)", "path": "lang/pt-BR.json" },
+      { "lang": "en", "name": "English", "path": "lang/en.json" }
+    ]
+  }
+}

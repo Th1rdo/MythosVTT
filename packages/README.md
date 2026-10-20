@@ -11,3 +11,4 @@ their own repositories.
 |---|---|---|
 | `tiagos-toolkit-contagem` | 0.1.0 | 0.1.0-mesa.1 — countdown for the table, same look and behaviour |
 | `tiagos-toolkit-trilha` | 0.2.0 | 0.2.0-mesa.1 — picking another track lets the previous fade out first (prePlaylistAction instead of libWrapper) |
+| `tiagos-toolkit-handouts` | 0.1.0 | 0.1.0-mesa.1 — GM library, show to a player in one click, paper on their screen, their collection |

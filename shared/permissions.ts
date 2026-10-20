@@ -131,8 +131,9 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
 }
 
 /** Fields a player may change on a token they own. */
-const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "level", "delta"]);
-const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar", "settings", "avatar", "pronouns", "character"]);
+// `flags`: package data — owners may write it, as in Foundry.
+const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "level", "delta", "flags"]);
+const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar", "settings", "avatar", "pronouns", "character", "flags"]);
 
 /**
  * Whether `user` may apply `op` to `doc` (for updates, `changes` is the requested diff).

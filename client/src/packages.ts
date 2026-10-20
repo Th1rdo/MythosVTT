@@ -2,6 +2,7 @@ import type { BaseDoc, DocType, ModuleMessage, PackageInfo } from "../../shared/
 import type { SettingDef, SettingScope, SettingType } from "../../shared/settings.ts";
 import { registerSetting } from "../../shared/settings.ts";
 import { randomId } from "../../shared/objects.ts";
+import { upload } from "./dom.ts";
 import { game, notify, toast } from "./game.ts";
 import { hooks } from "./hooks.ts";
 import { lang, t } from "./i18n.ts";
@@ -184,7 +185,16 @@ export const mesa = {
   notify,
   toast,
   dialogs: { confirm: confirmDialog, prompt },
-  files: { browse: browseFiles },
+  files: {
+    browse: browseFiles,
+    /** Store a file in the world's assets (`dir` relative to them; default "uploads"); returns its /assets/… path. */
+    upload: (file: File, dir?: string) => upload(file, dir),
+    /** GM: make a folder `name` inside `parent` (relative to the world's assets); fine if it already exists. */
+    async mkdir(parent: string, name: string): Promise<boolean> {
+      const res = await fetch("/api/files/folder", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: parent, name }) });
+      return res.ok || res.status === 409;
+    }
+  },
   ui: { openWindow, closeWindow, isOpen, openSheet, openJournal, openImagePopout },
   /** The server's clock (ms), measured against this browser's: the same instant on every client. */
   time: { serverNow: () => audio.serverNow() },

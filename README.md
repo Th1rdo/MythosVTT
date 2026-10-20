@@ -55,7 +55,7 @@ npm run import -- "$HOME/Library/Application Support/FoundryVTT/Data/worlds/<wor
   for everyone) and ambient sounds.
 - **Settings**, rebindable keys, pause, file browser, guided tours, the setup screen with backups.
 - **Modules** (Settings → Gerir módulos): packages in `data/modules/`, with a JavaScript API — see
-  [docs/packages.md](docs/packages.md). Some of Tiago's Toolkit modules come bundled (off by default): Contagem, Trilha.
+  [docs/packages.md](docs/packages.md). Some of Tiago's Toolkit modules come bundled (off by default): Contagem, Trilha, Handouts.
 
 Full feature list and what's still missing: [docs/parity.md](docs/parity.md).
 

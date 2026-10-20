@@ -1,0 +1,203 @@
+/* ============================================================================
+   Tiago's Toolkit: Handouts — a mesa do jogador e a biblioteca do mestre.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- a mesa */
+/* por cima de tudo, janelas incluídas: no teste local a janela de configuração do
+   jogador tapava o documento que acabava de chegar. As janelas do Foundry sobem o
+   z-index a cada foco (a partir de 100); 4000 fica longe disso e abaixo das notificações. */
+#ho-mesa { position: fixed; inset: 0; z-index: 4000; pointer-events: none; }
+
+#ho-mesa .ho-papel {
+  position: absolute; left: 0; top: 0;
+  transform-origin: 0 0;
+  pointer-events: auto; cursor: grab; touch-action: none; user-select: none;
+  will-change: transform;
+}
+#ho-mesa .ho-papel.ho-a-arrastar { cursor: grabbing; }
+#ho-mesa .ho-papel.ho-a-repor { transition: transform 240ms cubic-bezier(.2,.8,.2,1); }
+
+/* a folha: inclinada um pouco, com a sombra de um papel pousado */
+#ho-mesa .ho-folha {
+  width: 100%; height: 100%;
+  transform: rotate(var(--ho-inclinacao, 0deg));
+  box-shadow: 0 2px 3px rgba(0,0,0,.45), 0 18px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.25);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+#ho-mesa .ho-a-arrastar .ho-folha {
+  /* pegar num papel levanta-o da mesa */
+  box-shadow: 0 6px 10px rgba(0,0,0,.4), 0 34px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.25);
+  transform: rotate(var(--ho-inclinacao, 0deg)) scale(1.012);
+}
+/* o Foundry põe borda e sombra em todas as <img> (Armadilhas do Foundry) */
+#ho-mesa .ho-folha img {
+  display: block; width: 100%; height: 100%; object-fit: contain;
+  border: none; box-shadow: none; border-radius: 0; pointer-events: none;
+}
+
+/* os cantos: só aparecem com o rato por cima, para não haver interface em cima do papel */
+#ho-mesa .ho-cantos {
+  position: absolute; top: -14px; right: -14px; display: flex; gap: 6px;
+  opacity: 0; transition: opacity 140ms ease;
+  /* contra o zoom do papel: os botões ficam sempre do mesmo tamanho */
+  transform-origin: 100% 0; transform: scale(var(--ho-inverso, 1));
+}
+#ho-mesa .ho-papel:hover .ho-cantos { opacity: 1; }
+#ho-mesa button.ho-botao {
+  width: 30px; height: 30px; min-height: 0; padding: 0; margin: 0; line-height: 1;
+  display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(14,14,16,.88); color: #e9e4d8; font-size: 13px; cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+}
+#ho-mesa button.ho-botao:hover { background: #1f1f23; color: #fff; }
+
+/* chegar: desliza de baixo, vindo da mão do mestre, e pousa */
+@keyframes ho-chegar {
+  from { opacity: 0; translate: 0 60px; filter: blur(2px); }
+  to   { opacity: 1; translate: 0 0; filter: none; }
+}
+@keyframes ho-abrir { from { opacity: 0; scale: .96; } to { opacity: 1; scale: 1; } }
+@keyframes ho-sair { to { opacity: 0; translate: 0 24px; } }
+@keyframes ho-pulsar { 0%, 100% { filter: none; } 40% { filter: brightness(1.25); } }
+#ho-mesa .ho-chegou .ho-folha { animation: ho-chegar 520ms cubic-bezier(.2,.9,.25,1) backwards; }
+#ho-mesa .ho-abriu .ho-folha { animation: ho-abrir 200ms ease-out backwards; }
+#ho-mesa .ho-sair { animation: ho-sair 200ms ease-in forwards; pointer-events: none; }
+#ho-mesa .ho-pulsar .ho-folha { animation: ho-pulsar 600ms ease; }
+
+/* ---------------------------------------------------------------- janelas (biblioteca e coleção) */
+/* Mesa: a raiz é um div dentro do corpo da janela (sem .window-content), com altura própria */
+.win-body:has(> .ho-janela) { padding: 0; }
+.ho-janela { overflow: hidden; background: #111114; display: flex; flex-direction: column; }
+.ho-janela.ho-janela-bib { height: min(640px, 78vh); }
+.ho-janela.ho-janela-col { height: min(520px, 70vh); }
+.ho-janela .ho-bib, .ho-janela .ho-col { height: 100%; display: flex; flex-direction: column; min-height: 0; color: #ddd8cc; }
+.ho-janela .ho-espaco { flex: 1; }
+
+.ho-janela .ho-abas {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 4px; padding: 8px 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,.08); overflow-x: auto;
+}
+.ho-janela button.ho-aba {
+  flex: 0 0 auto; width: auto; height: 32px; min-height: 0; margin: 0; padding: 0 14px;
+  display: flex; align-items: center; gap: 8px;
+  background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+  color: #a39e92; font-size: 13px; cursor: pointer;
+}
+.ho-janela button.ho-aba:hover { color: #eee; background: rgba(255,255,255,.04); }
+.ho-janela button.ho-aba.ho-ativa { color: #fff; border-bottom-color: #d8b66a; background: rgba(216,182,106,.08); }
+.ho-janela button.ho-aba.ho-alvo { background: rgba(216,182,106,.22); color: #fff; }
+.ho-janela button.ho-aba-mais { padding: 0 10px; }
+.ho-janela .ho-conta {
+  font-size: 11px; padding: 0 6px; border-radius: 9px; line-height: 17px;
+  background: rgba(255,255,255,.09); color: #bdb7aa;
+}
+.ho-janela input.ho-procura { width: 190px; height: 28px; margin-bottom: 6px; }
+
+.ho-janela .ho-corpo { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 14px 18px; }
+.ho-janela .ho-vazio { color: #8d887d; text-align: center; margin: 48px 20px; font-style: italic; }
+
+.ho-janela .ho-categoria-topo { display: flex; align-items: center; gap: 6px; margin: 4px 0 10px; }
+.ho-janela .ho-categoria-nome { font: 600 17px/1.2 var(--font-primary, sans-serif); color: #f1ecdf; margin-right: 4px; }
+
+.ho-janela .ho-seccao { margin-bottom: 14px; border-radius: 8px; background: rgba(255,255,255,.025); }
+.ho-janela .ho-seccao.ho-alvo { outline: 2px dashed rgba(216,182,106,.6); outline-offset: 2px; }
+.ho-janela .ho-seccao.ho-alvo-antes { box-shadow: 0 -3px 0 #d8b66a; }
+.ho-janela .ho-seccao-topo {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: grab;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.ho-janela .ho-seccao-nome { font-weight: 600; color: #e6e1d4; cursor: pointer; letter-spacing: .02em; }
+.ho-janela .ho-recolhida .ho-seta i { transform: rotate(-90deg); }
+.ho-janela .ho-seta i { transition: transform 150ms ease; }
+
+.ho-janela button.ho-icone {
+  width: 26px; height: 26px; min-height: 0; padding: 0; margin: 0; line-height: 1;
+  display: grid; place-items: center; flex: 0 0 auto;
+  background: transparent; border: none; border-radius: 5px; color: #9d988b; font-size: 12px; cursor: pointer;
+}
+.ho-janela button.ho-icone:hover { background: rgba(255,255,255,.08); color: #fff; }
+.ho-janela button.ho-botao-texto {
+  width: auto; height: 28px; min-height: 0; margin: 0; padding: 0 12px; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 7px; font-size: 12px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; color: #d7d2c5; cursor: pointer;
+}
+.ho-janela button.ho-botao-texto:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+.ho-janela .ho-grelha {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 10px;
+}
+
+/* o cartão */
+.ho-janela .ho-cartao {
+  display: flex; flex-direction: column; border-radius: 8px; overflow: hidden;
+  background: #1b1b1f; border: 1px solid rgba(255,255,255,.06);
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.ho-janela .ho-cartao:hover { border-color: rgba(216,182,106,.45); }
+.ho-janela .ho-cartao.ho-a-arrastar { opacity: .4; }
+.ho-janela .ho-cartao.ho-alvo-antes { box-shadow: -4px 0 0 #d8b66a; }
+/* a imagem fica fora do fluxo: uma imagem alta (um auto em A4) esticava o cartão, ganhando ao aspect-ratio */
+.ho-janela .ho-miniatura { position: relative; aspect-ratio: 4 / 3; background: #0c0c0e; cursor: zoom-in; overflow: hidden; }
+.ho-janela .ho-miniatura img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; display: block;
+  border: none; box-shadow: none; border-radius: 0;
+}
+.ho-janela .ho-cartao-accoes {
+  position: absolute; top: 4px; right: 4px; display: flex; gap: 2px;
+  opacity: 0; transition: opacity 120ms ease;
+}
+.ho-janela .ho-cartao:hover .ho-cartao-accoes { opacity: 1; }
+.ho-janela .ho-cartao-accoes button.ho-icone { background: rgba(0,0,0,.7); color: #eee; }
+.ho-janela .ho-cartao-nome {
+  padding: 7px 9px 2px; font-size: 12.5px; color: #ebe6d9;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ho-janela .ho-cartao-nome small { display: block; font-size: 10.5px; color: #888276; overflow: hidden; text-overflow: ellipsis; }
+
+/* ponto dourado num documento que o jogador ainda não abriu */
+.ho-janela .ho-novo .ho-miniatura::after {
+  content: ""; position: absolute; top: 8px; left: 8px; width: 10px; height: 10px; border-radius: 50%;
+  background: #e6be5a; box-shadow: 0 0 0 2px rgba(0,0,0,.6), 0 0 10px #e6be5a;
+}
+
+/* as caras: um clique mostra a essa pessoa */
+.ho-janela .ho-mostrar { display: flex; align-items: center; gap: 4px; padding: 6px 8px 8px; flex-wrap: wrap; }
+.ho-janela button.ho-pessoa {
+  width: 26px; height: 26px; min-height: 0; padding: 0; margin: 0; flex: 0 0 auto;
+  border-radius: 50%; overflow: hidden; cursor: pointer; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--ho-cor) 45%, #222); color: #fff; font-size: 11px; font-weight: 700;
+  border: 2px solid transparent; opacity: .45; filter: grayscale(.7);
+  transition: opacity 120ms ease, transform 120ms ease, filter 120ms ease;
+}
+.ho-janela button.ho-pessoa.ho-ligado { opacity: .85; filter: none; }
+.ho-janela button.ho-pessoa:hover { opacity: 1; transform: scale(1.12); filter: none; }
+/* já tem: anel na cor do jogador */
+.ho-janela button.ho-pessoa.ho-tem { border-color: var(--ho-cor); opacity: 1; filter: none; }
+.ho-janela button.ho-pessoa img { width: 100%; height: 100%; object-fit: cover; border: none; box-shadow: none; border-radius: 0; }
+.ho-janela button.ho-todos {
+  width: auto; height: 24px; min-height: 0; margin: 0 0 0 auto; padding: 0 9px; flex: 0 0 auto;
+  font-size: 11px; border-radius: 12px; cursor: pointer; line-height: 1;
+  background: rgba(216,182,106,.12); border: 1px solid rgba(216,182,106,.45); color: #e8cf8f;
+}
+.ho-janela button.ho-todos:hover { background: rgba(216,182,106,.28); color: #fff; }
+
+/* o sítio para largar ou escolher imagens, no fim de cada secção */
+.ho-janela button.ho-largar-aqui {
+  width: auto; height: auto; min-height: 120px; margin: 0; padding: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  border: 1px dashed rgba(255,255,255,.18); border-radius: 8px; background: transparent;
+  color: #858074; font-size: 11.5px; cursor: pointer; text-align: center;
+}
+.ho-janela button.ho-largar-aqui:hover { color: #ddd; border-color: rgba(216,182,106,.55); }
+.ho-janela button.ho-largar-aqui i { font-size: 18px; }
+
+.ho-janela .ho-rodape {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  border-top: 1px solid rgba(255,255,255,.08); background: #0d0d10;
+}
+.ho-janela .ho-dica { font-size: 11.5px; color: #8a8579; }
+
+@media (prefers-reduced-motion: reduce) {
+  #ho-mesa .ho-folha, #ho-mesa .ho-papel { animation: none !important; transition: none !important; }
+}
