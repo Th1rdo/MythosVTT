@@ -94,6 +94,11 @@ export class Store {
     for (const id of ids) del.run(pack, id);
   }
 
+  /** A consistent copy of the database (safe while in use). */
+  backupTo(file: string): void {
+    this.#db.prepare("VACUUM INTO ?").run(file);
+  }
+
   close(): void {
     this.#db.close();
   }

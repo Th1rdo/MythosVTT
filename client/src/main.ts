@@ -24,6 +24,7 @@ import { onRunMacro, setMacroBoard } from "./macros.ts";
 import { registerCoreKeys } from "./shell/keys.ts";
 import { pauseBanner } from "./shell/pause.ts";
 import { openUserConfig } from "./ui/user-config.ts";
+import { setupScreen } from "./setup.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { openSettingsConfig } from "./ui/settings.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -54,7 +55,11 @@ const app = document.getElementById("app")!;
 applyUiScale(readUiScale());
 
 async function boot(): Promise<void> {
-  const info: WorldInfo = await fetch("/api/world").then(r => r.json());
+  const info: WorldInfo & { setup?: boolean } = await fetch("/api/world").then(r => r.json());
+  if (location.pathname === "/setup" || info.setup || !info.world) {
+    document.title = "Configuração · Mesa";
+    return setupScreen(app);
+  }
   document.title = `${info.world.title} · Mesa`;
   if (!info.me) return joinScreen(info);
   try {
@@ -89,7 +94,8 @@ function joinScreen(info: WorldInfo): void {
       h("label.field", null, h("span", null, "Quem és?"), user),
       h("label.field", null, h("span", null, "Palavra-passe"), password),
       error,
-      h("button.primary", { type: "submit" }, "Entrar")
+      h("button.primary", { type: "submit" }, "Entrar"),
+      h("a.muted.small.setup-link", { href: "/setup" }, h("i.fa-solid.fa-gear"), " Configuração")
     )
   ));
 }

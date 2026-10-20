@@ -29,6 +29,8 @@ export interface WorldMeta {
   title: string;
   system: string;
   created: number;
+  description?: string;
+  lastPlayed?: number;
 }
 
 /** One document changing. `before` is absent on create, `after` is absent on delete. */
@@ -91,6 +93,20 @@ export class World implements DocLookup {
 
   close(): void {
     this.#store.close();
+  }
+
+  /** Copy the world (database snapshot + world.json + assets) into `dest`. */
+  backup(dest: string): void {
+    fs.mkdirSync(dest, { recursive: true });
+    this.#store.backupTo(path.join(dest, "world.db"));
+    fs.copyFileSync(path.join(this.dir, "world.json"), path.join(dest, "world.json"));
+    if (fs.existsSync(this.assetsDir)) fs.cpSync(this.assetsDir, path.join(dest, "assets"), { recursive: true });
+  }
+
+  /** Change the title/description in world.json. */
+  saveMeta(changes: Partial<Pick<WorldMeta, "title" | "description" | "lastPlayed">>): void {
+    Object.assign(this.meta, changes);
+    fs.writeFileSync(path.join(this.dir, "world.json"), JSON.stringify(this.meta, null, 2));
   }
 
   get(type: DocType, id: string): BaseDoc | undefined {

@@ -9,39 +9,70 @@ import { CLIENT_DIST, WORLDS_DIR, safeJoin } from "./paths.ts";
 import { World, listWorlds } from "./world.ts";
 import { Hub } from "./hub.ts";
 import { Sessions, parseCookies, verifyPassword } from "./auth.ts";
+import { applyAdminPasswordFromEnv, setupRouter } from "./setup.ts";
 
 const PORT = Number(process.env.MESA_PORT ?? 30100);
 
-function pickWorld(): World {
+/** The world to open on start: --world / MESA_WORLD, or the only one; otherwise start on the setup screen. */
+function startingWorld(): string | null {
   const argIdx = process.argv.indexOf("--world");
   const requested = argIdx >= 0 ? process.argv[argIdx + 1] : process.env.MESA_WORLD;
-  if (requested) return World.open(requested);
+  if (requested) return requested;
   const worlds = listWorlds(WORLDS_DIR);
-  if (worlds.length === 1) return World.open(worlds[0].id);
-  if (!worlds.length) {
-    console.error(`No worlds in ${WORLDS_DIR}.\nCreate one:   npm run world -- create <id> "<Title>"\nor import:    npm run import -- <path-to-foundry-world>`);
-  } else {
-    console.error(`Several worlds found, pick one with --world <id> or MESA_WORLD:\n` + worlds.map(w => `  ${w.id}  (${w.title})`).join("\n"));
-  }
-  process.exit(1);
+  return worlds.length === 1 ? worlds[0].id : null;
 }
 
-const world = pickWorld();
-const sessions = new Sessions(path.join(world.dir, "sessions.json"));
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6 });
-new Hub(io, world, sessions);
+const hub = new Hub(io);
+let active: { world: World; sessions: Sessions } | null = null;
+
+/** Open a world and serve it (closing the one before). */
+function launch(id: string): void {
+  if (!World.exists(id)) throw new Error(`O mundo "${id}" não existe`);
+  close();
+  const w = World.open(id);
+  w.saveMeta({ lastPlayed: Date.now() });
+  active = { world: w, sessions: new Sessions(path.join(w.dir, "sessions.json")) };
+  hub.attach(active.world, active.sessions);
+  console.log(`Mesa — "${w.meta.title}" (${w.meta.id})`);
+}
+
+/** Back to the setup screen. */
+function close(): void {
+  if (!active) return;
+  hub.detach();
+  active.world.close();
+  active = null;
+}
+
+applyAdminPasswordFromEnv();
+const first = startingWorld();
+if (first) launch(first);
+else console.log("Mesa — sem mundo aberto: abre /setup para escolher ou criar um.");
+
+/** The open world (routes that need one answer 503 on the setup screen). */
+function requireWorld(res: express.Response): World | null {
+  if (active) return active.world;
+  res.status(503).json({ error: "Nenhum mundo aberto", setup: true });
+  return null;
+}
 
 function currentUser(req: express.Request): UserDoc | undefined {
-  return world.user(sessions.userId(parseCookies(req.headers.cookie)[Sessions.COOKIE]));
+  if (!active) return undefined;
+  return active.world.user(active.sessions.userId(parseCookies(req.headers.cookie)[Sessions.COOKIE]));
 }
 
 app.disable("x-powered-by");
 app.use(express.json({ limit: "100kb" }));
 
 /** Public info for the join screen. */
+app.use("/api/setup", setupRouter({ active: () => active?.world ?? null, launch, close }));
+
 app.get("/api/world", (req, res) => {
+  if (!active) return res.json({ world: null, setup: true });
+  const world = active.world;
   const { id, title, system } = world.meta;
   res.json({
     world: { id, title, system },
@@ -57,6 +88,8 @@ app.post("/api/login", (req, res) => {
   const lock = failedLogins.get(ip);
   if (lock && lock.until > Date.now()) return res.status(429).json({ error: "Demasiadas tentativas. Espera um minuto." });
 
+  const world = requireWorld(res);
+  if (!world || !active) return;
   const user = world.user(String(req.body?.userId ?? ""));
   if (!user || !verifyPassword(String(req.body?.password ?? ""), user.passwordHash)) {
     const count = (lock?.count ?? 0) + 1;
@@ -64,13 +97,13 @@ app.post("/api/login", (req, res) => {
     return res.status(401).json({ error: "Palavra-passe errada" });
   }
   failedLogins.delete(ip);
-  const sid = sessions.create(user._id);
+  const sid = active.sessions.create(user._id);
   res.cookie(Sessions.COOKIE, sid, { httpOnly: true, sameSite: "lax", maxAge: Sessions.MAX_AGE_MS, path: "/" });
   res.json({ ok: true });
 });
 
 app.post("/api/logout", (req, res) => {
-  sessions.destroy(parseCookies(req.headers.cookie)[Sessions.COOKIE]);
+  active?.sessions.destroy(parseCookies(req.headers.cookie)[Sessions.COOKIE]);
   res.clearCookie(Sessions.COOKIE, { path: "/" });
   res.json({ ok: true });
 });
@@ -84,9 +117,11 @@ const KINDS: Record<string, RegExp> = {
   pdf: /\.pdf$/i,
   any: UPLOAD_TYPES
 };
-const canBrowse = (u: UserDoc | undefined) => !!u && (u.role === "gm" || !!worldSetting(world, "core.playerBrowse"));
+const canBrowse = (u: UserDoc | undefined) => !!u && !!active && (u.role === "gm" || !!worldSetting(active.world, "core.playerBrowse"));
 /** A folder inside the world's assets ("" = the root), or null if it escapes or doesn't exist. */
 function assetDir(rel: unknown): { abs: string; rel: string } | null {
+  if (!active) return null;
+  const world = active.world;
   const clean = String(rel ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
   try {
     const abs = safeJoin(world.assetsDir, clean);
@@ -134,7 +169,8 @@ app.post("/api/files/folder", express.json(), (req, res) => {
 // Accept any body type: browsers send files of unknown type (some audio formats) without a Content-Type.
 app.post("/api/upload", express.raw({ type: () => true, limit: "200mb" }), (req, res) => {
   const uploader = currentUser(req);
-  if (!uploader || (uploader.role !== "gm" && !worldSetting(world, "core.playerUpload"))) {
+  const world = active?.world;
+  if (!world || !uploader || (uploader.role !== "gm" && !worldSetting(world, "core.playerUpload"))) {
     return res.status(403).json({ error: "Só o mestre pode carregar ficheiros" });
   }
   const original = path.basename(String(req.query.name ?? ""));
@@ -153,7 +189,8 @@ app.post("/api/upload", express.raw({ type: () => true, limit: "200mb" }), (req,
 
 /** World assets. Requires a session so a world's maps aren't public. */
 app.get("/assets/{*rest}", (req, res) => {
-  if (!currentUser(req)) return res.status(401).end();
+  if (!currentUser(req) || !active) return res.status(401).end();
+  const world = active.world;
   try {
     const rel = decodeURIComponent(req.path.slice("/assets/".length));
     const file = safeJoin(world.assetsDir, rel);
@@ -172,14 +209,13 @@ if (fs.existsSync(CLIENT_DIST)) {
 }
 
 server.listen(PORT, () => {
-  console.log(`Mesa — "${world.meta.title}" (${world.meta.id})`);
   console.log(`Server on http://localhost:${PORT}` + (fs.existsSync(CLIENT_DIST) ? "" : "  (dev: open the Vite URL, usually http://localhost:5173)"));
 });
 
 function shutdown() {
   io.close();
   server.close();
-  world.close();
+  active?.world.close();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);

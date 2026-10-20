@@ -25,6 +25,7 @@ export function toggleMainMenu(): void {
       item("fa-solid fa-keyboard", "Teclas", () => openSettingsConfig("keys")),
       game.isGM ? item(isPaused() ? "fa-solid fa-play" : "fa-solid fa-pause", isPaused() ? "Retomar o jogo" : "Pausar o jogo", togglePause) : null,
       item("fa-solid fa-rotate", "Recarregar", () => location.reload()),
+      game.isGM ? item("fa-solid fa-server", "Configuração (mundos)", () => (location.href = "/setup")) : null,
       item("fa-solid fa-right-from-bracket", "Sair", async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); }),
       h("li", null, h("button.muted", { onclick: closeMainMenu }, "Voltar ao jogo (Esc)"))));
   document.body.append(menu);

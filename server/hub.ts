@@ -73,21 +73,37 @@ const secureRandomInt = (faces: number) => crypto.randomInt(1, faces + 1);
  */
 export class Hub {
   #io: Server;
-  #world: World;
-  #sessions: Sessions;
+  #world!: World;
+  #sessions!: Sessions;
 
-  constructor(io: Server, world: World, sessions: Sessions) {
+  /** No world while the server is on the setup screen. */
+  #active = false;
+
+  constructor(io: Server, world?: World, sessions?: Sessions) {
     this.#io = io;
-    this.#world = world;
-    this.#sessions = sessions;
+    if (world && sessions) this.attach(world, sessions);
     io.use((socket, next) => {
+      if (!this.#active) return next(new Error("no world"));
       const sid = parseCookies(socket.handshake.headers.cookie)[Sessions.COOKIE];
-      const user = world.user(sessions.userId(sid));
+      const user = this.#world.user(this.#sessions.userId(sid));
       if (!user) return next(new Error("unauthorized"));
       socket.data.userId = user._id;
       next();
     });
     io.on("connection", socket => this.#onConnect(socket));
+  }
+
+  /** Serve a world (after launching it from the setup screen). */
+  attach(world: World, sessions: Sessions): void {
+    this.#world = world;
+    this.#sessions = sessions;
+    this.#active = true;
+  }
+
+  /** Stop serving the world: everyone is disconnected (their pages reload into the setup/join screen). */
+  detach(): void {
+    this.#active = false;
+    for (const s of this.#io.sockets.sockets.values()) s.disconnect(true);
   }
 
   #user(socket: Socket): UserDoc | undefined {
