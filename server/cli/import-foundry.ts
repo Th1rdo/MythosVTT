@@ -16,9 +16,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { World } from "../world.ts";
+import { randomId } from "../../shared/objects.ts";
 import type { Bundle, Raw } from "./foundry.ts";
 import {
-  Assets, convertActor, convertItem, convertJournal, convertMacro, convertPlaylist, convertTable, effectData, escapeHtml, lightConfig,
+  Assets, convertActor, convertCards, convertItem, convertJournal, convertMacro, convertPlaylist, convertTable, effectData, escapeHtml, lightConfig,
   mergeBundles, readFoundryDb, tokenSettings, unit
 } from "./foundry.ts";
 import type { BaseDoc, RollResult, RollTerm } from "../../shared/protocol.ts";
@@ -99,7 +100,7 @@ insert("User", users.map(u => ({
   passwordHash: null
 })));
 
-const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro", "RollTable"]);
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro", "RollTable", "Cards"]);
 const folders = (await readCollection("folders")).filter(f => FOLDER_TYPES.has(f.type));
 const folderIds = new Set(folders.map(f => f._id));
 const folderOf = (id: unknown) => (typeof id === "string" && folderIds.has(id) ? id : null);
@@ -394,6 +395,10 @@ insertBundle(mergeBundles((await readCollection("playlists")).map(p => convertPl
 
 insertBundle(mergeBundles((await readCollection("tables")).map(t => convertTable(t, ctx))));
 insertBundle(mergeBundles(macros.map(m => convertMacro(m, ctx))));
+// Decks first, so their cards keep their ids and dealt copies elsewhere get new ones.
+const stacks = (await readCollection("cards")).sort((x, y) => (x.type === "deck" ? 0 : 1) - (y.type === "deck" ? 0 : 1));
+const takenCardIds = new Set<string>();
+insertBundle(mergeBundles(stacks.map(st => convertCards(st, ctx, takenCardIds, randomId))));
 
 // Combats: Foundry stores the turn as an index into its sorted order (initiative desc, then id).
 const combats = await readCollection("combats");

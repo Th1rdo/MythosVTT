@@ -317,6 +317,37 @@ export function convertPlaylist(p: Raw, ctx: ConvertContext): Bundle {
   };
 }
 
+const face = (f: Raw | undefined, ctx: ConvertContext) => ({ name: String(f?.name ?? ""), text: ctx.rewriteHtml(f?.text ?? ""), img: ctx.asset(f?.img) });
+
+/**
+ * Card stacks. Foundry gives a dealt copy the same id as the deck's card; Mesa ids are unique, so copies
+ * found after their original get a fresh id and remember the original in `source`. `takenIds` is shared
+ * across stacks; `newId` makes ids.
+ */
+export function convertCards(s: Raw, ctx: ConvertContext, takenIds: Set<string>, newId: () => string): Bundle {
+  const type = ["deck", "hand", "pile"].includes(s.type) ? s.type : "deck";
+  const available = (s.cards ?? []).filter((c: Raw) => type !== "deck" || !c.drawn || (typeof c.origin === "string" && c.origin !== s._id)).length;
+  return {
+    Cards: [{
+      _id: s._id, name: s.name ?? "Cartas", type, description: ctx.rewriteHtml(s.description ?? ""), img: ctx.asset(s.img), available,
+      displayCount: !!s.displayCount, folder: ctx.folderOf(s.folder), sort: s.sort ?? 0, ownership: s.ownership ?? { default: 0 }
+    }],
+    Card: (s.cards ?? []).map((c: Raw) => {
+      const copy = takenIds.has(c._id);
+      const id = copy ? newId() : c._id;
+      takenIds.add(id);
+      const faces = (c.faces ?? []).map((f: Raw) => face(f, ctx));
+      const origin = typeof c.origin === "string" && c.origin !== s._id ? c.origin : null;
+      return {
+        _id: id, _parent: s._id, name: c.name ?? "Carta", description: ctx.rewriteHtml(c.description ?? ""), suit: String(c.suit ?? ""),
+        value: typeof c.value === "number" ? c.value : null, back: face(c.back, ctx), faces: faces.length ? faces : [{ name: c.name ?? "", text: "", img: null }],
+        face: typeof c.face === "number" && c.face < Math.max(1, faces.length) ? c.face : null,
+        drawn: type === "deck" && !origin ? !!c.drawn : false, origin, source: origin ? c._id : null, sort: c.sort ?? 0
+      };
+    })
+  };
+}
+
 /** Merge bundles type by type. */
 export function mergeBundles(bundles: Bundle[]): Bundle {
   const out: Bundle = {};

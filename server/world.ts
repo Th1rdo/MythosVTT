@@ -299,6 +299,18 @@ export class World implements DocLookup {
       }
     }
 
+    // Card stacks keep a count of their available cards (players may not see the cards themselves).
+    const touchedStacks = new Set([...changes, ...out].filter(c => c.type === "Card").map(c => (c.after ?? c.before)!._parent!));
+    for (const id of touchedStacks) {
+      const stack = this.get("Cards", id) as (BaseDoc & { type: string; available: number }) | undefined;
+      if (!stack || alreadyGone.has(`Cards:${id}`)) continue;
+      const removed = new Set([...changes, ...out].filter(c => c.type === "Card" && !c.after).map(c => c.before!._id));
+      const current = new Map(this.all("Card").filter(c => c._parent === id && !removed.has(c._id)).map(c => [c._id, c]));
+      for (const c of changes) if (c.type === "Card" && c.after && c.after._parent === id) current.set(c.after._id, c.after);
+      const available = [...current.values()].filter(c => stack.type !== "deck" || !(c as { drawn?: boolean }).drawn).length;
+      if (available !== stack.available) out.push({ type: "Cards", before: stack, after: { ...stack, available } });
+    }
+
     // Pass the turn on if the current combatant left.
     const removedCombatants = new Set([...changes, ...out].filter(c => c.type === "Combatant" && !c.after).map(c => c.before!._id));
     for (const combat of this.all<CombatDoc>("Combat")) {

@@ -72,12 +72,13 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer: playlists, tracks, ambient sounds (untested against real Foundry data — claude-tests has none)
 - ⬜ Drag a track onto the map to make an ambient sound; sound-effect previews in the config; playlist bulk-import dialog filters; auto-preload of the next track; audio analyser (band levels for modules)
 
-## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`, tables `ev_9d6d3877…`, journal `ev_91567e39…`, compendia `ev_4223fd20…`)*
+## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`, tables `ev_9d6d3877…`, journal `ev_91567e39…`, compendia `ev_4223fd20…`, cards `ev_396f15f9…`)*
 - ✅ Compendium packs (REA `ev_4223fd20…`): stored apart (SQLite table, fetched on demand), Compêndios tab, pack window (search, folders, preview), GM import one/all (into a new folder), drop world documents in to store them, lock, player visibility; players drag items onto their own sheets
 - ✅ `npm run import-packs` — Foundry system/module/world packs (Actor, Item, JournalEntry, RollTable, Macro, Playlist, Adventure); the OP system's 238 entries (weapons, gear, abilities, powers, paths, mission tables) import as locked packs
 - ✅ Roll tables (REA `ev_9d6d3877…`): Tables tab + sheet (edit in place, paste a list, weights → ranges via Normalizar, formula or 1dN), text or document results (drag a document onto a result), nested tables, with/without replacement + reset, draw N at once, roll modes; server-side draws posted as a chat card with links; hotbar + `mesa.drawTable`; importer
 - ⬜ Roll tables: result images per row in the sheet, compendium tables, "draw from table" region behaviour
-- ⬜ Cards (decks, hands, piles)
+- ✅ Cards (REA `ev_396f15f9…`): decks/hands/piles, deal (round-robin, top/bottom/random, face down), draw, pass/play/discard, shuffle, recall (deck gathers everything; hand/pile returns home), flip faces; hands private, deck order secret, face-down cards sent without faces; counts visible; chat notes; standard 52+2 deck generator (CSS-drawn); card editor (faces, back, suit, value); importer
+- ⬜ Cards on the canvas (drag to the map), card presets with art, hand dock in the UI
 - ✅ Macros (chat + script): Macros tab, config window (icon, command, sharing none/run/edit), author always owns; players make their own
 - ✅ Hotbar macros: click an empty slot to write one, drop from the directory, keys 1–0, right-click menu (edit/remove/delete), drag between slots
 - ✅ Script API for macros (`speaker, actor, token, character, scope, mesa`); GM confirms before running a player's script; `mesa.playAudio` = one-off sounds UI

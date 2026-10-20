@@ -12,11 +12,11 @@
 
 export type DocType =
   | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "AmbientSound" | "FogExploration"
-  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro" | "RollTable" | "TableResult" | "JournalEntryPage" | "Compendium";
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro" | "RollTable" | "TableResult" | "JournalEntryPage" | "Compendium" | "Cards" | "Card";
 
 export const DOC_TYPES: readonly DocType[] = [
   "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "AmbientSound", "FogExploration",
-  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro", "RollTable", "TableResult", "JournalEntryPage", "Compendium"
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro", "RollTable", "TableResult", "JournalEntryPage", "Compendium", "Cards", "Card"
 ];
 
 /** Child types whose parent is optional (world-level Items live in the Items directory). */
@@ -39,7 +39,8 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   Combatant: "Combat",
   PlaylistSound: "Playlist",
   TableResult: "RollTable",
-  JournalEntryPage: "JournalEntry"
+  JournalEntryPage: "JournalEntry",
+  Card: "Cards"
 };
 
 export interface BaseDoc {
@@ -139,7 +140,7 @@ export interface ActiveEffectDoc extends BaseDoc, Omit<EffectData, "_id"> {}
 export interface FolderDoc extends BaseDoc {
   name: string;
   /** Which directory the folder belongs to. */
-  type: "Actor" | "Item" | "JournalEntry" | "Scene" | "Playlist" | "Macro" | "RollTable";
+  type: "Actor" | "Item" | "JournalEntry" | "Scene" | "Playlist" | "Macro" | "RollTable" | "Cards";
   folder: string | null;
   color: string | null;
   sort: number;
@@ -626,6 +627,59 @@ export interface MacroDoc extends BaseDoc {
   /** LIMITED lets others see and run it; OWNER lets them edit it. */
   ownership: Ownership;
 }
+
+/**
+ * A stack of cards: a deck (owns its cards; dealing marks them drawn and puts copies elsewhere), a hand
+ * or a pile. Who sees the cards: OBSERVER and up (a player's hand is theirs; a deck's order stays secret).
+ */
+export interface CardsDoc extends BaseDoc {
+  name: string;
+  type: "deck" | "hand" | "pile";
+  description: string;
+  img: string | null;
+  /** Cards available (a deck: not drawn), kept by the server so everyone can see the count. */
+  available: number;
+  displayCount: boolean;
+  folder: string | null;
+  sort: number;
+  ownership: Ownership;
+}
+
+export interface CardFace {
+  name: string;
+  text: string;
+  img: string | null;
+}
+
+export interface CardDoc extends BaseDoc {
+  name: string;
+  description: string;
+  suit: string;
+  value: number | null;
+  back: CardFace;
+  faces: CardFace[];
+  /** Index of the face showing; null = face down (the back). */
+  face: number | null;
+  /** In its deck: dealt out. */
+  drawn: boolean;
+  /** The deck it came from (null for a deck's own cards). */
+  origin: string | null;
+  /** The original card in that deck (copies elsewhere have their own ids). */
+  source: string | null;
+  sort: number;
+}
+
+/** How cards are taken from a stack. */
+export type DrawHow = "top" | "bottom" | "random";
+
+/** Server-side card actions (socket event `cards`). */
+export type CardsAction =
+  | { action: "deal"; from: string; to: string[]; number: number; how?: DrawHow; faceDown?: boolean }
+  | { action: "draw"; to: string; from: string; number: number; how?: DrawHow }
+  | { action: "pass"; from: string; to: string; cardIds: string[]; kind?: "pass" | "play" | "discard" }
+  | { action: "shuffle" | "recall"; stack: string }
+  /** Show another face (null = turn face down). */
+  | { action: "flip"; stack: string; cardId: string; face: number | null };
 
 /** Documents a table result (or chat card) can point at. */
 export type LinkType = "Actor" | "Item" | "JournalEntry" | "RollTable" | "Scene" | "Macro" | "Playlist";

@@ -102,6 +102,13 @@ function defaults(type: DocType): Record<string, unknown> {
       return { name: "Nova tabela", img: null, description: "", formula: "", replacement: true, displayRoll: true, folder: null, sort: 0, ownership: { default: OWNERSHIP.NONE } };
     case "TableResult":
       return { type: "text", name: "", img: null, description: "", document: null, weight: 1, range: [1, 1], drawn: false };
+    case "Cards":
+      return { name: "Novo baralho", type: "deck", description: "", img: null, available: 0, displayCount: true, folder: null, sort: 0, ownership: { default: OWNERSHIP.NONE } };
+    case "Card":
+      return {
+        name: "Carta", description: "", suit: "", value: null, back: { name: "", text: "", img: null }, faces: [{ name: "", text: "", img: null }],
+        face: 0, drawn: false, origin: null, source: null, sort: 0
+      };
     case "Compendium":
       return { name: "Novo compêndio", type: "Item", visibility: 0, locked: false, folders: [], source: null, sort: 0 };
     case "Macro":
@@ -124,6 +131,8 @@ const NUMBER_FIELDS: Partial<Record<DocType, string[]>> = {
   JournalEntry: ["sort"],
   Macro: ["sort"],
   RollTable: ["sort"],
+  Cards: ["sort"],
+  Card: ["sort"],
   JournalEntryPage: ["sort"],
   TableResult: ["weight"]
 };
@@ -132,7 +141,7 @@ const MAX_CONTENT = 200_000;
 const MAX_FOG_IMAGE = 900_000;
 const SENSES = new Set([0, 10, 20]);
 const CHANGE_TYPES = new Set(["add", "multiply", "override", "upgrade", "downgrade"]);
-const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro", "RollTable"]);
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro", "RollTable", "Cards"]);
 const LINK_TYPES = new Set(["Actor", "Item", "JournalEntry", "RollTable", "Scene", "Macro", "Playlist"]);
 const AUDIO_CHANNELS = new Set(["music", "environment", "interface"]);
 const SOUND_EFFECTS = new Set([null, "lowpass", "highpass", "reverb"]);
@@ -222,6 +231,11 @@ export function validate(type: DocType, doc: BaseDoc): void {
     if (!Number.isInteger(level) || (level as number) < 1 || (level as number) > 6) throw new Error("Página: nível do título inválido");
   }
   if (type === "JournalEntry" && !Array.isArray(doc.categories)) throw new Error("Diário: categorias inválidas");
+  if (type === "Cards" && !["deck", "hand", "pile"].includes(doc.type as string)) throw new Error("Cartas: tipo inválido");
+  if (type === "Card") {
+    if (!Array.isArray(doc.faces) || doc.faces.length > 20) throw new Error("Carta: faces inválidas");
+    if (doc.face !== null && !(Number.isInteger(doc.face) && (doc.face as number) >= 0 && (doc.face as number) < (doc.faces as unknown[]).length)) throw new Error("Carta: face inválida");
+  }
   if (type === "Compendium") {
     if (!["Actor", "Item", "JournalEntry", "RollTable", "Macro", "Playlist", "Scene", "Adventure"].includes(doc.type as string)) throw new Error("Compêndio: tipo inválido");
     if (doc.visibility !== 0 && doc.visibility !== 1) throw new Error("Compêndio: visibilidade inválida");

@@ -19,6 +19,7 @@ import { playlistsPanel } from "./ui/playlists.ts";
 import { macrosPanel } from "./ui/macros.ts";
 import { tablesPanel } from "./ui/tables.ts";
 import { compendiaPanel } from "./ui/compendia.ts";
+import { cardsPanel } from "./ui/cards.ts";
 import { onRunMacro, setMacroBoard } from "./macros.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -130,6 +131,7 @@ async function startGame(): Promise<void> {
     { id: "items", icon: "fa-solid fa-suitcase", label: "Itens", make: itemsPanel },
     { id: "journal", icon: "fa-solid fa-book-open", label: "Diário", make: journalPanel },
     { id: "tables", icon: "fa-solid fa-table-list", label: "Tabelas", make: tablesPanel },
+    { id: "cards", icon: "fa-solid fa-clone", label: "Cartas", make: cardsPanel },
     { id: "macros", icon: "fa-solid fa-code", label: "Macros", make: macrosPanel },
     { id: "playlists", icon: "fa-solid fa-music", label: "Playlists", make: () => playlistsPanel(playlists) },
     { id: "compendia", icon: "fa-solid fa-book-atlas", label: "Compêndios", make: compendiaPanel },

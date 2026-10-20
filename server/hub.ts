@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, PackAction, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, CardDoc, CardsDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, PackAction, CardsAction, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
 import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE, OWNERSHIP } from "../shared/protocol.ts";
 import { canSee, ownershipLevel, pageLevel } from "../shared/permissions.ts";
@@ -11,6 +11,7 @@ import { runCombatAction } from "./combat.ts";
 import { runPlaylistAction } from "./playlists.ts";
 import { runTableAction } from "./tables.ts";
 import { packCounts, runPackAction } from "./packs.ts";
+import { runCardsAction } from "./cards.ts";
 import { processRegionEvents } from "./regions.ts";
 import type { Emit } from "./regions.ts";
 import type { Change, World } from "./world.ts";
@@ -43,6 +44,14 @@ export function publicDoc(type: DocType, doc: BaseDoc, viewer: UserDoc, docs?: D
     const { passwordHash, ...rest } = doc as UserDoc;
     return { ...rest, hasPassword: !!passwordHash };
   }
+  // Face-down cards reach non-owners without their faces.
+  if (type === "Card" && viewer.role !== "gm" && (doc as CardDoc).face === null && docs) {
+    const stack = docs.get("Cards", doc._parent ?? "") as CardsDoc | undefined;
+    if (!stack || ownershipLevel(stack.ownership, viewer) < OWNERSHIP.OWNER) {
+      const c = doc as CardDoc;
+      return { ...c, name: c.back?.name || "Carta", description: "", suit: "", value: null, faces: [] };
+    }
+  }
   if (type === "ChatMessage" && viewer.role !== "gm" && (doc as ChatMessageDoc).blind) {
     return { ...doc, roll: null, inline: [], content: "", table: null };
   }
@@ -51,6 +60,9 @@ export function publicDoc(type: DocType, doc: BaseDoc, viewer: UserDoc, docs?: D
   }
   return doc;
 }
+
+/** Child types whose visibility depends on their parent's ownership. */
+const INHERITING_CHILDREN: Partial<Record<DocType, DocType>> = { JournalEntry: "JournalEntryPage", Cards: "Card" };
 
 const secureRandomInt = (faces: number) => crypto.randomInt(1, faces + 1);
 
@@ -187,6 +199,17 @@ export class Hub {
     socket.on("packCounts", (ack?: (counts: Record<string, number>) => void) => {
       const me = this.#user(socket);
       if (me) ack?.(packCounts(this.#world, me));
+    });
+
+    socket.on("cards", (action: CardsAction, ack?: Ack<DocResponse>) => {
+      const me = this.#user(socket);
+      if (!me) return ack?.({ ok: false, error: "Sessão inválida" });
+      try {
+        this.#broadcast(runCardsAction(this.#world, me, action, secureRandomInt), me._id);
+        ack?.({ ok: true, result: [] });
+      } catch (err) {
+        ack?.({ ok: false, error: (err as Error).message });
+      }
     });
 
     socket.on("table", (action: TableAction, ack?: Ack<DocResponse>) => {
@@ -331,22 +354,25 @@ export class Hub {
           if (!sawBefore && c.type === "JournalEntry") {
             for (const n of this.#world.all("Note")) if ((n as { entryId?: string }).entryId === c.after!._id) push("create", "Note", n);
           }
-          // Pages follow their entry's ownership: re-send them (they may appear, vanish or show secrets now).
-          if (c.type === "JournalEntry" && c.before && !changes.some(x => x.type === "JournalEntryPage" && x.after?._parent === c.after!._id)) {
-            for (const p of this.#world.all("JournalEntryPage")) {
-              if (p._parent !== c.after!._id) continue;
-              const pageBefore = sawBefore && canSee("JournalEntryPage", p, { ...user }, { get: (t, id) => (t === "JournalEntry" && id === c.before!._id ? c.before : this.#world.get(t, id)), all: t => this.#world.all(t) });
-              const pageNow = canSee("JournalEntryPage", p, user, this.#world);
-              if (pageNow) push(pageBefore ? "update" : "create", "JournalEntryPage", publicDoc("JournalEntryPage", p, user, this.#world));
-              else if (pageBefore) push("delete", "JournalEntryPage", p._id);
+          // Children whose visibility follows the parent's ownership (journal pages, cards): re-send them, they
+          // may appear, vanish or show more (secrets, faces) now.
+          const child = INHERITING_CHILDREN[c.type];
+          if (child && c.before && !changes.some(x => x.type === child && x.after?._parent === c.after!._id)) {
+            const lookupBefore: DocLookup = { get: (t, id) => (t === c.type && id === c.before!._id ? c.before : this.#world.get(t, id)), all: t => this.#world.all(t) };
+            for (const k of this.#world.all(child)) {
+              if (k._parent !== c.after!._id) continue;
+              const before = sawBefore && canSee(child, k, user, lookupBefore);
+              if (canSee(child, k, user, this.#world)) push(before ? "update" : "create", child, publicDoc(child, k, user, this.#world));
+              else if (before) push("delete", child, k._id);
             }
           }
         } else if (sawBefore) {
           push("delete", c.type, c.before!._id);
           if (c.type === "JournalEntry") {
             for (const n of this.#world.all("Note")) if ((n as { entryId?: string }).entryId === c.before!._id) push("delete", "Note", n._id);
-            for (const p of this.#world.all("JournalEntryPage")) if (p._parent === c.before!._id) push("delete", "JournalEntryPage", p._id);
           }
+          const child = INHERITING_CHILDREN[c.type];
+          if (child) for (const k of this.#world.all(child)) if (k._parent === c.before!._id) push("delete", child, k._id);
         }
       }
       for (const e of events.values()) socket.emit("doc", e);
