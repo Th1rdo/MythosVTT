@@ -1,0 +1,5 @@
+.ola-stamp { margin-left: 6px; font-size: 11px; color: #ffd166; }
+.ola-wave { position: fixed; left: 50%; top: 30%; transform: translateX(-50%); z-index: 1300; font-size: 22px;
+  background: rgba(15, 14, 24, 0.92); border: 1px solid #ffd166; border-radius: 10px; padding: 12px 18px; pointer-events: none;
+  animation: ola-fade 2.5s forwards; }
+@keyframes ola-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }

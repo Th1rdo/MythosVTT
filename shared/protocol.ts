@@ -814,6 +814,38 @@ export interface WorldSnapshot {
   userId: string;
   docs: Partial<Record<DocType, BaseDoc[]>>;
   online: string[];
+  /** Packages switched on in this world that can run, dependencies first. */
+  packages: PackageInfo[];
+}
+
+/** A package (module) as read from its module.json. */
+export interface PackageInfo {
+  id: string;
+  title: string;
+  description: string;
+  version: string;
+  authors: string[];
+  url: string | null;
+  /** Scripts and styles to load, relative to /modules/<id>/. */
+  esmodules: string[];
+  styles: string[];
+  languages: { lang: string; name: string; path: string }[];
+  /** Whether it may use its own socket channel (module messages relayed to the others). */
+  socket: boolean;
+  /** Ids of packages that must be on too. */
+  requires: string[];
+  /** Has a "mesa" block and every file it names. */
+  compatible: boolean;
+  problems: string[];
+}
+
+/** A package's socket message: relayed to everyone else in the world (or to `users`). */
+export interface ModuleMessage {
+  id: string;
+  data: unknown;
+  users?: string[];
+  /** Filled by the server. */
+  userId?: string;
 }
 
 /** Chat request for a roll: the server rolls so results can't be forged by the client. */

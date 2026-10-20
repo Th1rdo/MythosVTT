@@ -10,6 +10,7 @@ import { World, listWorlds } from "./world.ts";
 import { Hub } from "./hub.ts";
 import { Sessions, parseCookies, verifyPassword } from "./auth.ts";
 import { applyAdminPasswordFromEnv, setupRouter } from "./setup.ts";
+import { MODULES_DIR, activePackages, installedPackages, isInstalledPackage, missingRequirements } from "./packages.ts";
 
 const PORT = Number(process.env.MESA_PORT ?? 30100);
 
@@ -201,6 +202,36 @@ app.get("/assets/{*rest}", (req, res) => {
   } catch {
     res.status(400).end();
   }
+});
+
+/** Package files (scripts, styles, languages, art), for logged-in users. */
+app.get("/modules/{*rest}", (req, res) => {
+  if (!currentUser(req) || !active) return res.status(401).end();
+  try {
+    const rel = decodeURIComponent(req.path.slice("/modules/".length));
+    const id = rel.split("/")[0];
+    if (!isInstalledPackage(id)) return res.status(404).end();
+    const file = safeJoin(MODULES_DIR, rel);
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return res.status(404).end();
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    // Scripts change while a package is being written; don't let the browser keep stale copies.
+    res.sendFile(file, { maxAge: 0 });
+  } catch {
+    res.status(400).end();
+  }
+});
+
+/** GM: every installed package with whether it's on in this world and why it might not run. */
+app.get("/api/packages", (req, res) => {
+  const me = currentUser(req);
+  if (!me || !active) return res.status(401).end();
+  if (me.role !== "gm") return res.status(403).end();
+  const world = active.world;
+  const on = new Set(activePackages(world).map(p => p.id));
+  const wanted = worldSetting<Record<string, boolean>>(world, "core.modules") ?? {};
+  res.json([...installedPackages(true).values()].map(p => ({
+    ...p, enabled: wanted[p.id] === true, running: on.has(p.id), missing: missingRequirements(world, p.id)
+  })));
 });
 
 if (fs.existsSync(CLIENT_DIST)) {

@@ -299,5 +299,11 @@ export const EN: Record<string, string> = {
   "As camadas do mestre: paredes e portas, luzes, regiões com comportamentos (teletransporte, efeitos, pausa…).": "The GM's layers: walls and doors, lights, regions with behaviours (teleport, effects, pause…).",
   "Regras da mesa": "Table rules",
   "Em Definições → Permissões dos jogadores decides o que podem fazer. Espaço põe o jogo em pausa.": "In Settings → Player permissions you decide what they may do. Space pauses the game.",
-  "Em /setup (ou no menu principal, Esc) crias mundos, importas do Foundry e fazes cópias de segurança.": "In /setup (or the main menu, Esc) you create worlds, import from Foundry and make backups."
+  "Em /setup (ou no menu principal, Esc) crias mundos, importas do Foundry e fazes cópias de segurança.": "In /setup (or the main menu, Esc) you create worlds, import from Foundry and make backups.",
+
+  // Packages
+  "(dados do módulo)": "(module data)",
+  "O módulo «{titulo}» não carregou: {erro}": "The module “{titulo}” didn't load: {erro}",
+  "Módulos": "Modules",
+  "Módulos ativos": "Active modules"
 };

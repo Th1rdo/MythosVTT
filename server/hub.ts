@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, CardDoc, CardsDoc, SettingDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, PackAction, CardsAction, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, CardDoc, CardsDoc, SettingDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, PackAction, CardsAction, UserDoc, WallDoc, WorldSnapshot, ModuleMessage
 } from "../shared/protocol.ts";
 import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE, OWNERSHIP } from "../shared/protocol.ts";
 import { canSee, ownershipLevel, pageLevel } from "../shared/permissions.ts";
@@ -17,6 +17,8 @@ import { processRegionEvents } from "./regions.ts";
 import type { Emit } from "./regions.ts";
 import type { Change, World } from "./world.ts";
 import { Sessions, parseCookies } from "./auth.ts";
+import { activePackages } from "./packages.ts";
+import { checkPackageValue } from "../shared/settings.ts";
 
 type Ack<T> = (response: T) => void;
 
@@ -309,6 +311,29 @@ export class Hub {
       }
     });
 
+    /**
+     * A package's own channel (Foundry's `module.<id>` socket): relayed to everyone else in the world, or to
+     * the listed users. Only for packages that are on and declare `"socket": true`.
+     */
+    socket.on("module", (msg: ModuleMessage) => {
+      const me = this.#user(socket);
+      if (!me || typeof msg?.id !== "string") return;
+      const pkg = activePackages(this.#world).find(p => p.id === msg.id);
+      if (!pkg?.socket) return;
+      try {
+        checkPackageValue(msg.data, "Mensagem");
+      } catch {
+        return;
+      }
+      const to = Array.isArray(msg.users) ? new Set(msg.users.filter(u => typeof u === "string")) : null;
+      const out: ModuleMessage = { id: msg.id, data: msg.data, userId: me._id };
+      for (const other of this.#io.sockets.sockets.values()) {
+        if (other === socket) continue;
+        const u = this.#user(other);
+        if (u && (!to || to.has(u._id))) other.emit("module", out);
+      }
+    });
+
     /** Server clock, so clients can line up playback positions. */
     socket.on("time", (ack?: (now: number) => void) => ack?.(Date.now()));
 
@@ -358,7 +383,7 @@ export class Hub {
       docs[type] = this.#world.all(type).filter(d => canSee(type, d, user, this.#world)).map(d => publicDoc(type, d, user, this.#world));
     }
     const { id, title, system } = this.#world.meta;
-    return { world: { id, title, system }, userId: user._id, docs, online: this.online() };
+    return { world: { id, title, system }, userId: user._id, docs, online: this.online(), packages: activePackages(this.#world) };
   }
 
   /**

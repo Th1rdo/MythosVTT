@@ -1,0 +1,13 @@
+{
+  "OLA": {
+    "Ready": "Olá, {nome}! O módulo de exemplo está a correr.",
+    "Wave": "Acenar a todos",
+    "Waved": "{nome} acenou 👋",
+    "Greeting": "Saudação no arranque",
+    "GreetingHint": "Mostra um aviso quando entras no mundo.",
+    "Stamp": "Marca nas mensagens",
+    "StampHint": "Texto acrescentado ao lado do nome em cada mensagem do chat (só neste browser).",
+    "Group": "Exemplo",
+    "Counted": "{nome} foi marcado {n} vez(es) por este módulo."
+  }
+}

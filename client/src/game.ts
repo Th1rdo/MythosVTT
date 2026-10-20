@@ -37,6 +37,8 @@ export class Game implements DocLookup {
   world!: WorldSnapshot["world"];
   userId!: string;
   online: string[] = [];
+  /** Packages running in this world (from the snapshot). */
+  packages: WorldSnapshot["packages"] = [];
   /** userId → scene they're viewing. */
   viewing: Record<string, string | null> = {};
   /** Round-trip time to the server in ms (rolling average). */
@@ -54,6 +56,7 @@ export class Game implements DocLookup {
       this.socket = io({ transports: ["websocket"] });
       this.socket.on("connect_error", err => reject(err));
       this.socket.on("world", (snap: WorldSnapshot) => {
+        this.packages = snap.packages ?? [];
         this.world = snap.world;
         this.userId = snap.userId;
         this.online = snap.online;

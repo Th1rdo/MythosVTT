@@ -1,0 +1,13 @@
+{
+  "OLA": {
+    "Ready": "Hello, {nome}! The example module is running.",
+    "Wave": "Wave to everyone",
+    "Waved": "{nome} waved 👋",
+    "Greeting": "Greeting on start",
+    "GreetingHint": "Shows a notice when you enter the world.",
+    "Stamp": "Message stamp",
+    "StampHint": "Text added next to the name on every chat message (this browser only).",
+    "Group": "Example",
+    "Counted": "{nome} was marked {n} time(s) by this module."
+  }
+}

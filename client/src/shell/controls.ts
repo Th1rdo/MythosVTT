@@ -164,7 +164,12 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
         title: g.title,
         onclick: () => {
           if (g.name === group) return;
-          select(g, g.tools[0]);
+          // Open the group on its first toggle tool; a group of buttons only (a package's) just opens.
+          const first = g.tools.find(x => !x.button);
+          if (first) return select(g, first);
+          group = g.name;
+          tool = "";
+          render();
         }
       }, h("i", { className: g.icon }))))),
       h("menu.control-tools", null, active.tools.map(t => h("li", null, h("button", {

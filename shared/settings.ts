@@ -6,7 +6,7 @@ import type { DocLookup } from "./permissions.ts";
  *   world  — one value for the table, stored as a Setting document, changed by the GM, enforced by the server
  *   user   — follows a user across devices, stored on their User document
  *   client — this browser only (localStorage)
- * Modules will register their own here later (Phase 8).
+ * Packages register their own at run time (`registerSetting`), keyed `<package id>.<name>`.
  */
 export type SettingScope = "world" | "user" | "client";
 
@@ -14,7 +14,9 @@ export type SettingType =
   | { kind: "boolean" }
   | { kind: "number"; min?: number; max?: number; step?: number; range?: boolean }
   | { kind: "string"; multiline?: boolean }
-  | { kind: "select"; choices: [string, string][] };
+  | { kind: "select"; choices: [string, string][] }
+  /** Any JSON value (package data, the module list); never shown as a field. */
+  | { kind: "object" };
 
 export interface SettingDef {
   key: string;
@@ -28,11 +30,14 @@ export interface SettingDef {
   reload?: boolean;
   /** Kept out of the Definições window (state rather than a preference, e.g. the pause). */
   hidden?: boolean;
+  /** Subheading inside the category (the package's title for package settings). */
+  group?: string;
 }
 
-export type SettingCategory = "game" | "permissions" | "canvas" | "chat" | "interface";
+export type SettingCategory = "game" | "permissions" | "canvas" | "chat" | "interface" | "modules";
 export const CATEGORY_LABELS: Record<SettingCategory, string> = {
-  game: "Jogo", permissions: "Permissões dos jogadores", canvas: "Mapa e desempenho", chat: "Chat e dados", interface: "Interface"
+  game: "Jogo", permissions: "Permissões dos jogadores", canvas: "Mapa e desempenho", chat: "Chat e dados", interface: "Interface",
+  modules: "Módulos"
 };
 
 const bool = (key: string, scope: SettingScope, category: SettingCategory, name: string, def: boolean, hint?: string): SettingDef =>
@@ -40,6 +45,7 @@ const bool = (key: string, scope: SettingScope, category: SettingCategory, name:
 
 export const SETTINGS: SettingDef[] = [
   { key: "core.paused", scope: "world", category: "game", name: "Jogo em pausa", hidden: true, type: { kind: "boolean" }, default: false },
+  { key: "core.modules", scope: "world", category: "modules", name: "Módulos ativos", hidden: true, type: { kind: "object" }, default: {}, reload: true },
   // World: the table's rules
   {
     key: "core.gridDiagonals", scope: "world", category: "game", name: "Diagonais na grelha quadrada",
@@ -78,6 +84,37 @@ export const SETTINGS: SettingDef[] = [
 
 export const SETTING_MAP = new Map(SETTINGS.map(s => [s.key, s]));
 
+/** Biggest JSON a package setting (or a document's flags) may hold. */
+export const MAX_PACKAGE_JSON = 100_000;
+
+/** `tiagos-toolkit-stage.fundo` → `tiagos-toolkit-stage`; null for core or malformed keys. */
+export function packageOfKey(key: string): string | null {
+  const m = /^([a-z0-9][a-z0-9_-]{0,63})\.[\w.-]{1,100}$/.exec(key);
+  return m && m[1] !== "core" ? m[1] : null;
+}
+
+/** Add a package's setting (client side, at run time). Re-registering a key replaces it (module reloads). */
+export function registerSetting(def: SettingDef): SettingDef {
+  if (!packageOfKey(def.key)) throw new Error(`Setting keys must be "<package>.<name>": ${def.key}`);
+  const i = SETTINGS.findIndex(s => s.key === def.key);
+  if (i >= 0) SETTINGS[i] = def;
+  else SETTINGS.push(def);
+  SETTING_MAP.set(def.key, def);
+  return def;
+}
+
+/** A JSON value small enough for a package setting; throws otherwise. */
+export function checkPackageValue(value: unknown, what = "Valor"): unknown {
+  let json: string | undefined;
+  try {
+    json = JSON.stringify(value);
+  } catch {
+    throw new Error(`${what}: não é JSON`);
+  }
+  if (json !== undefined && json.length > MAX_PACKAGE_JSON) throw new Error(`${what}: demasiado grande`);
+  return value;
+}
+
 /** Check and coerce a value for a setting; throws with a readable message. */
 export function validateSetting(def: SettingDef, value: unknown): unknown {
   const t = def.type;
@@ -96,6 +133,8 @@ export function validateSetting(def: SettingDef, value: unknown): unknown {
     case "select":
       if (!t.choices.some(([v]) => v === value)) throw new Error(`${def.name}: opção inválida`);
       return value;
+    case "object":
+      return checkPackageValue(value, def.name);
   }
 }
 

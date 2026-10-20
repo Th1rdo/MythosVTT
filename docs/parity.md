@@ -119,7 +119,8 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 ## Phase 8 — Extensibility  *(helpers/hooks, packages)*
 - ✅ Hooks (REA `ev_bf37a5b7…`): on/once/off, `call` (false cancels) / `callAll`, failing listeners reported as a notice and skipped, `error` hook; core events: init/setup/ready, pre/create/update/delete<Type> (pre* on the requesting client, can edit or cancel; update gets the changed fields), combatRound/combatTurn, pauseGame, userConnected, canvasReady, controlToken, dropCanvasData, getSceneControlButtons, getSidebarTabs, renderWindow/closeWindow, renderActorSheet, renderChatMessage, chatMessage, hotbarDrop, settingChanged/clientSettingChanged; `mesa.hooks` in script macros
 - ⬜ Hooks still missing: per-placeable draw/refresh/hover, render hooks for every window class, targetToken, preMoveToken/moveToken, chat bubbles
-- ⬜ Module/system package format, enable/disable modules, hot reload
+- ✅ Packages (REA `ev_8cdc6624…`): `data/modules/<id>/module.json` (Foundry's file and fields; a `mesa` block makes it runnable and may point at Mesa-specific scripts/styles/languages), on per world (`core.modules`), dependencies first (missing ones keep it off), styles + language file + ES modules loaded before `init`; `window.mesa` API (hooks, game, board, settings.register with world/user/client scopes shown in Definições → Módulos, keybindings.register, per-package socket relayed by the server, flags on any document, i18n from the package's files, notices, dialogs, file picker, windows, chat); author guide `docs/packages.md`, example `examples/modules/ola-mesa`
+- ⬜ Module management window (8.3), systems as packages, package install from a URL/zip, compendium packs inside packages, hot reload
 - ⬜ Port Tiago's own modules (toolkit, cinema-sync, rituals) to Mesa's API
 
 ## Phase 9 — Audio/video chat  *(av/*)*

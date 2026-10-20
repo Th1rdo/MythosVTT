@@ -27,6 +27,7 @@ import { openUserConfig } from "./ui/user-config.ts";
 import { setupScreen } from "./setup.ts";
 import { offerFirstTour } from "./tours.ts";
 import { hooks } from "./hooks.ts";
+import { loadPackages, mesa } from "./packages.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { openSettingsConfig } from "./ui/settings.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -109,6 +110,9 @@ async function startGame(): Promise<void> {
   app.replaceChildren(stage);
 
   await game.connect();
+  Object.assign(window, { mesa });
+  // A broken package must never keep the table from opening.
+  await loadPackages(game.packages).catch(err => console.error("Packages failed to load:", err));
   hooks.callAll("init");
   hooks.callAll("setup");
 
@@ -121,6 +125,7 @@ async function startGame(): Promise<void> {
   const sounds = new SoundsLayer(board, ambient);
   const playlists = new PlaylistPlayer();
   setMacroBoard(board);
+  mesa.board = board;
   registerCoreKeys(board);
   setTimeout(offerFirstTour, 2500);
   game.socket.on("runMacro", (e: RunMacroEvent) => onRunMacro(e));
@@ -137,8 +142,8 @@ async function startGame(): Promise<void> {
   new Ruler(board);
   new TurnMarker(board);
   perception.refresh();
-  // Debug handle for development only (stripped from production builds).
-  if (import.meta.env.DEV) Object.assign(window, { mesa: { game, board, perception, walls, audio, ambient, playlists, hooks } });
+  // window.mesa is the package API; in development it also carries the canvas modules for debugging.
+  if (import.meta.env.DEV) Object.assign(mesa, { perception, walls, audio, ambient, playlists });
 
   const tabs: SidebarTab[] = [
     { id: "chat", icon: "fa-solid fa-comments", label: t("Chat"), make: chatPanel },

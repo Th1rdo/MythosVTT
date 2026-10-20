@@ -47,6 +47,9 @@ function input(def: SettingDef, value: unknown): { node: HTMLElement; read: () =
       const el = h("select", null, ty.choices.map(([v, l]) => h("option", { value: v, selected: v === value }, t(l))));
       return { node: el, read: () => el.value };
     }
+    case "object":
+      // Package data: not editable here; keep the value as it is.
+      return { node: h("span.muted.small", null, t("(dados do módulo)")), read: () => value };
   }
 }
 
@@ -78,11 +81,11 @@ export function openSettingsConfig(initial?: string): void {
     const fields = defs.map(d => ({ def: d, ...input(d, settings.get(d.key)) }));
     setChildren(pane,
       h("h3", null, t(CATEGORY_LABELS[current as SettingCategory])),
-      h("div.settings-fields", null, fields.map(f => h("div.setting", null,
+      h("div.settings-fields", null, fields.flatMap((f, i) => [f.def.group && f.def.group !== fields[i - 1]?.def.group ? h("h4.setting-group", null, f.def.group) : null, h("div.setting", null,
         f.def.type.kind === "boolean"
           ? h("label.row.setting-head", null, f.node, h("strong", null, t(f.def.name)))
           : h("label.field", null, h("strong", null, t(f.def.name)), f.node),
-        h("p.muted.small", null, [f.def.hint && t(f.def.hint), `(${t(SCOPE_NOTE[f.def.scope])})`].filter(Boolean).join(" "))))),
+        h("p.muted.small", null, [f.def.hint && t(f.def.hint), `(${t(SCOPE_NOTE[f.def.scope])})`].filter(Boolean).join(" ")))])),
       h("div.row.end", null,
         h("button", {
           onclick: async () => {

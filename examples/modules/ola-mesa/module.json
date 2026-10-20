@@ -1,0 +1,17 @@
+{
+  "id": "ola-mesa",
+  "title": "Olá, Mesa",
+  "description": "Módulo de exemplo: mostra como um pacote usa hooks, definições, teclas, o socket, traduções e flags na Mesa.",
+  "version": "0.1.0",
+  "authors": [{ "name": "Mesa" }],
+  "socket": true,
+  "mesa": {
+    "compatibility": { "minimum": "0.1.0" },
+    "esmodules": ["scripts/main.js"],
+    "styles": ["styles/ola.css"],
+    "languages": [
+      { "lang": "pt-PT", "name": "Português", "path": "lang/pt-PT.json" },
+      { "lang": "en", "name": "English", "path": "lang/en.json" }
+    ]
+  }
+}
