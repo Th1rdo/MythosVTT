@@ -20,7 +20,7 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const FONT = "Inter, system-ui, sans-serif";
 
-export type ToolName = "tokens" | "walls" | "lights" | "ruler" | "tiles" | "drawings" | "notes";
+export type ToolName = "tokens" | "walls" | "lights" | "ruler" | "tiles" | "drawings" | "notes" | "regions";
 
 /** A canvas tool receives pointer input that doesn't land on a token. */
 export interface Tool {

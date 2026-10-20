@@ -1,10 +1,11 @@
 import { Container, Graphics, RenderTexture, Sprite, Texture } from "pixi.js";
-import type { AmbientLightDoc, FogExplorationDoc, LightConfig, SceneDoc, WallDoc } from "../../../shared/protocol.ts";
+import type { AmbientLightDoc, FogExplorationDoc, LightConfig, RegionDoc, SceneDoc, WallDoc } from "../../../shared/protocol.ts";
 import { FOG_MODE } from "../../../shared/protocol.ts";
 import type { Point } from "../../../shared/geometry.ts";
 import { pointInPolygon, unitsToPixels, visibilityPolygon, wallEdges } from "../../../shared/geometry.ts";
 import { game } from "../game.ts";
 import { onLevel } from "../../../shared/levels.ts";
+import { shapePolygon } from "../../../shared/regions.ts";
 import type { Board, TokenView } from "./board.ts";
 
 /** Fog/vision textures are kept at most this many pixels on their longest side. */
@@ -71,7 +72,7 @@ export class Perception {
     board.on("tokens", refresh);
     board.on("frame", refresh);
     board.on("selection", refresh);
-    for (const t of ["Wall", "AmbientLight", "Scene", "Token", "Level"] as const) game.on(t, refresh);
+    for (const t of ["Wall", "AmbientLight", "Scene", "Token", "Level", "Region"] as const) game.on(t, refresh);
     game.on("FogExploration", e => {
       if (e.op === "delete" && e.docs.some(d => (d as FogExplorationDoc).user === game.userId && d._parent === this.#sceneId)) {
         this.#clearExplored();
@@ -195,14 +196,27 @@ export class Perception {
     for (const gone of old.values()) gone.glow.destroy();
     this.#drawGlow();
 
-    // ---- Lit areas (for the darkness overlay)
+    // ---- Lit areas (for the darkness overlay). "Brighten" regions count as lit; "darken" ones add shadow.
     const litPolys = this.#lights.map(l => l.dim);
+    const darkRegions: { poly: number[]; amount: number }[] = [];
+    for (const r of game.children<RegionDoc>("Region", scene._id)) {
+      if (!onLevel(r, game.viewedLevelId)) continue;
+      for (const b of r.behaviors ?? []) {
+        if (b.type !== "adjustDarkness" || b.disabled) continue;
+        for (const shape of r.shapes) {
+          const flat = shapePolygon(shape);
+          if (b.system.mode === "brighten") litPolys.push(toPoints(flat));
+          else darkRegions.push({ poly: flat, amount: b.system.amount });
+        }
+      }
+    }
     this.#litOnlyG.clear();
     if (globalLit) this.#litOnlyG.rect(0, 0, scene.width, scene.height).fill(0xffffff);
     for (const poly of litPolys) this.#litOnlyG.poly(flat(poly)).fill(0xffffff);
     renderer.render({ container: this.#litScene, target: this.#litRT!, clear: true });
     this.#darkness.clear();
     if (env.darkness > 0) this.#darkness.rect(0, 0, scene.width, scene.height).fill({ color: 0x05050f, alpha: Math.min(0.92, env.darkness * 0.92) });
+    for (const d of darkRegions) this.#darkness.poly(d.poly).fill({ color: 0x05050f, alpha: Math.min(0.92, d.amount * 0.92) });
 
     // ---- Vision
     const viewers = this.#viewers(scene);
@@ -342,6 +356,12 @@ export class Perception {
       // Toast already shown; exploration stays in memory and is retried on the next change.
     }
   }
+}
+
+function toPoints(flatList: number[]): Point[] {
+  const out: Point[] = [];
+  for (let i = 0; i + 1 < flatList.length; i += 2) out.push({ x: flatList[i], y: flatList[i + 1] });
+  return out;
 }
 
 function flat(poly: Point[]): number[] {

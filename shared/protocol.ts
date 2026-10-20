@@ -11,11 +11,11 @@
  */
 
 export type DocType =
-  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Wall" | "AmbientLight" | "FogExploration"
+  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "FogExploration"
   | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting";
 
 export const DOC_TYPES: readonly DocType[] = [
-  "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Wall", "AmbientLight", "FogExploration",
+  "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "FogExploration",
   "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting"
 ];
 
@@ -31,6 +31,7 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   Tile: "Scene",
   Drawing: "Scene",
   Note: "Scene",
+  Region: "Scene",
   Wall: "Scene",
   AmbientLight: "Scene",
   FogExploration: "Scene",
@@ -125,6 +126,8 @@ export interface EffectData {
   /** Rounds of combat it lasts (null = indefinite); startRound set when applied in combat. */
   duration: { rounds: number | null; startRound: number | null; combat: string | null };
   description: string;
+  /** What applied it, e.g. "region:<id>" (removed when the token leaves that region). */
+  origin?: string | null;
 }
 
 export interface ActiveEffectDoc extends BaseDoc, Omit<EffectData, "_id"> {}
@@ -231,6 +234,60 @@ export interface NoteDoc extends BaseDoc {
   fontSize: number;
   /** Visible even where the viewer has no line of sight. */
   global: boolean;
+  levels: string[];
+}
+
+/** Region shapes (Foundry v14 shape data; ring/emanation not supported yet). Angles in degrees. */
+export type RegionShape =
+  | { type: "rectangle"; x: number; y: number; width: number; height: number; rotation?: number }
+  | { type: "circle"; x: number; y: number; radius: number }
+  | { type: "ellipse"; x: number; y: number; radiusX: number; radiusY: number; rotation?: number }
+  | { type: "cone"; x: number; y: number; radius: number; angle: number; rotation?: number }
+  | { type: "line"; x: number; y: number; length: number; width: number; rotation?: number }
+  | { type: "polygon"; points: number[] };
+
+/** Who sees a region on the map (Foundry's REGION_VISIBILITY). */
+export const REGION_VISIBILITY = { LAYER: 0, GAMEMASTER: 1, ALWAYS: 2 } as const;
+
+export type RegionEvent = "tokenEnter" | "tokenExit";
+
+/** Something a region does when tokens enter or leave it (Foundry "region behaviours"). */
+export type RegionBehavior = { _id: string; name: string; disabled: boolean } & (
+  | { type: "teleportToken"; system: { destinations: string[] } }
+  | { type: "changeLevel"; system: Record<string, never> }
+  | { type: "applyActiveEffect"; system: { effect: Omit<EffectData, "_id"> } }
+  | { type: "displayScrollingText"; system: { text: string; color: string; events: RegionEvent[]; visibility: "all" | "gm" | "owner" } }
+  | { type: "adjustDarkness"; system: { mode: "brighten" | "darken"; amount: number } }
+  | { type: "toggleBehavior"; system: { events: RegionEvent[]; enable: string[]; disable: string[] } }
+);
+
+export interface RegionDoc extends BaseDoc {
+  name: string;
+  color: string;
+  shapes: RegionShape[];
+  elevation: { bottom: number | null; top: number | null };
+  levels: string[];
+  visibility: 0 | 1 | 2;
+  hidden: boolean;
+  behaviors: RegionBehavior[];
+  /** Measured templates are regions owned by whoever placed them. */
+  template: { author: string } | null;
+  displayMeasurements: boolean;
+}
+
+export interface ScrollingTextEvent {
+  sceneId: string;
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+}
+
+/** Sent to the user who moved a token into a "change level" region. */
+export interface LevelPromptEvent {
+  sceneId: string;
+  tokenId: string;
+  regionName: string;
   levels: string[];
 }
 

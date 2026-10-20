@@ -12,6 +12,7 @@ import { LightsLayer } from "./canvas/lights.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
 import { DrawingsLayer } from "./canvas/drawings.ts";
 import { NotesLayer } from "./canvas/notes.ts";
+import { RegionsLayer } from "./canvas/regions.ts";
 import { Ruler } from "./canvas/ruler.ts";
 import { sceneControls } from "./shell/controls.ts";
 import { sceneNavigation } from "./shell/navigation.ts";
@@ -91,6 +92,7 @@ async function startGame(): Promise<void> {
   const tiles = new TilesLayer(board);
   const drawings = new DrawingsLayer(board);
   new NotesLayer(board, perception);
+  const regions = new RegionsLayer(board);
   new Ruler(board);
   new TurnMarker(board);
   perception.refresh();
@@ -107,7 +109,7 @@ async function startGame(): Promise<void> {
     { id: "settings", icon: "fa-solid fa-gears", label: "Definições", make: settingsPanel }
   ];
   stage.append(
-    sceneControls(board, walls, lights, tiles, drawings),
+    sceneControls(board, walls, lights, tiles, drawings, regions),
     sceneNavigation(),
     playersList(board),
     hotbar(),

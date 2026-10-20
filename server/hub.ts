@@ -7,6 +7,8 @@ import { DOC_TYPES, DOOR, DOOR_STATE } from "../shared/protocol.ts";
 import { canSee } from "../shared/permissions.ts";
 import { roll } from "../shared/dice.ts";
 import { runCombatAction } from "./combat.ts";
+import { processRegionEvents } from "./regions.ts";
+import type { Emit } from "./regions.ts";
 import type { Change, World } from "./world.ts";
 import { Sessions, parseCookies } from "./auth.ts";
 
@@ -75,7 +77,9 @@ export class Hub {
       if (!me) return ack?.({ ok: false, error: "Sessão inválida" });
       try {
         const changes = this.#world.apply(req, me);
-        this.#broadcast(changes, me._id);
+        const regions = processRegionEvents(this.#world, changes, me._id);
+        this.#broadcast([...changes, ...regions.changes], me._id);
+        this.#send(regions.emits);
         this.#revokeChangedLogins(changes, me._id);
         const primary = changes.filter(c => c.type === req.type);
         ack?.({
@@ -211,6 +215,15 @@ export class Hub {
         }
       }
       for (const e of events.values()) socket.emit("doc", e);
+    }
+  }
+
+  /** Deliver region messages to the users they're for. */
+  #send(emits: Emit[]): void {
+    for (const e of emits) {
+      for (const s of this.#io.sockets.sockets.values()) {
+        if (!e.to || e.to.includes(s.data.userId)) s.emit(e.event, e.data);
+      }
     }
   }
 

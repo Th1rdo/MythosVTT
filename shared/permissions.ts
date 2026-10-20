@@ -1,6 +1,6 @@
-import { DOOR, DOOR_STATE, OWNERSHIP } from "./protocol.ts";
+import { DOOR, DOOR_STATE, OWNERSHIP, REGION_VISIBILITY } from "./protocol.ts";
 import type {
-  ActiveEffectDoc, ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc,
+  ActiveEffectDoc, ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
   Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
@@ -55,6 +55,12 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
       return !(doc as TileDoc).hidden;
     case "Drawing":
       return !(doc as DrawingDoc).hidden || (doc as DrawingDoc).author === user._id;
+    case "Region": {
+      // Players see templates and regions the GM made visible to everyone. Behaviours run on the server either way.
+      const r = doc as RegionDoc;
+      if (r.template?.author === user._id) return true;
+      return !r.hidden && r.visibility === REGION_VISIBILITY.ALWAYS;
+    }
     case "Note": {
       // A pin shows to whoever can see its journal entry; pins without an entry are GM notes.
       const entry = docs.get("JournalEntry", (doc as NoteDoc).entryId ?? "") as JournalEntryDoc | undefined;
@@ -115,6 +121,13 @@ export function checkWrite(
     }
     case "FogExploration":
       return (doc as FogExplorationDoc).user === user._id && (op !== "update" || !("user" in (changes ?? {}))) ? null : deny;
+    case "Region": {
+      // Players may place, move and remove their own measured templates (regions with no behaviours).
+      const r = doc as RegionDoc;
+      if (r.template?.author !== user._id || r.behaviors?.length) return deny;
+      const allowed = new Set(["_id", "shapes", "color", "name"]);
+      return op !== "update" || Object.keys(changes ?? {}).every(k => allowed.has(k)) ? null : deny;
+    }
     case "Drawing":
       // Anyone may draw; authors edit and delete their own drawings.
       return (doc as DrawingDoc).author === user._id ? null : deny;

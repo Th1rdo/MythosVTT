@@ -201,6 +201,14 @@ export class World implements DocLookup {
       if (typeof out.content !== "string" || !out.content.trim()) throw new Error("Mensagem vazia");
     }
     if (type === "Drawing" && op === "create") out.author = user._id;
+    // Players can only create templates (their own, behaviour-free); the GM may create any region.
+    if (type === "Region" && op === "create" && user.role !== "gm") {
+      out.template = { author: user._id };
+      out.behaviors = [];
+      out.visibility = 2;
+      out.displayMeasurements = true;
+    }
+    if (type === "Region" && op === "update" && user.role !== "gm") delete out.template;
     if (type === "Drawing" && op === "update") delete out.author;
     if (type === "FogExploration") {
       out.timestamp = Date.now();

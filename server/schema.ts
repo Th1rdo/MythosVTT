@@ -50,6 +50,11 @@ function defaults(type: DocType): Record<string, unknown> {
       };
     case "Note":
       return { entryId: null, x: 0, y: 0, icon: "📌", iconSize: 40, text: "", textColor: "#ffffff", fontSize: 24, global: false, levels: [] };
+    case "Region":
+      return {
+        name: "Região", color: "#d9534f", shapes: [], elevation: { bottom: null, top: null }, levels: [], visibility: 0,
+        hidden: false, behaviors: [], template: null, displayMeasurements: false
+      };
     case "Level":
       return { name: "Nível", elevation: { bottom: 0, top: null }, background: { src: null, color: "#999999" }, foreground: { src: null }, sort: 0 };
     case "Tile":
@@ -92,6 +97,20 @@ const SENSES = new Set([0, 10, 20]);
 const CHANGE_TYPES = new Set(["add", "multiply", "override", "upgrade", "downgrade"]);
 const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene"]);
 const DRAWING_TYPES = new Set(["rectangle", "ellipse", "polygon", "freehand", "text"]);
+const BEHAVIOR_TYPES = new Set(["teleportToken", "changeLevel", "applyActiveEffect", "displayScrollingText", "adjustDarkness", "toggleBehavior"]);
+const SHAPE_FIELDS: Record<string, string[]> = {
+  rectangle: ["x", "y", "width", "height"], circle: ["x", "y", "radius"], ellipse: ["x", "y", "radiusX", "radiusY"],
+  cone: ["x", "y", "radius", "angle"], line: ["x", "y", "length", "width"]
+};
+function validShape(s: unknown): boolean {
+  const shape = s as Record<string, unknown>;
+  if (shape?.type === "polygon") {
+    const pts = shape.points;
+    return Array.isArray(pts) && pts.length >= 6 && pts.length <= 2000 && pts.every(n => typeof n === "number" && Number.isFinite(n));
+  }
+  const fields = SHAPE_FIELDS[shape?.type as string];
+  return !!fields && fields.every(f => typeof shape[f] === "number" && Number.isFinite(shape[f] as number));
+}
 
 /** Fill defaults for a new document. Throws on invalid shapes. */
 export function prepareCreate(type: DocType, data: Record<string, unknown>, id: string, parent?: string): BaseDoc {
@@ -132,6 +151,13 @@ export function validate(type: DocType, doc: BaseDoc): void {
     }
   }
   if (type === "Folder" && !FOLDER_TYPES.has(doc.type as string)) throw new Error("Tipo de pasta inválido");
+  if (type === "Region") {
+    const shapes = doc.shapes as unknown[];
+    if (!Array.isArray(shapes) || shapes.length > 50 || !shapes.every(validShape)) throw new Error("Região: forma inválida");
+    const behaviors = doc.behaviors as { type?: string }[];
+    if (!Array.isArray(behaviors) || !behaviors.every(b => BEHAVIOR_TYPES.has(b?.type as string))) throw new Error("Região: comportamento inválido");
+    if (![0, 1, 2].includes(doc.visibility as number)) throw new Error("Região: visibilidade inválida");
+  }
   if (type === "Drawing") {
     const shape = doc.shape as { type?: string; points?: unknown };
     if (!DRAWING_TYPES.has(shape?.type as string) || !Array.isArray(shape.points) || shape.points.length > 20_000

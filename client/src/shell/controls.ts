@@ -6,6 +6,7 @@ import type { WallPreset, WallsLayer } from "../canvas/walls.ts";
 import type { LightsLayer } from "../canvas/lights.ts";
 import type { TilesLayer } from "../canvas/tiles.ts";
 import type { DrawingsLayer } from "../canvas/drawings.ts";
+import type { RegionsLayer } from "../canvas/regions.ts";
 import { confirmDialog } from "../ui/windows.ts";
 
 interface ToolDef {
@@ -29,7 +30,7 @@ interface GroupDef {
  * Scene controls, laid out like Foundry's: the left column picks a layer group, the right column
  * shows that group's tools. Hover a button for what it does.
  */
-export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer, tiles: TilesLayer, drawings: DrawingsLayer): HTMLElement {
+export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer, tiles: TilesLayer, drawings: DrawingsLayer, regions: RegionsLayer): HTMLElement {
   const el = h("nav#controls");
   let group = "tokens";
   let tool = "select";
@@ -53,6 +54,26 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
       tools: [
         { name: "select", icon: "fa-solid fa-expand", title: "Selecionar tokens — clique, Shift+clique, caixa; botão direito: HUD", run: use("tokens") },
         { name: "ruler", icon: "fa-solid fa-ruler", title: "Régua — arrastar para medir, Espaço: ponto intermédio", run: use("ruler") }
+      ]
+    },
+    {
+      name: "templates", icon: "fa-solid fa-ruler-combined", title: "Medição (modelos)", gm: false,
+      tools: [
+        { name: "circle", icon: "fa-regular fa-circle", title: "Círculo — arrastar a partir do centro", run: use("regions", () => (regions.tool = "circle")) },
+        { name: "cone", icon: "fa-solid fa-play fa-rotate-270", title: "Cone — arrastar na direção", run: use("regions", () => (regions.tool = "cone")) },
+        { name: "rectangle", icon: "fa-regular fa-square", title: "Retângulo", run: use("regions", () => (regions.tool = "rectangle")) },
+        { name: "line", icon: "fa-solid fa-arrows-left-right", title: "Linha (raio)", run: use("regions", () => (regions.tool = "line")) },
+        { name: "select", icon: "fa-solid fa-expand", title: "Selecionar modelos — arrastar para mover, Del: apagar", run: use("regions", () => (regions.tool = "select")) },
+        { name: "clear", icon: "fa-solid fa-trash", title: game.isGM ? "Apagar todos os modelos da cena" : "Apagar os meus modelos", button: true, run: () => regions.clearTemplates() }
+      ]
+    },
+    {
+      name: "regions", icon: "fa-solid fa-vector-square", title: "Regiões", gm: true,
+      tools: [
+        { name: "select", icon: "fa-solid fa-expand", title: "Selecionar regiões — arrastar, duplo clique: configurar e comportamentos, Del: apagar", run: use("regions", () => (regions.tool = "select")) },
+        { name: "region-rectangle", icon: "fa-regular fa-square", title: "Região retangular", run: use("regions", () => (regions.tool = "region-rectangle")) },
+        { name: "region-ellipse", icon: "fa-regular fa-circle", title: "Região elíptica", run: use("regions", () => (regions.tool = "region-ellipse")) },
+        { name: "region-polygon", icon: "fa-solid fa-draw-polygon", title: "Região poligonal — clicar pontos, Enter ou duplo clique para fechar", run: use("regions", () => (regions.tool = "region-polygon")) }
       ]
     },
     {
@@ -142,7 +163,10 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
   };
   // Keep in sync if something else changes the board tool (e.g. a scene change resets it).
   board.on("tool", () => {
-    const owner = ({ tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting", tiles: "tiles", drawings: "drawings", notes: "notes" } as const)[board.tool];
+    // The regions tool serves two groups (templates for everyone, regions for the GM).
+    const owner = board.tool === "regions"
+      ? (regions.tool.startsWith("region-") || (group === "regions" && regions.tool === "select") ? "regions" : "templates")
+      : ({ tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting", tiles: "tiles", drawings: "drawings", notes: "notes" } as const)[board.tool];
     if (owner !== group) {
       group = owner;
       tool = board.tool === "ruler" ? "ruler" : "select";

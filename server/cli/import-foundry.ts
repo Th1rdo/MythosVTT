@@ -398,6 +398,55 @@ insert("Note", scenes.flatMap(s => {
   }));
 }));
 
+// Regions (v12+). Shape type names match Mesa's; ring/emanation/token/grid shapes aren't supported yet.
+const lastId = (uuid: unknown) => (typeof uuid === "string" ? uuid.split(".").at(-1) ?? "" : "");
+function regionBehavior(b: Raw): Raw | null {
+  const sys = b.system ?? {};
+  const base = { _id: b._id, name: b.name ?? "", disabled: !!b.disabled };
+  const events = (list: unknown) => {
+    const ev = new Set(Array.isArray(list) ? list : []);
+    const out = [ev.has("tokenEnter") || ev.has("tokenMoveIn") ? "tokenEnter" : null, ev.has("tokenExit") || ev.has("tokenMoveOut") ? "tokenExit" : null].filter(Boolean);
+    return out.length ? out : ["tokenEnter"];
+  };
+  switch (b.type) {
+    case "teleportToken": return { ...base, type: "teleportToken", system: { destinations: (sys.destinations ?? []).map(lastId).filter(Boolean) } };
+    case "changeLevel": return { ...base, type: "changeLevel", system: {} };
+    case "applyActiveEffect":
+      return { ...base, type: "applyActiveEffect", system: { effect: { name: b.name || "Efeito da região", icon: "✨", disabled: false, statuses: [], changes: [], duration: { rounds: null, startRound: null, combat: null }, description: "" } } };
+    case "displayScrollingText":
+      return { ...base, type: "displayScrollingText", system: { text: sys.text ?? "", color: sys.color ?? "#ffffff", events: events(sys.events), visibility: "all" } };
+    case "adjustDarknessLevel":
+      return { ...base, type: "adjustDarkness", system: { mode: sys.mode === 2 ? "darken" : "brighten", amount: typeof sys.modifier === "number" ? (sys.mode === 2 ? sys.modifier : 1 - sys.modifier) : 1 } };
+    case "toggleBehavior":
+      return { ...base, type: "toggleBehavior", system: { events: events(sys.events), enable: (sys.enable ?? []).map(lastId), disable: (sys.disable ?? []).map(lastId) } };
+    default: return null;
+  }
+}
+insert("Region", scenes.flatMap(s => {
+  const { padX, padY } = sceneOffset(s);
+  return (s.regions ?? []).map((r: Raw) => {
+    const shapes = (r.shapes ?? []).flatMap((sh: Raw) => {
+      if (sh.type === "polygon") return [{ type: "polygon", points: (sh.points ?? []).map((n: number, i: number) => n - (i % 2 ? padY : padX)) }];
+      if (!["rectangle", "circle", "ellipse", "cone", "line"].includes(sh.type)) return [];
+      return [{ ...sh, x: (sh.x ?? 0) - padX, y: (sh.y ?? 0) - padY, gridBased: undefined, anchorX: undefined, anchorY: undefined, hole: undefined }];
+    });
+    return {
+      _id: r._id,
+      _parent: s._id,
+      name: r.name ?? "Região",
+      color: r.color ?? "#d9534f",
+      shapes,
+      elevation: { bottom: r.elevation?.bottom ?? null, top: r.elevation?.top ?? null },
+      levels: keepLevels(s, r.levels),
+      visibility: [0, 1, 2].includes(r.visibility) ? r.visibility : r.visibility === 3 ? 2 : 0,
+      hidden: !!r.hidden,
+      behaviors: (r.behaviors ?? []).map(regionBehavior).filter(Boolean),
+      template: null,
+      displayMeasurements: !!r.displayMeasurements
+    };
+  }).filter((r: Raw) => r.shapes.length);
+}));
+
 insert("Token", scenes.flatMap(s => {
   const { padX, padY } = sceneOffset(s);
   return (s.tokens ?? []).map((t: Raw) => ({
