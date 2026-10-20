@@ -9,6 +9,7 @@ import type { DocLookup } from "../shared/permissions.ts";
 import { expandDotKeys, mergeDeep, randomId } from "../shared/objects.ts";
 import { movementBlocked, wallEdges } from "../shared/geometry.ts";
 import { nextTurnState } from "../shared/combat.ts";
+import { defaultLevel, onLevel } from "../shared/levels.ts";
 import { Store } from "./store.ts";
 import { normalize, prepareCreate, validate } from "./schema.ts";
 import { hashPassword } from "./auth.ts";
@@ -156,7 +157,9 @@ export class World implements DocLookup {
     const scene = this.get("Scene", before._parent!) as SceneDoc | undefined;
     if (!scene) return;
     const half = scene.grid.size / 2;
-    const walls = this.all<WallDoc>("Wall").filter(w => w._parent === scene._id);
+    const fallback = defaultLevel(scene, this)?._id ?? null;
+    const level = after.level ?? fallback;
+    const walls = this.all<WallDoc>("Wall").filter(w => w._parent === scene._id && onLevel(w, level));
     const from = { x: before.x + before.width * half, y: before.y + before.height * half };
     const to = { x: after.x + after.width * half, y: after.y + after.height * half };
     if (movementBlocked(from, to, wallEdges(walls, "move"))) throw new Error("Há uma parede no caminho");

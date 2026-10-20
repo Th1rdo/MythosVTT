@@ -1,11 +1,12 @@
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
-  ActorDoc, BaseDoc, DocEvent, DocRequest, DocResponse, DocType, PingEvent, RollRequest, SceneDoc, UserDoc, WorldSnapshot
+  ActorDoc, BaseDoc, DocEvent, DocRequest, DocResponse, DocType, LevelDoc, PingEvent, RollRequest, SceneDoc, TokenDoc, UserDoc, WorldSnapshot
 } from "../../shared/protocol.ts";
 import { DOC_TYPES } from "../../shared/protocol.ts";
 import type { DocLookup } from "../../shared/permissions.ts";
 import { ownsActor } from "../../shared/permissions.ts";
+import { defaultLevel, sceneLevels } from "../../shared/levels.ts";
 
 type Listener = (e: { op: DocEvent["op"] | "reset"; docs: BaseDoc[]; ids: string[] }) => void;
 
@@ -24,6 +25,8 @@ export class Game implements DocLookup {
   latency: number | null = null;
   /** Scene the local user is looking at (GMs can browse; players follow the active scene). */
   viewedSceneId: string | null = null;
+  /** Level of the viewed scene being shown (scenes with levels). */
+  viewedLevelId: string | null = null;
 
   #docs = new Map<DocType, Map<string, BaseDoc>>(DOC_TYPES.map(t => [t, new Map()]));
   #listeners = new Map<DocType | "presence" | "view" | "ping" | "ready", Set<Listener | ((arg?: any) => void)>>();
@@ -43,6 +46,7 @@ export class Game implements DocLookup {
           this.#emit(t, { op: "reset", docs: [...map.values()], ids: [] });
         }
         if (!this.viewedSceneId || !this.get("Scene", this.viewedSceneId)) this.viewedSceneId = this.activeScene?._id ?? null;
+        if (!this.viewedLevelId || !this.get("Level", this.viewedLevelId)) this.viewedLevelId = this.#initialLevel(this.viewedSceneId);
         this.socket.emit("viewing", this.viewedSceneId);
         this.#emitSimple("view");
         this.#emitSimple("ready");
@@ -65,7 +69,6 @@ export class Game implements DocLookup {
           await this.socket.timeout(5000).emitWithAck("latency");
           const ms = performance.now() - t;
           this.latency = this.latency === null ? ms : this.latency * 0.7 + ms * 0.3;
-          this.#emitSimple("presence");
         } catch {
           this.latency = null;
         }
@@ -86,6 +89,11 @@ export class Game implements DocLookup {
     } else {
       for (const d of e.result) map.set(d._id, d);
       this.#emit(e.type, { op: e.op, docs: e.result, ids: e.result.map(d => d._id) });
+    }
+    // Players follow their own token when it changes level (stairs, HUD).
+    if (e.type === "Token" && e.op === "update" && !this.isGM) {
+      const moved = (e.result as TokenDoc[]).find(t => t._parent === this.viewedSceneId && t.level && t.level !== this.viewedLevelId && this.owns(this.get<ActorDoc>("Actor", t.actorId)));
+      if (moved) this.viewLevel(moved.level);
     }
     // Players follow the active scene.
     if (e.type === "Scene" && !this.isGM) {
@@ -139,10 +147,33 @@ export class Game implements DocLookup {
     return this.get<SceneDoc>("Scene", this.viewedSceneId);
   }
 
-  view(sceneId: string | null): void {
+  view(sceneId: string | null, levelId?: string | null): void {
     this.viewedSceneId = sceneId;
+    this.viewedLevelId = levelId !== undefined ? levelId : this.#initialLevel(sceneId);
     this.socket?.emit("viewing", sceneId);
     this.#emitSimple("view");
+  }
+
+  get viewedLevel(): LevelDoc | undefined {
+    return this.get<LevelDoc>("Level", this.viewedLevelId);
+  }
+
+  viewLevel(levelId: string | null): void {
+    if (levelId === this.viewedLevelId) return;
+    this.view(this.viewedSceneId, levelId);
+  }
+
+  /** Players start on the level of their token; GMs (and players without one) on the scene's default. */
+  #initialLevel(sceneId: string | null): string | null {
+    const scene = this.get<SceneDoc>("Scene", sceneId);
+    if (!scene) return null;
+    const levels = sceneLevels(scene._id, this);
+    if (!levels.length) return null;
+    if (!this.isGM) {
+      const mine = this.children<TokenDoc>("Token", scene._id).find(t => this.owns(this.get<ActorDoc>("Actor", t.actorId)));
+      if (mine?.level && levels.some(l => l._id === mine.level)) return mine.level;
+    }
+    return defaultLevel(scene, this)?._id ?? null;
   }
 
   owns(actor: ActorDoc | undefined): boolean {

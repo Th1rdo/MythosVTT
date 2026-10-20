@@ -9,6 +9,7 @@ import { Board } from "./canvas/board.ts";
 import { Perception } from "./canvas/perception.ts";
 import { WallsLayer } from "./canvas/walls.ts";
 import { LightsLayer } from "./canvas/lights.ts";
+import { TilesLayer } from "./canvas/tiles.ts";
 import { Ruler } from "./canvas/ruler.ts";
 import { sceneControls } from "./shell/controls.ts";
 import { sceneNavigation } from "./shell/navigation.ts";
@@ -85,6 +86,7 @@ async function startGame(): Promise<void> {
   const perception = new Perception(board);
   const walls = new WallsLayer(board, perception);
   const lights = new LightsLayer(board);
+  const tiles = new TilesLayer(board);
   new Ruler(board);
   new TurnMarker(board);
   perception.refresh();
@@ -101,7 +103,7 @@ async function startGame(): Promise<void> {
     { id: "settings", icon: "fa-solid fa-gears", label: "Definições", make: settingsPanel }
   ];
   stage.append(
-    sceneControls(board, walls, lights),
+    sceneControls(board, walls, lights, tiles),
     sceneNavigation(),
     playersList(board),
     hotbar(),

@@ -2,6 +2,7 @@ import type { CombatantDoc, TokenDoc } from "../../../shared/protocol.ts";
 import { barValue } from "../../../shared/actors.ts";
 import { CONDITIONS } from "../../../shared/conditions.ts";
 import { game } from "../game.ts";
+import { sceneLevels } from "../../../shared/levels.ts";
 import { h } from "../dom.ts";
 import { refForToken, stateOf, toggleCondition, updateActor } from "../actors.ts";
 import { openSheet } from "../ui/sheet.ts";
@@ -59,6 +60,17 @@ export function openTokenHUD(board: Board, tokenId: string): void {
     };
 
     const elevation = h("input.hud-elev", { type: "number", value: String(token.elevation ?? 0), title: "Elevação" });
+    // Scenes with levels: move the token to another floor.
+    const levels = sceneLevels(scene._id, game);
+    const levelSelect = levels.length > 1 ? h("select.hud-level", {
+      title: "Nível",
+      onchange: async (e: Event) => {
+        const level = (e.target as HTMLSelectElement).value;
+        await game.update("Token", { _id: tokenId, level }, scene._id);
+        if (!game.isGM || board.selected.length <= 1) game.viewLevel(level);
+        close();
+      }
+    }, [...levels].reverse().map(l => h("option", { value: l._id, selected: (token.level ?? board.defaultLevelId) === l._id }, l.name))) : null;
     elevation.addEventListener("change", () => game.update("Token", { _id: tokenId, elevation: Number(elevation.value) || 0 }, scene._id));
 
     const button = (icon: string, title: string, onclick: () => void, active = false) =>
@@ -67,6 +79,7 @@ export function openTokenHUD(board: Board, tokenId: string): void {
     el.replaceChildren(...[
       h("div.hud-col.left", null,
         elevation,
+        levelSelect,
         token.actorId && button("📄", "Ficha", () => { openSheet(token.actorId!, token.actorLink ? undefined : { tokenId, sceneId: scene._id }); close(); }),
         game.isGM && button("⚙", "Configurar token", () => { openTokenConfig(tokenId, scene._id); close(); })
       ),

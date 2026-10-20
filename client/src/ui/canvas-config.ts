@@ -1,4 +1,5 @@
-import type { ActorDoc, AmbientLightDoc, LightConfig, TokenDoc, WallDoc } from "../../../shared/protocol.ts";
+import type { ActorDoc, AmbientLightDoc, LightConfig, TileDoc, TokenDoc, WallDoc } from "../../../shared/protocol.ts";
+import { sceneLevels } from "../../../shared/levels.ts";
 import { game } from "../game.ts";
 import { h } from "../dom.ts";
 import { closeWindow, openWindow } from "./windows.ts";
@@ -30,13 +31,14 @@ export function openWallConfig(wallId: string, sceneId: string): void {
   const dir = select([[0, "Ambos os lados"], [1, "Só da direita"], [2, "Só da esquerda"]], w.dir);
   const door = select([[0, "Não é porta"], [1, "Porta"], [2, "Porta secreta"]], w.door);
   const ds = select([[0, "Fechada"], [1, "Aberta"], [2, "Trancada"]], w.ds);
+  const wallLevels = levelsField(sceneId, w.levels ?? []);
   body.append(h("form.stack", {
     onsubmit: async (e: Event) => {
       e.preventDefault();
       await game.update("Wall", {
         _id: wallId,
         move: Number(move.value), sight: Number(sight.value), light: Number(light.value), sound: Number(sound.value),
-        dir: Number(dir.value), door: Number(door.value), ds: Number(ds.value)
+        dir: Number(dir.value), door: Number(door.value), ds: Number(ds.value), levels: wallLevels.read()
       }, sceneId);
       closeWindow(key);
     }
@@ -45,6 +47,7 @@ export function openWallConfig(wallId: string, sceneId: string): void {
     h("div.row", null, field("Luz", light), field("Som", sound)),
     field("Bloqueia a partir de", dir),
     h("div.row", null, field("Porta", door), field("Estado", ds)),
+    wallLevels.node,
     h("p.muted.small", null, "Limitada = deixa passar através de uma parede destas, mas não de duas (ex.: vegetação)."),
     h("div.row.end", null, h("button.primary", { type: "submit" }, "Guardar"))
   ));
@@ -89,10 +92,11 @@ export function openLightConfig(lightId: string, sceneId: string): void {
   const walls = h("input", { type: "checkbox", checked: l.walls });
   const hidden = h("input", { type: "checkbox", checked: l.hidden });
   const rotation = num(l.rotation, { min: 0, max: 359 });
+  const lightLevels = levelsField(sceneId, l.levels ?? []);
   body.append(h("form.stack", {
     onsubmit: async (e: Event) => {
       e.preventDefault();
-      await game.update("AmbientLight", { _id: lightId, config: lf.read(), walls: walls.checked, hidden: hidden.checked, rotation: Number(rotation.value) || 0 }, sceneId);
+      await game.update("AmbientLight", { _id: lightId, config: lf.read(), walls: walls.checked, hidden: hidden.checked, rotation: Number(rotation.value) || 0, levels: lightLevels.read() }, sceneId);
       closeWindow(key);
     }
   },
@@ -100,6 +104,7 @@ export function openLightConfig(lightId: string, sceneId: string): void {
     field("Direção (graus)", rotation),
     h("label.row", null, walls, "Bloqueada por paredes"),
     h("label.row", null, hidden, "Desligada"),
+    lightLevels.node,
     h("div.row.end", null,
       h("button.danger", { type: "button", onclick: () => { game.delete("AmbientLight", lightId, sceneId); closeWindow(key); } }, "Apagar"),
       h("button.primary", { type: "submit" }, "Guardar"))
@@ -208,4 +213,57 @@ export function openPrototypeConfig(actorId: string): void {
       closeWindow(key);
     })
   );
+}
+
+/** Checkboxes for which levels of the scene a placeable appears on (none ticked = all). */
+export function levelsField(sceneId: string, selected: string[]): { node: HTMLElement | null; read: () => string[] } {
+  const levels = sceneLevels(sceneId, game);
+  if (!levels.length) return { node: null, read: () => selected };
+  const boxes = levels.map(l => [l._id, h("input", { type: "checkbox", checked: selected.includes(l._id) })] as const);
+  return {
+    node: h("div.field", null, h("span", null, "Níveis (nenhum = todos)"),
+      h("div.row.wrap", null, boxes.map(([id, box]) => h("label.row", null, box, levels.find(l => l._id === id)!.name)))),
+    read: () => boxes.filter(([, b]) => b.checked).map(([id]) => id)
+  };
+}
+
+export function openTileConfig(tileId: string, sceneId: string): void {
+  const key = `tile-${tileId}`;
+  const t = game.get<TileDoc>("Tile", tileId);
+  if (!t) return;
+  const body = openWindow(key, "Tile", { width: 400 });
+  if (!body) return;
+  const x = num(t.x), y = num(t.y), width = num(t.width, { min: 1 }), height = num(t.height, { min: 1 });
+  const rotation = num(t.rotation, { min: 0, max: 359 });
+  const alpha = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: String(t.alpha) });
+  const elevation = num(t.elevation);
+  const foreground = h("input", { type: "checkbox", checked: t.foreground });
+  const fade = h("input", { type: "checkbox", checked: t.occlusion.fade });
+  const fadeAlpha = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: String(t.occlusion.alpha) });
+  const hidden = h("input", { type: "checkbox", checked: t.hidden });
+  const locked = h("input", { type: "checkbox", checked: t.locked });
+  const lv = levelsField(sceneId, t.levels);
+  body.append(h("form.stack", {
+    onsubmit: async (e: Event) => {
+      e.preventDefault();
+      await game.update("Tile", {
+        _id: tileId, x: Number(x.value) || 0, y: Number(y.value) || 0,
+        width: Math.max(1, Number(width.value) || t.width), height: Math.max(1, Number(height.value) || t.height),
+        rotation: Number(rotation.value) || 0, alpha: Number(alpha.value), elevation: Number(elevation.value) || 0,
+        foreground: foreground.checked, occlusion: { fade: fade.checked, alpha: Number(fadeAlpha.value) },
+        hidden: hidden.checked, locked: locked.checked, levels: lv.read()
+      }, sceneId);
+      closeWindow(key);
+    }
+  },
+    h("div.row", null, field("X", x), field("Y", y), field("Largura", width), field("Altura", height)),
+    h("div.row", null, field("Rotação", rotation), field("Elevação", elevation), field("Opacidade", alpha)),
+    h("label.row", null, foreground, "Primeiro plano (por cima dos tokens: telhados, copas)"),
+    h("div.row", null, h("label.row", null, fade, "Desvanecer com token por baixo"), field("Opacidade ao desvanecer", fadeAlpha)),
+    h("div.row", null, h("label.row", null, hidden, "Escondido dos jogadores"), h("label.row", null, locked, "Trancado")),
+    lv.node,
+    h("div.row.end", null,
+      h("button.danger", { type: "button", onclick: () => { game.delete("Tile", tileId, sceneId); closeWindow(key); } }, "Apagar"),
+      h("button.primary", { type: "submit" }, "Guardar"))
+  ));
 }

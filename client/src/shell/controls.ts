@@ -4,6 +4,7 @@ import { h } from "../dom.ts";
 import type { Board, ToolName } from "../canvas/board.ts";
 import type { WallPreset, WallsLayer } from "../canvas/walls.ts";
 import type { LightsLayer } from "../canvas/lights.ts";
+import type { TilesLayer } from "../canvas/tiles.ts";
 import { confirmDialog } from "../ui/windows.ts";
 
 interface ToolDef {
@@ -27,7 +28,7 @@ interface GroupDef {
  * Scene controls, laid out like Foundry's: the left column picks a layer group, the right column
  * shows that group's tools. Hover a button for what it does.
  */
-export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer): HTMLElement {
+export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer, tiles: TilesLayer): HTMLElement {
   const el = h("nav#controls");
   let group = "tokens";
   let tool = "select";
@@ -51,6 +52,13 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
       tools: [
         { name: "select", icon: "fa-solid fa-expand", title: "Selecionar tokens — clique, Shift+clique, caixa; botão direito: HUD", run: use("tokens") },
         { name: "ruler", icon: "fa-solid fa-ruler", title: "Régua — arrastar para medir, Espaço: ponto intermédio", run: use("ruler") }
+      ]
+    },
+    {
+      name: "tiles", icon: "fa-solid fa-cubes", title: "Tiles", gm: true,
+      tools: [
+        { name: "select", icon: "fa-solid fa-expand", title: "Selecionar tiles — arrastar para mover, duplo clique: configurar, Del: apagar", run: use("tiles", () => (tiles.mode = "select")) },
+        { name: "place", icon: "fa-solid fa-image", title: "Pôr tile — escolhe uma imagem e clica no mapa", button: true, run: () => { board.setTool("tiles"); group = "tiles"; tool = "select"; render(); tiles.startPlacing(); } }
       ]
     },
     {
@@ -115,7 +123,7 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
   };
   // Keep in sync if something else changes the board tool (e.g. a scene change resets it).
   board.on("tool", () => {
-    const owner = { tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting" }[board.tool];
+    const owner = ({ tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting", tiles: "tiles" } as const)[board.tool];
     if (owner !== group) {
       group = owner;
       tool = board.tool === "ruler" ? "ruler" : "select";

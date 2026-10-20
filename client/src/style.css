@@ -324,3 +324,11 @@ menu { list-style: none; margin: 0; padding: 0; }
 .settings-title { padding: 0 12px; }
 .scale-field input[type="range"] { width: 100%; }
 .scale-value { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+
+/* levels */
+.level-list { display: flex; flex-direction: column; gap: 4px; margin-left: 12px; }
+.level-pill { padding: 5px 12px; min-width: 150px; background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 6px; cursor: pointer; font-size: 13px; }
+.level-pill:hover { border-color: #4a3f53; }
+.level-pill.viewed { border-color: var(--accent-2); background: rgba(11, 10, 19, 0.92); font-weight: 600; }
+.level-row { display: flex; gap: 6px; align-items: center; }
+.hud-level { width: 92px; font-size: 12px; background: rgba(14, 14, 20, 0.92); }

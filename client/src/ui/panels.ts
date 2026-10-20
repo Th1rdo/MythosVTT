@@ -1,8 +1,9 @@
-import type { ActorDoc, ItemDoc, JournalEntryDoc, SceneDoc, UserDoc } from "../../../shared/protocol.ts";
+import type { ActorDoc, ItemDoc, JournalEntryDoc, LevelDoc, SceneDoc, UserDoc } from "../../../shared/protocol.ts";
+import { sceneLevels } from "../../../shared/levels.ts";
 import { ITEM_TYPES, itemTemplate } from "../../../shared/ordem.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, imageSize, pickFile, safeHtml, upload } from "../dom.ts";
+import { avatar, h, imageSize, pickFile, safeHtml, setChildren, upload } from "../dom.ts";
 import { ITEM_DRAG, openSheet, ownershipEditor } from "./sheet.ts";
 import { openItemSheet } from "./item-sheet.ts";
 import { directory } from "./directory.ts";
@@ -214,7 +215,83 @@ function sceneConfig(sceneId: string): void {
     h("label.row", null, globalLight, "Iluminação global"),
     field("…enquanto a escuridão for no máximo", globalThreshold),
     h("div.row.end", null, h("button.primary", { type: "submit" }, "Guardar"))
-  ));
+  ), levelsEditor(sceneId));
+}
+
+/**
+ * Levels (floors) of a scene, edited live: each has a name, an elevation band and its own background.
+ * With levels, the scene's own background is not used.
+ */
+function levelsEditor(sceneId: string): HTMLElement {
+  const host = h("div.stack.levels-editor");
+  const render = () => {
+    const scene = game.get<SceneDoc>("Scene", sceneId);
+    if (!scene) return;
+    const levels = sceneLevels(sceneId, game);
+    const row = (l: LevelDoc) => {
+      const upd = (changes: Record<string, unknown>) => game.update("Level", { _id: l._id, ...changes }, sceneId);
+      const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
+      return h("div.level-row", null,
+        h("input.grow", { value: l.name, onchange: (e: Event) => upd({ name: (e.target as HTMLInputElement).value.trim() || l.name }) }),
+        h("input", { type: "number", value: l.elevation.bottom ?? "", placeholder: "−∞", title: "Elevação de baixo", style: { width: "64px" },
+          onchange: (e: Event) => upd({ "elevation.bottom": numOrNull((e.target as HTMLInputElement).value) }) }),
+        h("input", { type: "number", value: l.elevation.top ?? "", placeholder: "∞", title: "Elevação de cima", style: { width: "64px" },
+          onchange: (e: Event) => upd({ "elevation.top": numOrNull((e.target as HTMLInputElement).value) }) }),
+        h("button.small", {
+          type: "button", title: l.background.src ? `Fundo: ${l.background.src.split("/").pop()}` : "Escolher fundo",
+          onclick: async () => {
+            const file = await pickFile("image/*,video/webm");
+            if (!file) return;
+            try {
+              const src = await upload(file);
+              await upd({ "background.src": src });
+              const size = await imageSize(src).catch(() => null);
+              if (size && levels.length === 1) game.update("Scene", { _id: sceneId, width: size.width, height: size.height });
+            } catch (err) {
+              toast((err as Error).message, "error");
+            }
+          }
+        }, l.background.src ? "🖼" : "＋🖼"),
+        h("button.icon.small", { type: "button", title: "Ver este nível", onclick: () => game.view(sceneId, l._id) }, h("i.fa-solid.fa-eye")),
+        h("button.icon.small", {
+          type: "button", title: "Apagar nível",
+          onclick: async () => { if (await confirmDialog(`Apagar o nível "${l.name}"?`)) game.delete("Level", l._id, sceneId); }
+        }, "✕")
+      );
+    };
+    setChildren(host,
+      h("h4", null, "Níveis (andares)"),
+      levels.length ? h("div.muted.small", null, "Nome · elevação de baixo · de cima · fundo") : h("p.muted.small", null, "Sem níveis: a cena usa o fundo acima. Cria níveis para cenas com vários andares."),
+      ...[...levels].reverse().map(row),
+      levels.length > 1 && h("label.field", null, h("span", null, "Nível inicial"), h("select", {
+        onchange: (e: Event) => game.update("Scene", { _id: sceneId, initialLevel: (e.target as HTMLSelectElement).value || null })
+      }, h("option", { value: "" }, "— o mais baixo —"), levels.map(l => h("option", { value: l._id, selected: scene.initialLevel === l._id }, l.name)))),
+      h("div.row.end", null, h("button", {
+        type: "button",
+        onclick: () => {
+          const top = levels.at(-1);
+          const bottom = top ? (top.elevation.top ?? (top.elevation.bottom ?? 0) + 10) : 0;
+          // The first level inherits the scene's background so nothing visibly changes.
+          game.create("Level", {
+            name: levels.length ? `Andar ${levels.length + 1}` : "R/C",
+            elevation: { bottom, top: bottom + 10 },
+            background: { src: levels.length ? null : scene.img, color: scene.backgroundColor },
+            sort: levels.length
+          }, sceneId);
+        }
+      }, "+ Nível"))
+    );
+  };
+  const offs = [game.on("Level", render), game.on("Scene", render)];
+  const observer = new MutationObserver(() => {
+    if (!host.isConnected) {
+      offs.forEach(o => o());
+      observer.disconnect();
+    }
+  });
+  setTimeout(() => host.parentElement && observer.observe(document.body, { childList: true, subtree: true }));
+  render();
+  return host;
 }
 
 // ---------------------------------------------------------------------------

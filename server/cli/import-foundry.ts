@@ -275,15 +275,24 @@ insert("Item", worldItems.map(i => ({
 })));
 
 const scenes = await readCollection("scenes");
+// Foundry v14 scenes keep their art in Levels. A scene with a single level is just a plain scene in
+// Mesa (its background becomes the scene's); scenes with several levels keep them.
+const multiLevel = (s: Raw) => Array.isArray(s.levels) && s.levels.length > 1;
+const singleLevel = (s: Raw): Raw | null => (Array.isArray(s.levels) && s.levels.length === 1 ? s.levels[0] : null);
+const levelIds = (s: Raw) => new Set<string>(multiLevel(s) ? s.levels.map((l: Raw) => l._id) : []);
+const keepLevels = (s: Raw, list: unknown) => (Array.isArray(list) ? list.filter((id): id is string => levelIds(s).has(id as string)) : []);
+
 insert("Scene", scenes.map(s => {
   const grid = typeof s.grid === "object" && s.grid ? s.grid : { size: s.grid, color: s.gridColor, alpha: s.gridAlpha, distance: s.gridDistance, units: s.gridUnits };
+  const only = singleLevel(s);
   return {
     _id: s._id,
     name: s.name,
-    img: asset(s.background?.src ?? s.img),
+    img: asset(s.background?.src ?? only?.background?.src ?? s.img),
+    initialLevel: multiLevel(s) && levelIds(s).has(s.initialLevel) ? s.initialLevel : null,
     width: s.width ?? 3000,
     height: s.height ?? 2000,
-    backgroundColor: s.backgroundColor ?? "#111111",
+    backgroundColor: s.backgroundColor ?? only?.background?.color ?? "#111111",
     grid: { size: grid.size ?? 100, color: grid.color ?? "#000000", alpha: grid.alpha ?? 0.2, distance: grid.distance ?? 1.5, units: grid.units ?? "m" },
     active: !!s.active,
     navigation: s.navigation ?? true,
@@ -302,6 +311,42 @@ insert("Scene", scenes.map(s => {
     }
   };
 }));
+insert("Level", scenes.filter(multiLevel).flatMap(s => s.levels.map((l: Raw, i: number) => ({
+  _id: l._id,
+  _parent: s._id,
+  name: l.name ?? `Nível ${i + 1}`,
+  elevation: { bottom: l.elevation?.bottom ?? null, top: l.elevation?.top ?? null },
+  background: { src: asset(l.background?.src), color: l.background?.color ?? "#999999" },
+  foreground: { src: asset(l.foreground?.src) },
+  sort: l.sort ?? i
+}))));
+
+insert("Tile", scenes.flatMap(s => {
+  const { padX, padY } = sceneOffset(s);
+  return (s.tiles ?? []).map((t: Raw) => {
+    const modes: unknown[] = t.occlusion?.modes ?? (t.occlusion?.mode ? [t.occlusion.mode] : []);
+    return {
+      _id: t._id,
+      _parent: s._id,
+      img: asset(t.texture?.src ?? t.img),
+      x: (t.x ?? 0) - padX,
+      y: (t.y ?? 0) - padY,
+      width: Math.max(1, Math.round(t.width ?? 100)),
+      height: Math.max(1, Math.round(t.height ?? 100)),
+      rotation: t.rotation ?? 0,
+      alpha: t.alpha ?? 1,
+      hidden: !!t.hidden,
+      locked: !!t.locked,
+      elevation: t.elevation ?? 0,
+      sort: t.sort ?? t.z ?? 0,
+      // v12 and older had an explicit overhead flag; v13+ tiles that occlude are roofs.
+      foreground: !!t.overhead || modes.length > 0,
+      occlusion: { fade: modes.length > 0, alpha: t.occlusion?.alpha ?? 0.25 },
+      levels: keepLevels(s, t.levels)
+    };
+  });
+}));
+
 insert("Token", scenes.flatMap(s => {
   const { padX, padY } = sceneOffset(s);
   return (s.tokens ?? []).map((t: Raw) => ({
@@ -315,6 +360,7 @@ insert("Token", scenes.flatMap(s => {
     hidden: !!t.hidden,
     rotation: t.rotation ?? 0,
     elevation: t.elevation ?? 0,
+    level: multiLevel(s) && levelIds(s).has(t.level) ? t.level : null,
     ...tokenSettings(t),
     delta: tokenDelta(t)
   }));
@@ -349,7 +395,8 @@ insert("Wall", scenes.flatMap(s => {
     sound: sense(w.sound),
     dir: [0, 1, 2].includes(w.dir) ? w.dir : 0,
     door: [0, 1, 2].includes(w.door) ? w.door : 0,
-    ds: [0, 1, 2].includes(w.ds) ? w.ds : 0
+    ds: [0, 1, 2].includes(w.ds) ? w.ds : 0,
+    levels: keepLevels(s, w.levels)
   }));
 }));
 
@@ -363,6 +410,7 @@ insert("AmbientLight", scenes.flatMap(s => {
     rotation: l.rotation ?? 0,
     walls: l.walls ?? true,
     hidden: !!l.hidden,
+    levels: keepLevels(s, l.levels),
     config: lightConfig(l.config ?? { bright: l.bright, dim: l.dim, color: l.tintColor, alpha: l.tintAlpha, angle: l.angle })
   }));
 }));

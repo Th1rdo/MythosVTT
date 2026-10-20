@@ -4,6 +4,7 @@ import { FOG_MODE } from "../../../shared/protocol.ts";
 import type { Point } from "../../../shared/geometry.ts";
 import { pointInPolygon, unitsToPixels, visibilityPolygon, wallEdges } from "../../../shared/geometry.ts";
 import { game } from "../game.ts";
+import { onLevel } from "../../../shared/levels.ts";
 import type { Board, TokenView } from "./board.ts";
 
 /** Fog/vision textures are kept at most this many pixels on their longest side. */
@@ -70,7 +71,7 @@ export class Perception {
     board.on("tokens", refresh);
     board.on("frame", refresh);
     board.on("selection", refresh);
-    for (const t of ["Wall", "AmbientLight", "Scene", "Token"] as const) game.on(t, refresh);
+    for (const t of ["Wall", "AmbientLight", "Scene", "Token", "Level"] as const) game.on(t, refresh);
     game.on("FogExploration", e => {
       if (e.op === "delete" && e.docs.some(d => (d as FogExplorationDoc).user === game.userId && d._parent === this.#sceneId)) {
         this.#clearExplored();
@@ -159,7 +160,7 @@ export class Perception {
     if (!scene || !this.#visionRT || scene._id !== this.#sceneId) return;
     const renderer = this.#board.app.renderer;
     const bounds = { x: 0, y: 0, width: scene.width, height: scene.height };
-    const walls = game.children<WallDoc>("Wall", scene._id);
+    const walls = game.children<WallDoc>("Wall", scene._id).filter(w => onLevel(w, game.viewedLevelId));
     const sightEdges = wallEdges(walls, "sight");
     const lightEdges = wallEdges(walls, "light");
     const env = scene.environment;
@@ -169,7 +170,7 @@ export class Perception {
     // ---- Lights (ambient + token lights)
     const sources: { key: string; at: Point; rotation: number; walls: boolean; config: LightConfig }[] = [];
     for (const l of game.children<AmbientLightDoc>("AmbientLight", scene._id)) {
-      if (l.hidden) continue;
+      if (l.hidden || !onLevel(l, game.viewedLevelId)) continue;
       sources.push({ key: l._id, at: { x: l.x, y: l.y }, rotation: l.rotation, walls: l.walls, config: l.config });
     }
     for (const t of this.#board.tokens.values()) {

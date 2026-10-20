@@ -11,11 +11,11 @@
  */
 
 export type DocType =
-  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Token" | "Wall" | "AmbientLight" | "FogExploration"
+  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Wall" | "AmbientLight" | "FogExploration"
   | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting";
 
 export const DOC_TYPES: readonly DocType[] = [
-  "User", "Actor", "Item", "ActiveEffect", "Scene", "Token", "Wall", "AmbientLight", "FogExploration",
+  "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Wall", "AmbientLight", "FogExploration",
   "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting"
 ];
 
@@ -27,6 +27,8 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   Item: "Actor",
   ActiveEffect: "Actor",
   Token: "Scene",
+  Level: "Scene",
+  Tile: "Scene",
   Wall: "Scene",
   AmbientLight: "Scene",
   FogExploration: "Scene",
@@ -145,6 +147,8 @@ export interface SceneDoc extends BaseDoc {
   navigation: boolean;
   sort: number;
   folder: string | null;
+  /** Level shown first (scenes with levels); null = the lowest. */
+  initialLevel: string | null;
   /** When on, players only see what their tokens can see. */
   tokenVision: boolean;
   fog: { mode: FogMode; explored: string; unexplored: string };
@@ -155,6 +159,39 @@ export interface SceneDoc extends BaseDoc {
     globalLight: boolean;
     globalLightThreshold: number;
   };
+}
+
+/**
+ * A floor of a multi-level scene (Foundry v14 "Level"). Each level has its own background art and an
+ * elevation band; tokens belong to one level, walls/lights/tiles list the levels they appear on.
+ */
+export interface LevelDoc extends BaseDoc {
+  name: string;
+  /** null bottom = -∞, null top = +∞. */
+  elevation: { bottom: number | null; top: number | null };
+  background: { src: string | null; color: string };
+  foreground: { src: string | null };
+  sort: number;
+}
+
+export interface TileDoc extends BaseDoc {
+  img: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  alpha: number;
+  hidden: boolean;
+  locked: boolean;
+  elevation: number;
+  sort: number;
+  /** Drawn above tokens (roofs, canopies). */
+  foreground: boolean;
+  /** Foreground tiles fade to `alpha` when a token the viewer controls is underneath. */
+  occlusion: { fade: boolean; alpha: number };
+  /** Levels the tile appears on (empty = all). */
+  levels: string[];
 }
 
 export const FOG_MODE = { DISABLED: 0, INDIVIDUAL: 1, SHARED: 2 } as const;
@@ -178,6 +215,8 @@ export interface WallDoc extends BaseDoc {
   dir: 0 | 1 | 2;
   door: 0 | 1 | 2;
   ds: 0 | 1 | 2;
+  /** Levels the wall applies to (empty = all). */
+  levels: string[];
 }
 
 export interface LightConfig {
@@ -200,6 +239,7 @@ export interface AmbientLightDoc extends BaseDoc {
   walls: boolean;
   hidden: boolean;
   config: LightConfig;
+  levels: string[];
 }
 
 export interface FogExplorationDoc extends BaseDoc {
@@ -226,6 +266,8 @@ export interface TokenDoc extends BaseDoc {
   sight: { enabled: boolean; /** distance units; 0 = sees only lit areas */ range: number; angle: number };
   light: LightConfig;
   elevation: number;
+  /** Level the token stands on (scenes with levels). */
+  level: string | null;
   /** Linked tokens share their actor; unlinked tokens are copies whose differences live in `delta`. */
   actorLink: boolean;
   delta: TokenDelta;

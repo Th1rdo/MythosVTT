@@ -26,7 +26,7 @@ function pickWorld(): World {
 }
 
 const world = pickWorld();
-const sessions = new Sessions();
+const sessions = new Sessions(path.join(world.dir, "sessions.json"));
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6 });

@@ -1,7 +1,7 @@
 import { DOOR, DOOR_STATE, OWNERSHIP } from "./protocol.ts";
 import type {
   ActiveEffectDoc, ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, FogExplorationDoc, ItemDoc, JournalEntryDoc,
-  Ownership, TokenDoc, UserDoc, WallDoc
+  Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
 /** Read access to other documents, used to resolve ownership through parents (Token → Actor, Item → Actor). */
@@ -51,6 +51,8 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
     }
     case "AmbientLight":
       return !(doc as AmbientLightDoc).hidden;
+    case "Tile":
+      return !(doc as TileDoc).hidden;
     case "FogExploration":
       return (doc as FogExplorationDoc).user === user._id;
     case "Combatant":
@@ -61,7 +63,7 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
 }
 
 /** Fields a player may change on a token they own. */
-const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "delta"]);
+const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "level", "delta"]);
 const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar"]);
 
 /**

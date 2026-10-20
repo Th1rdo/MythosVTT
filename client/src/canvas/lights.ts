@@ -3,6 +3,7 @@ import type { FederatedPointerEvent } from "pixi.js";
 import type { AmbientLightDoc } from "../../../shared/protocol.ts";
 import type { Point } from "../../../shared/geometry.ts";
 import { game } from "../game.ts";
+import { onLevel } from "../../../shared/levels.ts";
 import type { Board, Tool } from "./board.ts";
 import { formatNumber } from "./board.ts";
 import { openLightConfig } from "../ui/canvas-config.ts";
@@ -34,13 +35,14 @@ export class LightsLayer implements Tool {
     board.on("scene", redraw);
     board.on("tool", redraw);
     game.on("AmbientLight", redraw);
+    game.on("view", redraw);
     redraw();
   }
 
   redraw(): void {
     const scene = this.#board.scene;
     const editing = this.#board.tool === "lights" && game.isGM;
-    const lights = scene && editing ? game.children<AmbientLightDoc>("AmbientLight", scene._id) : [];
+    const lights = scene && editing ? game.children<AmbientLightDoc>("AmbientLight", scene._id).filter(l => onLevel(l, game.viewedLevelId)) : [];
     const keep = new Set(lights.map(l => l._id));
     for (const [id, c] of this.#icons) {
       if (!keep.has(id)) {
@@ -139,7 +141,7 @@ export class LightsLayer implements Tool {
     if (!d || !scene) return;
     const r = Math.hypot(d.to.x - d.at.x, d.to.y - d.at.y) / this.#board.pxPerUnit;
     const dim = r > 0.5 ? Math.round(r * 2) / 2 : 6;
-    await game.create("AmbientLight", { x: d.at.x, y: d.at.y, config: { dim, bright: dim / 2 } }, scene._id);
+    await game.create("AmbientLight", { x: d.at.x, y: d.at.y, config: { dim, bright: dim / 2 }, levels: game.viewedLevelId ? [game.viewedLevelId] : [] }, scene._id);
   }
 
   key(e: KeyboardEvent): boolean {

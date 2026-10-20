@@ -8,6 +8,7 @@ import { gridDistance } from "../../../shared/geometry.ts";
 import { barValue, tokenActor } from "../../../shared/actors.ts";
 import type { TokenActor } from "../../../shared/actors.ts";
 import { CONDITION_BY_ID, DEAD } from "../../../shared/conditions.ts";
+import { defaultLevel, tokenOnLevel } from "../../../shared/levels.ts";
 import { game, toast } from "../game.ts";
 import { initials } from "../dom.ts";
 import { openSheet } from "../ui/sheet.ts";
@@ -19,7 +20,7 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const FONT = "Inter, system-ui, sans-serif";
 
-export type ToolName = "tokens" | "walls" | "lights" | "ruler";
+export type ToolName = "tokens" | "walls" | "lights" | "ruler" | "tiles";
 
 /** A canvas tool receives pointer input that doesn't land on a token. */
 export interface Tool {
@@ -69,10 +70,12 @@ export class Board {
   world = new Container();
   layers = {
     background: new Container(),
+    tiles: new Container(),
     grid: new Graphics(),
     glow: new Container(),
     markers: new Container(),
     tokens: new Container(),
+    foreground: new Container(),
     effects: new Container(),
     walls: new Container(),
     doors: new Container(),
@@ -96,7 +99,7 @@ export class Board {
     await this.app.init({ resizeTo: host, background: 0x0b0b0e, antialias: true, autoDensity: true, resolution: devicePixelRatio });
     host.append(this.app.canvas);
     const L = this.layers;
-    this.world.addChild(L.background, L.grid, L.glow, L.markers, L.tokens, L.effects, L.walls, L.doors, L.lights, L.controls, L.pings);
+    this.world.addChild(L.background, L.tiles, L.grid, L.glow, L.markers, L.tokens, L.foreground, L.effects, L.walls, L.doors, L.lights, L.controls, L.pings);
     // Overlays never take input: in PIXI v8 even passive graphics win hit tests and would swallow token clicks.
     for (const layer of [L.grid, L.glow, L.markers, L.effects, L.walls, L.controls, L.pings]) layer.eventMode = "none";
     this.#dragLabel.anchor.set(0.5, 1);
@@ -127,6 +130,11 @@ export class Board {
     game.on("ready", () => this.#loadScene());
     game.on("Scene", e => {
       if (e.ids.includes(this.#sceneId ?? "")) this.#drawScene(false);
+    });
+    game.on("Level", e => {
+      if (!e.docs.some(d => d._parent === this.#sceneId)) return;
+      if (e.op === "delete" && e.ids.includes(game.viewedLevelId ?? "")) game.view(this.#sceneId);
+      else this.#drawScene(false);
     });
     game.on("Token", e => this.#onTokens(e.op, e.docs as TokenDoc[], e.ids));
     const redrawAll = () => this.redrawTokens();
@@ -180,6 +188,16 @@ export class Board {
     return this.selected[0];
   }
 
+  /** The level tokens with no level belong to (the scene's default). */
+  get defaultLevelId(): string | null {
+    return this.scene ? defaultLevel(this.scene, game)?._id ?? null : null;
+  }
+
+  /** Whether a token is on the level being viewed. */
+  onViewedLevel(t: TokenDoc): boolean {
+    return tokenOnLevel(t, game.viewedLevelId, this.defaultLevelId);
+  }
+
   /** Scene pixels per distance unit. */
   get pxPerUnit(): number {
     const g = this.scene?.grid;
@@ -215,7 +233,7 @@ export class Board {
     this.tokens.clear();
     this.#selected.clear();
     this.#drawScene(true);
-    if (this.scene) for (const t of game.children<TokenDoc>("Token", this.scene._id)) this.#upsertToken(t);
+    if (this.scene) for (const t of game.children<TokenDoc>("Token", this.scene._id)) if (this.onViewedLevel(t)) this.#upsertToken(t);
     this.emit("scene");
     this.emit("tokens");
     this.emit("selection");
@@ -224,11 +242,16 @@ export class Board {
   async #drawScene(resetView: boolean): Promise<void> {
     const scene = this.scene;
     const bg = this.layers.background;
+    const fg = this.layers.foreground;
     bg.removeChildren().forEach(c => c.destroy());
+    fg.removeChildren().forEach(c => c.destroy());
     this.layers.grid.clear();
     if (!scene) return;
 
-    bg.addChild(new Graphics().rect(0, 0, scene.width, scene.height).fill(scene.backgroundColor || "#111111"));
+    // Scenes with levels take their art from the viewed level (Foundry v14); others from the scene.
+    const level = game.viewedLevel;
+    const color = level?.background.color ?? scene.backgroundColor ?? "#111111";
+    bg.addChild(new Graphics().rect(0, 0, scene.width, scene.height).fill(color || "#111111"));
     this.#drawGrid(scene);
     if (resetView) {
       const saved = this.#views.get(scene._id);
@@ -237,15 +260,17 @@ export class Board {
         this.world.scale.set(saved.scale);
       } else this.fit();
     }
-    if (scene.img) {
-      const tex = await loadTexture(scene.img);
-      if (tex && this.scene?._id === scene._id) {
-        const sprite = new Sprite(tex);
-        sprite.width = scene.width;
-        sprite.height = scene.height;
-        bg.addChild(sprite);
-      }
-    }
+    const art = async (src: string | null | undefined, into: Container) => {
+      if (!src) return;
+      const tex = await loadTexture(src);
+      if (!tex || this.scene?._id !== scene._id || game.viewedLevelId !== (level?._id ?? null)) return;
+      const sprite = new Sprite(tex);
+      sprite.width = scene.width;
+      sprite.height = scene.height;
+      sprite.eventMode = "none"; // foreground art sits above tokens and must not eat their clicks
+      into.addChild(sprite);
+    };
+    await Promise.all([art(level?.background.src ?? scene.img, bg), art(level?.foreground.src, fg)]);
     this.emit("scene");
   }
 
@@ -312,7 +337,11 @@ export class Board {
     if (op === "delete") {
       for (const id of ids) this.#removeToken(id);
     } else {
-      for (const d of docs) if (d._parent === this.#sceneId) this.#upsertToken(d, op === "update");
+      for (const d of docs) {
+        if (d._parent !== this.#sceneId) continue;
+        if (this.onViewedLevel(d)) this.#upsertToken(d, op === "update");
+        else this.#removeToken(d._id);
+      }
     }
     this.emit("tokens");
   }
@@ -694,7 +723,8 @@ export class Board {
       x: Math.floor(p.x / size) * size, y: Math.floor(p.y / size) * size,
       width: proto.width, height: proto.height, disposition: proto.disposition,
       actorLink: proto.actorLink, displayName: proto.displayName, displayBars: proto.displayBars,
-      bar1: proto.bar1, bar2: proto.bar2, sight: proto.sight, light: proto.light
+      bar1: proto.bar1, bar2: proto.bar2, sight: proto.sight, light: proto.light,
+      level: game.viewedLevelId
     }, scene._id);
   }
 

@@ -4,6 +4,7 @@ import type { WallDoc } from "../../../shared/protocol.ts";
 import { DOOR, DOOR_STATE, SENSE } from "../../../shared/protocol.ts";
 import type { Point } from "../../../shared/geometry.ts";
 import { game, toast } from "../game.ts";
+import { onLevel } from "../../../shared/levels.ts";
 import type { Board, Tool } from "./board.ts";
 import type { Perception } from "./perception.ts";
 import { openWallConfig } from "../ui/canvas-config.ts";
@@ -64,7 +65,7 @@ export class WallsLayer implements Tool {
 
   get #walls(): WallDoc[] {
     const scene = this.#board.scene;
-    return scene ? game.children<WallDoc>("Wall", scene._id) : [];
+    return scene ? game.children<WallDoc>("Wall", scene._id).filter(w => onLevel(w, game.viewedLevelId)) : [];
   }
 
   redraw(): void {
@@ -253,7 +254,9 @@ export class WallsLayer implements Tool {
       if (!this.#chainFrom) this.#preview.clear();
       return;
     }
-    await game.create("Wall", { c: [draft.from.x, draft.from.y, to.x, to.y], ...WALL_PRESETS[this.preset ?? "wall"].data }, scene._id);
+    // New walls belong to the level being edited (scenes with levels).
+    const levels = game.viewedLevelId ? [game.viewedLevelId] : [];
+    await game.create("Wall", { c: [draft.from.x, draft.from.y, to.x, to.y], ...WALL_PRESETS[this.preset ?? "wall"].data, levels }, scene._id);
     this.#chainFrom = chaining ? to : null;
     if (!chaining) this.#preview.clear();
   }

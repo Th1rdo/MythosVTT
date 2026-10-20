@@ -27,7 +27,7 @@ function defaults(type: DocType): Record<string, unknown> {
       return {
         name: "Nova cena", img: null, width: 3000, height: 2000, backgroundColor: "#111111",
         grid: { size: 100, color: "#000000", alpha: 0.25, distance: 1.5, units: "m" },
-        active: false, navigation: true, sort: 0, folder: null,
+        active: false, navigation: true, sort: 0, folder: null, initialLevel: null,
         tokenVision: true,
         fog: { mode: 1, explored: "#000000", unexplored: "#000000" },
         environment: { darkness: 0, globalLight: true, globalLightThreshold: 0.5 }
@@ -37,13 +37,20 @@ function defaults(type: DocType): Record<string, unknown> {
         name: "Token", actorId: null, img: null, x: 0, y: 0, width: 1, height: 1, hidden: false, disposition: 0, rotation: 0,
         sight: { enabled: false, range: 0, angle: 360 },
         light: NO_LIGHT,
-        elevation: 0, actorLink: false, delta: {}, displayName: DISPLAY.HOVER, displayBars: DISPLAY.OWNER,
+        elevation: 0, level: null, actorLink: false, delta: {}, displayName: DISPLAY.HOVER, displayBars: DISPLAY.OWNER,
         bar1: { attribute: null }, bar2: { attribute: null }
       };
     case "Wall":
-      return { c: [0, 0, 0, 0], move: 20, sight: 20, light: 20, sound: 20, dir: 0, door: 0, ds: 0 };
+      return { c: [0, 0, 0, 0], move: 20, sight: 20, light: 20, sound: 20, dir: 0, door: 0, ds: 0, levels: [] };
+    case "Level":
+      return { name: "Nível", elevation: { bottom: 0, top: null }, background: { src: null, color: "#999999" }, foreground: { src: null }, sort: 0 };
+    case "Tile":
+      return {
+        img: null, x: 0, y: 0, width: 200, height: 200, rotation: 0, alpha: 1, hidden: false, locked: false, elevation: 0, sort: 0,
+        foreground: false, occlusion: { fade: true, alpha: 0.25 }, levels: []
+      };
     case "AmbientLight":
-      return { x: 0, y: 0, rotation: 0, walls: true, hidden: false, config: { ...NO_LIGHT, bright: 3, dim: 6, color: "#ffc070", alpha: 0.4 } };
+      return { x: 0, y: 0, rotation: 0, walls: true, hidden: false, levels: [], config: { ...NO_LIGHT, bright: 3, dim: 6, color: "#ffc070", alpha: 0.4 } };
     case "FogExploration":
       return { user: "", explored: "", timestamp: 0 };
     case "Combat":
@@ -63,6 +70,8 @@ const NUMBER_FIELDS: Partial<Record<DocType, string[]>> = {
   Token: ["x", "y", "width", "height", "rotation", "elevation"],
   AmbientLight: ["x", "y", "rotation"],
   Combat: ["round", "sort"],
+  Tile: ["x", "y", "width", "height", "rotation", "alpha", "elevation", "sort"],
+  Level: ["sort"],
   Scene: ["width", "height", "sort"],
   JournalEntry: ["sort"]
 };

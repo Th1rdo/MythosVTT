@@ -6,7 +6,7 @@ import type { WallDoc } from "./protocol.ts";
 const bounds = { x: 0, y: 0, width: 1000, height: 1000 };
 
 function wall(c: [number, number, number, number], extra: Partial<WallDoc> = {}): WallDoc {
-  return { _id: Math.random().toString(36), c, move: 20, sight: 20, light: 20, sound: 20, dir: 0, door: 0, ds: 0, ...extra };
+  return { _id: Math.random().toString(36), c, move: 20, sight: 20, light: 20, sound: 20, dir: 0, door: 0, ds: 0, levels: [], ...extra };
 }
 
 test("open room: everything visible", () => {

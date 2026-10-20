@@ -1,6 +1,7 @@
 import type { SceneDoc, UserDoc } from "../../../shared/protocol.ts";
 import { game } from "../game.ts";
 import { h, setChildren } from "../dom.ts";
+import { sceneLevels } from "../../../shared/levels.ts";
 
 /**
  * Scene navigation (top-left, like Foundry's): the viewed scene as a pill with the players who are
@@ -33,6 +34,17 @@ export function sceneNavigation(): HTMLElement {
     pips(s._id)
   );
 
+  /** Levels of the viewed scene, top floor first (like Foundry's level tabs). Click to view a level. */
+  const levelMenu = (sceneId: string) => {
+    const levels = sceneLevels(sceneId, game);
+    if (levels.length < 2) return null;
+    return h("li", null, h("menu.level-list", null, [...levels].reverse().map(l => h("li", {
+      className: `level-pill${l._id === game.viewedLevelId ? " viewed" : ""}`,
+      title: `${l.name} (elevação ${l.elevation.bottom ?? "−∞"} a ${l.elevation.top ?? "∞"})`,
+      onclick: () => game.viewLevel(l._id)
+    }, h("span.scene-name", null, l.name)))));
+  };
+
   const render = () => {
     const viewed = game.viewedScene;
     const others = game.all<SceneDoc>("Scene")
@@ -43,12 +55,14 @@ export function sceneNavigation(): HTMLElement {
         h("i", { className: `fa-solid fa-caret-${expanded ? "up" : "down"}` })) : null,
       h("menu.scene-list", null,
         viewed ? pill(viewed, true) : h("li.scene-pill.viewed", null, h("span.scene-name", null, "Sem cena")),
+        viewed ? levelMenu(viewed._id) : null,
         expanded ? others.map(s => pill(s, false)) : null,
         viewed && game.isGM && !viewed.active ? h("li.scene-note", null, "pré-visualização — os jogadores não veem esta cena") : null
       )
     );
   };
   game.on("Scene", render);
+  game.on("Level", render);
   game.on("view", render);
   game.on("presence", render);
   game.on("User", render);

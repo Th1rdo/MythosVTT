@@ -147,4 +147,15 @@ test("active effects: owners manage them; others see them only with a visible li
   assert.throws(() => world.apply({ op: "create", type: "ActiveEffect", parent: actor._id, data: [{ changes: [{ key: "x", type: "explode", value: "1" }], statuses: [] }] }, alice), /inválida/);
 });
 
+test("walls only block tokens on their own level", () => {
+  const { world, gm, alice, scene, token } = setup();
+  const [rc, up] = world.createAsSystem("Level", [{ name: "R/C", elevation: { bottom: 0, top: 10 } }, { name: "1.º", elevation: { bottom: 10, top: 20 } }], scene._id);
+  world.createAsSystem("Wall", [{ c: [300, 0, 300, 1000], levels: [up._id] }], scene._id);
+  // Token (no level → default = R/C) passes; on the upper floor the wall blocks.
+  world.apply({ op: "update", type: "Token", parent: scene._id, updates: [{ _id: token._id, x: 400 }] }, alice);
+  world.apply({ op: "update", type: "Token", parent: scene._id, updates: [{ _id: token._id, x: 100, level: up._id }] }, gm);
+  assert.throws(() => world.apply({ op: "update", type: "Token", parent: scene._id, updates: [{ _id: token._id, x: 400 }] }, alice), /parede/);
+  void rc;
+});
+
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
