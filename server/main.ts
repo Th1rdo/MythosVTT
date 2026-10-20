@@ -10,7 +10,7 @@ import { World, listWorlds } from "./world.ts";
 import { Hub } from "./hub.ts";
 import { Sessions, parseCookies, verifyPassword } from "./auth.ts";
 import { applyAdminPasswordFromEnv, setupRouter } from "./setup.ts";
-import { MODULES_DIR, activePackages, installedPackages, isInstalledPackage, missingRequirements } from "./packages.ts";
+import { activePackages, installedPackages, missingRequirements, packageDir } from "./packages.ts";
 
 const PORT = Number(process.env.MESA_PORT ?? 30100);
 
@@ -209,9 +209,10 @@ app.get("/modules/{*rest}", (req, res) => {
   if (!currentUser(req) || !active) return res.status(401).end();
   try {
     const rel = decodeURIComponent(req.path.slice("/modules/".length));
-    const id = rel.split("/")[0];
-    if (!isInstalledPackage(id)) return res.status(404).end();
-    const file = safeJoin(MODULES_DIR, rel);
+    const [id, ...rest] = rel.split("/");
+    const dir = packageDir(id);
+    if (!dir) return res.status(404).end();
+    const file = safeJoin(dir, rest.join("/"));
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return res.status(404).end();
     res.setHeader("X-Content-Type-Options", "nosniff");
     // Scripts change while a package is being written; don't let the browser keep stale copies.

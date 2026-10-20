@@ -9,7 +9,9 @@ import { settings } from "./settings.ts";
 import type { KeyAction } from "./keybindings.ts";
 import { registerKey } from "./keybindings.ts";
 import type { Board } from "./canvas/board.ts";
-import { closeWindow, confirmDialog, openWindow, prompt } from "./ui/windows.ts";
+import { closeWindow, confirmDialog, isOpen, openWindow, prompt } from "./ui/windows.ts";
+import { audio } from "./audio/engine.ts";
+import type { AudioChannel } from "../../shared/protocol.ts";
 import { browseFiles } from "./ui/file-picker.ts";
 import { openSheet } from "./ui/sheet.ts";
 import { openImagePopout, openJournal } from "./ui/journal.ts";
@@ -140,6 +142,7 @@ export const mesa = {
         key: `${pkg}.${name}`, scope: o.scope ?? "world", category: "modules", group: titleOf(pkg), name: o.name, hint: o.hint, type,
         default: o.default, reload: o.reload, hidden: o.config === false || (o.config === undefined && type.kind === "object")
       });
+      settings.track(def.key);
       if (o.onChange) settings.onChange(def.key, o.onChange);
       return def;
     },
@@ -181,7 +184,14 @@ export const mesa = {
   toast,
   dialogs: { confirm: confirmDialog, prompt },
   files: { browse: browseFiles },
-  ui: { openWindow, closeWindow, openSheet, openJournal, openImagePopout },
+  ui: { openWindow, closeWindow, isOpen, openSheet, openJournal, openImagePopout },
+  /** The server's clock (ms), measured against this browser's: the same instant on every client. */
+  time: { serverNow: () => audio.serverNow() },
+  audio: {
+    /** This browser's level for a channel, 0–1 (0 when muted). */
+    volume: (channel: AudioChannel) => (audio.settings.muted ? 0 : audio.settings[channel]),
+    playOnce: (src: string, opts?: { volume?: number; channel?: AudioChannel; loop?: boolean }) => audio.playOnce(src, opts)
+  },
   chat: (text: string) => send(text),
   utils: {
     randomId,

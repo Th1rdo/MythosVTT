@@ -67,7 +67,13 @@ class Settings {
     return true;
   }
 
+  /** Start watching a setting registered after start-up (a package's), so its first change already fires. */
+  track(key: string): void {
+    if (!this.#last.has(key) && SETTING_MAP.has(key)) this.#last.set(key, this.get(key));
+  }
+
   onChange(key: string, fn: (value: unknown) => void): () => void {
+    this.track(key);
     if (!this.#listeners.has(key)) this.#listeners.set(key, new Set());
     this.#listeners.get(key)!.add(fn);
     return () => this.#listeners.get(key)!.delete(fn);

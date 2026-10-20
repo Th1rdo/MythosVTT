@@ -6,11 +6,12 @@ import path from "node:path";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mesa-packages-"));
 process.env.MESA_DATA = tmp;
-const { MODULES_DIR, activePackages, installedPackages, missingRequirements } = await import("./packages.ts");
+process.env.MESA_BUNDLED = path.join(tmp, "bundled");
+const { BUNDLED_DIR, MODULES_DIR, activePackages, installedPackages, missingRequirements, packageDir } = await import("./packages.ts");
 const { World } = await import("./world.ts");
 
-function writePackage(id: string, manifest: Record<string, unknown>, files: string[] = []): void {
-  const dir = path.join(MODULES_DIR, id);
+function writePackage(id: string, manifest: Record<string, unknown>, files: string[] = [], root = MODULES_DIR): void {
+  const dir = path.join(root, id);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "module.json"), JSON.stringify({ id, title: id, version: "1.0.0", ...manifest }));
   for (const f of files) {
@@ -25,9 +26,17 @@ test("packages: manifests, Mesa compatibility, dependency order, settings and fl
   writePackage("foundry-only", { esmodules: ["scripts/main.js"] }, ["scripts/main.js"]);
   writePackage("broken", { mesa: { esmodules: ["missing.js", "../escape.js"] } });
   fs.mkdirSync(path.join(MODULES_DIR, "Not An Id"), { recursive: true });
+  // Bundled with Mesa; the Foundry-safe flags.mesa block works the same; a data/modules copy wins.
+  writePackage("bundled", { version: "1.0.0", flags: { mesa: { esmodules: ["b.js"] } } }, ["b.js"], BUNDLED_DIR);
+  writePackage("base", { version: "0.1.0", mesa: {} }, [], BUNDLED_DIR);
 
   const all = installedPackages(true);
-  assert.deepEqual([...all.keys()].sort(), ["base", "broken", "extra", "foundry-only"]);
+  assert.deepEqual([...all.keys()].sort(), ["base", "broken", "bundled", "extra", "foundry-only"]);
+  assert.equal(all.get("bundled")!.compatible, true);
+  assert.deepEqual(all.get("bundled")!.esmodules, ["b.js"]);
+  assert.equal(packageDir("bundled"), path.join(BUNDLED_DIR, "bundled"));
+  assert.equal(all.get("base")!.version, "1.0.0");
+  assert.equal(packageDir("base"), path.join(MODULES_DIR, "base"));
   assert.equal(all.get("base")!.compatible, true);
   assert.equal(all.get("foundry-only")!.compatible, false);
   assert.match(all.get("foundry-only")!.problems[0], /Foundry/);

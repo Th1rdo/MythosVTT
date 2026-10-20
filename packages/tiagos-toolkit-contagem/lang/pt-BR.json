@@ -1,0 +1,22 @@
+{
+  "CONTAGEM.Titulo": "Contagem regressiva",
+  "CONTAGEM.Duracao": "Duração",
+  "CONTAGEM.Rotulo": "Rótulo (opcional)",
+  "CONTAGEM.RotuloExemplo": "A polícia chega",
+  "CONTAGEM.Todos": "Todos os jogadores",
+  "CONTAGEM.Escolher": "Escolher",
+  "CONTAGEM.SemJogadores": "Não há jogadores neste mundo.",
+  "CONTAGEM.Comecar": "Começar",
+  "CONTAGEM.Pausar": "Pausar",
+  "CONTAGEM.Retomar": "Retomar",
+  "CONTAGEM.Cancelar": "Cancelar",
+  "CONTAGEM.Para": "Para",
+  "CONTAGEM.SoTu": "só você",
+  "CONTAGEM.DuracaoInvalida": "Duração inválida. Exemplos: 90, 1:30, 2m, 10s.",
+  "CONTAGEM.NinguemEscolhido": "Escolha pelo menos um jogador.",
+  "CONTAGEM.SoMestre": "Só o mestre controla a contagem.",
+  "CONTAGEM.Atalho": "Painel da contagem",
+  "CONTAGEM.AtalhoDica": "Abre e fecha o painel da contagem regressiva.",
+  "CONTAGEM.Som": "Som no fim da contagem",
+  "CONTAGEM.SomDica": "Um sino suave quando a contagem chega a zero (segue o volume de Interface de cada um)."
+}

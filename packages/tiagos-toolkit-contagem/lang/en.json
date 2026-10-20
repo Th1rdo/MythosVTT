@@ -1,0 +1,22 @@
+{
+  "CONTAGEM.Titulo": "Countdown",
+  "CONTAGEM.Duracao": "Duration",
+  "CONTAGEM.Rotulo": "Label (optional)",
+  "CONTAGEM.RotuloExemplo": "The police arrive",
+  "CONTAGEM.Todos": "All players",
+  "CONTAGEM.Escolher": "Choose",
+  "CONTAGEM.SemJogadores": "There are no players in this world.",
+  "CONTAGEM.Comecar": "Start",
+  "CONTAGEM.Pausar": "Pause",
+  "CONTAGEM.Retomar": "Resume",
+  "CONTAGEM.Cancelar": "Cancel",
+  "CONTAGEM.Para": "For",
+  "CONTAGEM.SoTu": "only you",
+  "CONTAGEM.DuracaoInvalida": "Invalid duration. Examples: 90, 1:30, 2m, 10s.",
+  "CONTAGEM.NinguemEscolhido": "Choose at least one player.",
+  "CONTAGEM.SoMestre": "Only the GM controls the countdown.",
+  "CONTAGEM.Atalho": "Countdown panel",
+  "CONTAGEM.AtalhoDica": "Opens and closes the countdown panel.",
+  "CONTAGEM.Som": "Sound at the end of the countdown",
+  "CONTAGEM.SomDica": "A soft bell when the countdown reaches zero (follows each user's Interface volume)."
+}

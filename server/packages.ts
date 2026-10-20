@@ -3,7 +3,7 @@ import path from "node:path";
 import type { DocLookup } from "../shared/permissions.ts";
 import type { PackageInfo } from "../shared/protocol.ts";
 import { worldSetting } from "../shared/settings.ts";
-import { DATA_DIR } from "./paths.ts";
+import { DATA_DIR, ROOT } from "./paths.ts";
 
 /**
  * Packages (Foundry's modules): folders under data/modules/<id> with a `module.json` manifest — the same
@@ -14,6 +14,17 @@ import { DATA_DIR } from "./paths.ts";
  * on per world (world setting core.modules = { id: true }).
  */
 export const MODULES_DIR = path.join(DATA_DIR, "modules");
+/** Packages that ship with Mesa (ports of Tiago's Toolkit); off until the GM switches them on. data/modules wins on the same id. */
+export const BUNDLED_DIR = path.resolve(process.env.MESA_BUNDLED ?? path.join(ROOT, "packages"));
+
+/** Folder of each installed package (data/modules or the bundled folder). */
+const folders = new Map<string, string>();
+
+/** Absolute folder of an installed package. */
+export function packageDir(id: string): string | null {
+  installedPackages();
+  return folders.get(id) ?? null;
+}
 
 const PACKAGE_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -29,6 +40,8 @@ interface Manifest {
   socket?: unknown;
   url?: unknown;
   relationships?: { requires?: { id?: unknown; type?: unknown }[] };
+  /** Foundry-safe place for the same block (Foundry keeps unknown manifest data under flags). */
+  flags?: { mesa?: Manifest["mesa"] };
   mesa?: {
     esmodules?: unknown;
     styles?: unknown;
@@ -49,24 +62,30 @@ let cache: Map<string, PackageInfo> | null = null;
 export function installedPackages(rescan = false): Map<string, PackageInfo> {
   if (cache && !rescan) return cache;
   const out = new Map<string, PackageInfo>();
-  let dirs: string[] = [];
-  try {
-    dirs = fs.readdirSync(MODULES_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
-  } catch {
-    // No modules folder yet.
-  }
-  for (const dir of dirs) {
-    const info = readManifest(dir);
-    if (info) out.set(info.id, info);
+  folders.clear();
+  // Bundled first, so a copy in data/modules (a newer version being written) replaces it.
+  for (const root of [BUNDLED_DIR, MODULES_DIR]) {
+    let dirs: string[] = [];
+    try {
+      dirs = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
+    } catch {
+      // No such folder.
+    }
+    for (const dir of dirs) {
+      const info = readManifest(root, dir);
+      if (!info) continue;
+      out.set(info.id, info);
+      folders.set(info.id, path.join(root, dir));
+    }
   }
   cache = out;
   return out;
 }
 
-function readManifest(dir: string): PackageInfo | null {
+function readManifest(root: string, dir: string): PackageInfo | null {
   let m: Manifest;
   try {
-    m = JSON.parse(fs.readFileSync(path.join(MODULES_DIR, dir, "module.json"), "utf8"));
+    m = JSON.parse(fs.readFileSync(path.join(root, dir, "module.json"), "utf8"));
   } catch {
     return null;
   }
@@ -74,7 +93,8 @@ function readManifest(dir: string): PackageInfo | null {
   const id = typeof m.id === "string" ? m.id : dir;
   if (!PACKAGE_ID.test(id)) return null;
   if (id !== dir) problems.push(`A pasta chama-se "${dir}" mas o id é "${id}"`);
-  const mesa = m.mesa && typeof m.mesa === "object" ? m.mesa : null;
+  const block = m.mesa ?? m.flags?.mesa;
+  const mesa = block && typeof block === "object" ? block : null;
   const pick = (k: "esmodules" | "styles") => strings(mesa?.[k] ?? m[k]).filter(relFile);
   const langs = (Array.isArray(mesa?.languages) ? mesa.languages : m.languages) as Manifest["languages"];
   const languages = (Array.isArray(langs) ? langs : [])
@@ -84,7 +104,7 @@ function readManifest(dir: string): PackageInfo | null {
   if (!mesa) problems.push("Feito para o Foundry: não tem bloco \"mesa\" no module.json");
   // Only Mesa's own files matter (a Foundry-only package's scripts aren't loaded anyway).
   if (mesa) for (const f of [...pick("esmodules"), ...pick("styles"), ...languages.map(l => l.path)]) {
-    if (!fs.existsSync(path.join(MODULES_DIR, dir, f))) problems.push(`Falta o ficheiro ${f}`);
+    if (!fs.existsSync(path.join(root, dir, f))) problems.push(`Falta o ficheiro ${f}`);
   }
   return {
     id,

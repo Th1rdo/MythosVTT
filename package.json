@@ -15,7 +15,7 @@
     "import": "node server/cli/import-foundry.ts",
     "import-packs": "node server/cli/import-packs.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test shared/*.test.ts server/*.test.ts"
+    "test": "node --test shared/*.test.ts server/*.test.ts packages/*/test/*.test.mjs"
   },
   "dependencies": {
     "@fontsource/signika": "^5.3.0",

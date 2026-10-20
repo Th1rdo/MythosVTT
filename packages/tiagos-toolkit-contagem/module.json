@@ -1,0 +1,18 @@
+{
+  "id": "tiagos-toolkit-contagem",
+  "title": "Tiago's Toolkit: Contagem",
+  "description": "Uma contagem decrescente mínima que aparece a todos os jogadores: um relógio pequeno e discreto no topo do ecrã, com rótulo opcional («A polícia chega»), pausa, ±30 s e um som suave no fim. Guarda a hora de fim, não o tempo que falta: quem recarrega ou entra a meio vê o tempo certo.",
+  "version": "0.1.0-mesa.1",
+  "authors": [{ "name": "Th1rdo" }],
+  "url": "https://github.com/Th1rdo/tiagos-toolkit-contagem",
+  "socket": false,
+  "mesa": {
+    "compatibility": { "minimum": "0.1.0" },
+    "esmodules": ["scripts/main.js"],
+    "styles": ["styles/contagem.css"],
+    "languages": [
+      { "lang": "pt-BR", "name": "Português (Brasil)", "path": "lang/pt-BR.json" },
+      { "lang": "en", "name": "English", "path": "lang/en.json" }
+    ]
+  }
+}

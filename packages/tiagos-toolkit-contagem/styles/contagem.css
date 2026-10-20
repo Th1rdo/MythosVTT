@@ -1,0 +1,139 @@
+/* ============================================================================
+   Tiago's Toolkit: Contagem — o relógio no topo do ecrã e o painel do mestre.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- o relógio
+   Discreto: sem moldura, letra fina, uma linha por baixo. A sombra é o que o
+   deixa ler-se por cima de um mapa claro sem precisar de caixa.
+   As janelas do Foundry sobem a partir de z-index 100 a cada foco; 4000 fica
+   longe disso e abaixo das notificações (como a mesa dos Handouts). */
+#contagem-relogio {
+  --contagem-cor: #ece8de;
+  --contagem-aviso: #e58a7a;
+  position: fixed; top: 10px; left: 50%; z-index: 4000;
+  transform: translateX(-50%);
+  pointer-events: none; user-select: none;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  max-width: 60vw;
+  color: var(--contagem-cor);
+  font-family: "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .85), 0 0 12px rgba(0, 0, 0, .55);
+  opacity: 0; visibility: hidden;
+  /* o visibility espera pelo fim do fade antes de esconder */
+  transition: opacity .6s ease, visibility 0s linear .6s, color .8s ease;
+}
+#contagem-relogio.contagem-visivel { opacity: 1; visibility: visible; transition: opacity .4s ease, visibility 0s, color .8s ease; }
+
+#contagem-relogio .contagem-rotulo {
+  font-size: 11px; font-weight: 400; font-variant: small-caps; text-transform: lowercase;
+  letter-spacing: .16em; opacity: .78;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#contagem-relogio.contagem-sem-rotulo .contagem-rotulo { display: none; }
+
+#contagem-relogio .contagem-tempo { display: flex; align-items: center; gap: 7px; line-height: 1; }
+#contagem-relogio .contagem-digitos {
+  font-size: 26px; font-weight: 200; letter-spacing: .04em;
+  font-variant-numeric: tabular-nums;   /* os dígitos não dançam de segundo a segundo */
+}
+
+/* a pausa: duas barras finas, desenhadas, sem depender de uma fonte de ícones */
+#contagem-relogio .contagem-pausa { display: none; width: 8px; height: 12px; position: relative; }
+#contagem-relogio .contagem-pausa::before,
+#contagem-relogio .contagem-pausa::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: currentColor;
+  box-shadow: 0 0 3px rgba(0, 0, 0, .8);
+}
+#contagem-relogio .contagem-pausa::before { left: 0; }
+#contagem-relogio .contagem-pausa::after { right: 0; }
+
+#contagem-relogio .contagem-linha {
+  width: 140px; height: 1px; margin-top: 3px;
+  background: rgba(236, 232, 222, .18);
+  box-shadow: 0 0 3px rgba(0, 0, 0, .6);
+}
+#contagem-relogio .contagem-cheia {
+  height: 100%; background: currentColor;
+  transform-origin: left center;
+  /* o tique é de 250 ms: a transição alisa os degraus da linha */
+  transition: transform .25s linear;
+}
+
+/* em pausa: apagado, com o sinal de pausa */
+#contagem-relogio.contagem-pausado { opacity: .55; }
+#contagem-relogio.contagem-pausado .contagem-pausa { display: inline-block; }
+
+/* os últimos 10 s: puxa para o vermelho e respira devagar */
+#contagem-relogio.contagem-ultimos { color: var(--contagem-aviso); }
+#contagem-relogio.contagem-ultimos .contagem-tempo { animation: contagem-pulsar 1s ease-in-out infinite; }
+@keyframes contagem-pulsar {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .55; }
+}
+
+/* zero: um clarão curto, e o relógio fica uns segundos antes de desvanecer */
+#contagem-relogio.contagem-fim { color: var(--contagem-aviso); }
+#contagem-relogio.contagem-fim .contagem-tempo { animation: contagem-clarao .9s ease-out backwards; }
+@keyframes contagem-clarao {
+  0% { transform: scale(1.18); text-shadow: 0 0 18px rgba(255, 200, 180, .95), 0 0 4px #fff; color: #fff; }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #contagem-relogio,
+  #contagem-relogio.contagem-visivel { transition: none; }
+  #contagem-relogio .contagem-cheia { transition: none; }
+  #contagem-relogio.contagem-ultimos .contagem-tempo,
+  #contagem-relogio.contagem-fim .contagem-tempo { animation: none; }
+}
+
+/* ---------------------------------------------------------------- o painel
+   O Foundry estiliza todos os <button> (altura, fundo): os seletores levam o
+   #id do painel à frente para ganharem. */
+#contagem-painel .window-content { padding: 10px 12px 12px; }
+#contagem-painel .contagem-painel { display: flex; flex-direction: column; gap: 8px; }
+
+#contagem-painel .contagem-botao {
+  height: auto; min-height: 0; line-height: 1.2; margin: 0;
+  padding: 5px 8px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .04); color: #d6d1c4;
+}
+#contagem-painel .contagem-botao:hover { border-color: rgba(216, 182, 106, .7); color: #fff; }
+#contagem-painel .contagem-principal { border-color: #d8b66a; background: rgba(216, 182, 106, .18); color: #fff; font-weight: 600; }
+
+#contagem-painel .contagem-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+#contagem-painel .contagem-preset.contagem-sel { border-color: #d8b66a; background: rgba(216, 182, 106, .16); color: #fff; }
+
+#contagem-painel .contagem-campo {
+  display: flex; flex-direction: column; gap: 3px; position: relative;
+  font-size: 11px; color: #a39e92; text-transform: uppercase; letter-spacing: .06em;
+}
+#contagem-painel .contagem-campo input { text-transform: none; letter-spacing: normal; font-size: 14px; }
+#contagem-painel .contagem-campo input.contagem-invalido { border-color: #c9483f; box-shadow: 0 0 0 1px #c9483f; }
+#contagem-painel .contagem-previa {
+  position: absolute; right: 8px; bottom: 6px; font-style: normal; font-size: 12px;
+  text-transform: none; letter-spacing: normal; color: #8d887c; pointer-events: none;
+}
+
+#contagem-painel .contagem-publico { display: flex; gap: 12px; }
+#contagem-painel .contagem-opcao { display: flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
+#contagem-painel .contagem-opcao input { margin: 0; }
+#contagem-painel .contagem-jogadores {
+  display: flex; flex-direction: column; gap: 3px; max-height: 150px; overflow-y: auto;
+  padding: 6px 8px; border-radius: 6px; background: rgba(0, 0, 0, .2);
+}
+#contagem-painel .contagem-jogadores.contagem-escondido { display: none; }
+#contagem-painel .contagem-comecar { padding: 7px 8px; font-size: 13px; }
+
+/* a correr */
+#contagem-painel .contagem-painel-ativo { align-items: stretch; text-align: center; }
+#contagem-painel .contagem-painel-rotulo {
+  font-variant: small-caps; text-transform: lowercase; letter-spacing: .14em; font-size: 12px; color: #a39e92;
+}
+#contagem-painel .contagem-painel-tempo {
+  font-size: 34px; font-weight: 200; line-height: 1.1; font-variant-numeric: tabular-nums;
+  font-family: "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+}
+#contagem-painel .contagem-botoes { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 4px; }
+#contagem-painel .contagem-quem { font-size: 11px; color: #8d887c; }
+#contagem-painel .contagem-cancelar:hover { border-color: #c9483f; background: rgba(201, 72, 63, .18); }
