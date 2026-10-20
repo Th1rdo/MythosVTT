@@ -22,6 +22,7 @@ import { compendiaPanel } from "./ui/compendia.ts";
 import { cardsPanel } from "./ui/cards.ts";
 import { onRunMacro, setMacroBoard } from "./macros.ts";
 import { volumeControls } from "./ui/audio-config.ts";
+import { openSettingsConfig } from "./ui/settings.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
 import { DrawingsLayer } from "./canvas/drawings.ts";
 import { NotesLayer } from "./canvas/notes.ts";
@@ -33,7 +34,7 @@ import { playersList } from "./shell/players.ts";
 import { hotbar } from "./shell/hotbar.ts";
 import { sidebar } from "./shell/sidebar.ts";
 import type { SidebarTab } from "./shell/sidebar.ts";
-import { applyUiScale, readUiScale, uiScaleSettings } from "./shell/ui-scale.ts";
+import { applyUiScale, readUiScale } from "./shell/ui-scale.ts";
 import { TurnMarker } from "./canvas/turn-marker.ts";
 import { combatPanel } from "./ui/combat.ts";
 import { h } from "./dom.ts";
@@ -152,9 +153,10 @@ function settingsPanel(): HTMLElement {
       h("h3", null, game.world.title),
       h("p.muted.small", null, `Mesa · ${game.world.system}`),
       h("p", null, "Ligado como ", h("strong", null, game.user.name), game.isGM ? " (mestre)" : ""),
-      h("button", { onclick: async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); } }, h("i.fa-solid.fa-right-from-bracket"), " Sair")
+      h("div.stack", null,
+        h("button", { onclick: () => openSettingsConfig() }, h("i.fa-solid.fa-gears"), " Definições"),
+        h("button", { onclick: async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); } }, h("i.fa-solid.fa-right-from-bracket"), " Sair"))
     ),
-    uiScaleSettings(),
     h("div.settings-block", null, h("h4", null, "Volume (só neste browser)"), volumeControls()),
     game.isGM && h("h4.settings-title", null, "Jogadores"),
     game.isGM && playersPanel()

@@ -11,6 +11,7 @@ import type { TokenActor } from "../../../shared/actors.ts";
 import { CONDITION_BY_ID, DEAD } from "../../../shared/conditions.ts";
 import { defaultLevel, tokenOnLevel } from "../../../shared/levels.ts";
 import { game, toast } from "../game.ts";
+import { settings } from "../settings.ts";
 import { initials } from "../dom.ts";
 import { openSheet } from "../ui/sheet.ts";
 import { toggleCombat } from "../ui/combat.ts";
@@ -128,6 +129,9 @@ export class Board {
       if (e.key === " ") this.#space = false;
     });
     this.app.ticker.add(() => this.#animate());
+    const fps = () => (this.app.ticker.maxFPS = Number(settings.get("core.maxFPS")) || 0);
+    fps();
+    settings.onChange("core.maxFPS", fps);
 
     game.on("view", () => this.#loadScene());
     game.on("ready", () => this.#loadScene());
@@ -210,7 +214,7 @@ export class Board {
   /** The viewed scene's grid. */
   get grid(): GridSpec {
     const g = this.scene?.grid;
-    return { type: g?.type ?? GRID.SQUARE, size: g?.size ?? 100, distance: g?.distance ?? 1 };
+    return { type: g?.type ?? GRID.SQUARE, size: g?.size ?? 100, distance: g?.distance ?? 1, diagonals: settings.get("core.gridDiagonals") };
   }
 
   /** Snap a point to the grid (square: corners and centres; hex: centres and corners), unless disabled. */
@@ -544,7 +548,7 @@ export class Board {
       if (!v.target) continue;
       const dx = v.target.x - v.root.x;
       const dy = v.target.y - v.root.y;
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+      if ((Math.abs(dx) < 1 && Math.abs(dy) < 1) || settings.get("core.reduceMotion")) {
         v.root.position.set(v.target.x, v.target.y);
         v.target = null;
       } else v.root.position.set(v.root.x + dx * 0.25, v.root.y + dy * 0.25);
@@ -802,8 +806,14 @@ export class Board {
     this.layers.pings.addChild(ring);
     const start = performance.now();
     const size = this.scene?.grid.size ?? 100;
+    const still = !!settings.get("core.reduceMotion");
     const tick = () => {
       const t = (performance.now() - start) / 1400;
+      if (still && t < 1) {
+        // No animation: one steady ring until the ping ends.
+        if (!ring.children.length && ring.width === 0) ring.circle(0, 0, size * 0.6).stroke({ width: 4, color });
+        return;
+      }
       if (t >= 1) {
         this.app.ticker.remove(tick);
         ring.destroy();

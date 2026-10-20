@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, CardDoc, CardsDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, PackAction, CardsAction, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, CardDoc, CardsDoc, SettingDoc, ChatMessageDoc, CombatAction, JournalEntryDoc, JournalEntryPageDoc, ShareImageEvent, ShowEntryEvent, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, TableAction, PackAction, CardsAction, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
 import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE, OWNERSHIP } from "../shared/protocol.ts";
 import { canSee, ownershipLevel, pageLevel } from "../shared/permissions.ts";
+import { worldSetting } from "../shared/settings.ts";
 import type { DocLookup } from "../shared/permissions.ts";
 import { roll } from "../shared/dice.ts";
 import { runCombatAction } from "./combat.ts";
@@ -156,6 +157,7 @@ export class Hub {
 
     socket.on("ping", (ping: Omit<PingEvent, "userId">) => {
       if (typeof ping?.x !== "number" || typeof ping?.y !== "number") return;
+      if (this.#user(socket)?.role !== "gm" && !worldSetting(this.#world, "core.playerPing")) return;
       socket.broadcast.emit("ping", { ...ping, userId: socket.data.userId } satisfies PingEvent);
     });
 
@@ -274,12 +276,29 @@ export class Hub {
       socket.broadcast.emit("shareImage", { src: e.src.slice(0, 2000), title: String(e.title ?? "").slice(0, 200) } satisfies ShareImageEvent);
     });
 
+    /** GM: set a world setting (one Setting document per key). */
+    socket.on("setting", (e: { key?: unknown; value?: unknown }, ack?: Ack<DocResponse>) => {
+      const me = this.#user(socket);
+      if (me?.role !== "gm") return ack?.({ ok: false, error: "Sem permissão" });
+      try {
+        const existing = this.#world.all<SettingDoc>("Setting").find(s => s.key === e?.key);
+        const changes = existing
+          ? this.#world.apply({ op: "update", type: "Setting", updates: [{ _id: existing._id, value: e.value }] }, me)
+          : this.#world.apply({ op: "create", type: "Setting", data: [{ key: e?.key, value: e?.value }] }, me);
+        this.#broadcast(changes, me._id);
+        ack?.({ ok: true, result: [] });
+      } catch (err) {
+        ack?.({ ok: false, error: (err as Error).message });
+      }
+    });
+
     /** Server clock, so clients can line up playback positions. */
     socket.on("time", (ack?: (now: number) => void) => ack?.(Date.now()));
 
     socket.on("ruler", (r: { sceneId?: unknown; points?: unknown }) => {
       const points = Array.isArray(r?.points) ? r.points.slice(0, 50) : [];
       if (typeof r?.sceneId !== "string" || !points.every(p => typeof p?.x === "number" && typeof p?.y === "number")) return;
+      if (this.#user(socket)?.role !== "gm" && !worldSetting(this.#world, "core.playerRuler")) return;
       socket.broadcast.emit("ruler", { userId: socket.data.userId, sceneId: r.sceneId, points: points.map(p => ({ x: p.x, y: p.y })) });
     });
 

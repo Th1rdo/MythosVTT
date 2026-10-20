@@ -18,7 +18,7 @@ import { speaker, withActorData } from "./ui/chat.ts";
 const LINK = /@(UUID|Actor|Item|JournalEntry|RollTable|Scene|Macro|Playlist)\[([^\]#]+)(?:#([^\]]+))?\](?:\{([^}]+)\})?/g;
 const ROLL = /\[\[(?:\/([a-z]+)\s+)?([^\]]+?)\]\](?:\{([^}]+)\})?/gi;
 const URL = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)]/g;
-const MODES: Record<string, RollMode> = { r: "public", roll: "public", gr: "gm", gmroll: "gm", br: "blind", blindroll: "blind", sr: "self", selfroll: "self" };
+const MODES: Record<string, RollMode | undefined> = { r: undefined, roll: undefined, pr: "public", gr: "gm", gmroll: "gm", br: "blind", blindroll: "blind", sr: "self", selfroll: "self" };
 
 export interface EnrichOptions {
   /** Called when a secret block's reveal button is pressed (owners only); index = secret's position. */
@@ -54,9 +54,9 @@ function linkNode(kind: string, target: string, label: string | undefined): HTML
 }
 
 function rollNode(command: string | undefined, formula: string, label: string | undefined): HTMLElement {
-  const mode = MODES[(command ?? "r").toLowerCase()] ?? "public";
+  const mode = MODES[(command ?? "r").toLowerCase()];
   return h("a.inline-roll.deferred", {
-    title: `Rolar ${formula}${mode === "public" ? "" : ` (${mode === "gm" ? "mestre" : mode === "blind" ? "às cegas" : "só eu"})`}`,
+    title: `Rolar ${formula}${!mode || mode === "public" ? "" : ` (${mode === "gm" ? "mestre" : mode === "blind" ? "às cegas" : "só eu"})`}`,
     onclick: (e: Event) => {
       e.preventDefault();
       const as = speaker();

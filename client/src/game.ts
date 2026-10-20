@@ -1,12 +1,13 @@
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import type {
-  ActorDoc, BaseDoc, DocEvent, DocRequest, DocResponse, DocType, LevelDoc, PingEvent, RollRequest, SceneDoc, TokenDoc, UserDoc, WorldSnapshot
+  ActorDoc, BaseDoc, RollMode, DocEvent, DocRequest, DocResponse, DocType, LevelDoc, PingEvent, RollRequest, SceneDoc, TokenDoc, UserDoc, WorldSnapshot
 } from "../../shared/protocol.ts";
 import { DOC_TYPES } from "../../shared/protocol.ts";
 import type { DocLookup } from "../../shared/permissions.ts";
 import { ownsActor } from "../../shared/permissions.ts";
 import { defaultLevel, sceneLevels } from "../../shared/levels.ts";
+import { userSetting } from "../../shared/settings.ts";
 
 type Listener = (e: { op: DocEvent["op"] | "reset"; docs: BaseDoc[]; ids: string[] }) => void;
 
@@ -204,8 +205,10 @@ export class Game implements DocLookup {
     return this.request<string>({ op: "delete", type, parent, ids: Array.isArray(ids) ? ids : [ids] });
   }
 
+  /** Roll on the server. Without a mode, the user's default roll mode (setting core.rollMode) applies. */
   async roll(req: RollRequest): Promise<void> {
-    const res: DocResponse = await this.socket.timeout(10_000).emitWithAck("roll", req);
+    const mode = req.mode ?? (req.whisperGM ? "gm" : userSetting<RollMode>(this.user, "core.rollMode"));
+    const res: DocResponse = await this.socket.timeout(10_000).emitWithAck("roll", { ...req, mode });
     if (!res.ok) toast(res.error, "error");
   }
 

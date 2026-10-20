@@ -480,3 +480,16 @@ pre.macro-preview { white-space: pre-wrap; background: #0d0c14; padding: 8px; bo
 fieldset.card-face { border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px 8px; }
 .panel > .dir-create { padding: 8px 12px 0; flex: none; }
 .pack-list { flex: 1; }
+
+/* ---- Settings window ---- */
+.settings-config { display: grid; grid-template-columns: 190px 1fr; gap: 14px; min-height: 420px; max-height: 72vh; }
+.settings-nav { display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); padding-right: 8px; }
+.settings-nav button { text-align: left; background: none; border: none; padding: 7px 10px; border-radius: 4px; color: var(--text); }
+.settings-nav button:hover { background: rgba(255, 255, 255, 0.05); }
+.settings-nav button.active { background: #2a1a1e; box-shadow: inset 3px 0 var(--accent-2); }
+.settings-pane { overflow-y: auto; padding-right: 6px; }
+.settings-pane h3 { margin-top: 0; }
+.settings-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.setting { border-bottom: 1px solid rgba(255, 255, 255, 0.04); padding-bottom: 8px; }
+.setting p { margin: 2px 0 0; }
+.setting-head { gap: 8px; }

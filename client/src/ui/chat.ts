@@ -8,6 +8,7 @@ import { avatar, h, safeHtml, timeLabel } from "../dom.ts";
 const HELP = "Escreve uma mensagem, ou rola dados:\n" +
   "/r 2d20kh+5 # Luta — rola, com descrição após #\n" +
   "/gr 1d20 — só tu e o mestre veem · /br — às cegas (só o mestre) · /sr — só tu\n" +
+  "/w Nome mensagem — sussurrar (/w [Ana, Rui] …, /w gm …)\n" +
   "[[1d6]] dentro do texto rola ali mesmo · @campo usa dados do teu personagem (ex.: 1d20+@forca)\n" +
   "Dados: 4d6dl, 1d10x, 1d20r1, 6d10cs>=7, 4dF, {1d20,1d12}kh, floor(1d10/2), 1d8[fogo]";
 
@@ -51,8 +52,9 @@ export function speaker(): { actor: string | null; alias: string } {
 }
 
 /** Send what was typed in the chat: a roll command or a message. Chat macros come through here too. */
-const ROLL_COMMANDS: Record<string, RollMode> = {
-  r: "public", roll: "public", pr: "public", publicroll: "public",
+/** undefined = the user's default roll mode. */
+const ROLL_COMMANDS: Record<string, RollMode | undefined> = {
+  r: undefined, roll: undefined, pr: "public", publicroll: "public",
   gr: "gm", gmroll: "gm", br: "blind", broll: "blind", blindroll: "blind", sr: "self", selfroll: "self"
 };
 
@@ -67,12 +69,29 @@ export function withActorData(formula: string, actorId: string | null): string {
 
 export async function send(text: string, as = speaker()): Promise<void> {
   const cmd = /^\/([a-z]+)\s+(.+)$/is.exec(text);
-  if (cmd && ROLL_COMMANDS[cmd[1].toLowerCase()]) {
+  if (cmd && cmd[1].toLowerCase() in ROLL_COMMANDS) {
     const [formula, ...flavor] = cmd[2].split("#");
     await game.roll({
       formula: withActorData(formula.trim(), as.actor), flavor: flavor.join("#").trim() || undefined, speaker: as,
       mode: ROLL_COMMANDS[cmd[1].toLowerCase()]
     });
+    return;
+  }
+  // /w Nome mensagem · /w "Nome Comprido" mensagem · /w [Ana, Rui] mensagem · /w gm mensagem
+  const w = /^\/(?:w|whisper)\s+(?:\[([^\]]+)\]|"([^"]+)"|(\S+))\s+([\s\S]+)$/i.exec(text);
+  if (w) {
+    const names = (w[1] ?? w[2] ?? w[3]).split(",").map(n => n.trim().toLocaleLowerCase("pt")).filter(Boolean);
+    const users = game.all<UserDoc>("User");
+    const ids = new Set<string>();
+    for (const n of names) {
+      if (n === "gm" || n === "mestre") users.filter(u => u.role === "gm").forEach(u => ids.add(u._id));
+      else {
+        const u = users.find(x => x.name.toLocaleLowerCase("pt") === n);
+        if (!u) return toast(`Não há ninguém chamado "${n}"`, "error");
+        ids.add(u._id);
+      }
+    }
+    await game.create("ChatMessage", { content: w[4].trim(), speaker: as, whisper: [...ids] }).catch(() => {});
     return;
   }
   if (text.startsWith("/")) {

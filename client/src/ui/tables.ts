@@ -7,6 +7,7 @@ import { avatar, h, pickFile, safeHtml, setChildren, upload } from "../dom.ts";
 import { directory } from "./directory.ts";
 import { closeWindow, confirmDialog, openWindow, prompt, setWindowTitle } from "./windows.ts";
 import { linkChip } from "./links.ts";
+import { settings } from "../settings.ts";
 
 const DOC_DRAG = "application/x-mesa-doc";
 const level = (t: RollTableDoc) => ownershipLevel(t.ownership, game.user);
@@ -20,7 +21,7 @@ export async function tableAction(action: TableAction): Promise<boolean> {
 }
 
 /** Draw from a table (the server rolls and posts the card). */
-export function drawTable(tableId: string, count = 1, mode: RollMode = "public"): Promise<boolean> {
+export function drawTable(tableId: string, count = 1, mode: RollMode = settings.get<RollMode>("core.rollMode")): Promise<boolean> {
   return tableAction({ action: "draw", tableId, count, mode });
 }
 
@@ -69,7 +70,7 @@ export function openTableSheet(tableId: string): void {
   const body = openWindow(key, game.get<RollTableDoc>("RollTable", tableId)?.name ?? "Tabela", { width: 640, onClose: () => offs.forEach(f => f()) });
   if (!body) return;
   let count = 1;
-  let mode: RollMode = "public";
+  let mode: RollMode = settings.get<RollMode>("core.rollMode");
 
   const render = () => {
     const t = game.get<RollTableDoc>("RollTable", tableId);

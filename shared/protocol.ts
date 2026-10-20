@@ -60,6 +60,8 @@ export interface UserDoc extends BaseDoc {
   character: string | null;
   /** Hotbar slots 1–50 (10 per page) → what they hold. */
   hotbar?: Record<string, HotbarEntry | null>;
+  /** User-scope settings (see shared/settings.ts). */
+  settings?: Record<string, unknown>;
   /** Server-only. Never sent to clients. */
   passwordHash?: string | null;
 }

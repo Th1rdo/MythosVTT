@@ -1,4 +1,5 @@
 import { DOOR, DOOR_STATE, OWNERSHIP, REGION_VISIBILITY } from "./protocol.ts";
+import { worldSetting } from "./settings.ts";
 import type {
   ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, CardsDoc, CompendiumDoc, JournalEntryPageDoc, MacroDoc, PlaylistDoc, RollTableDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
   Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
@@ -131,7 +132,7 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
 
 /** Fields a player may change on a token they own. */
 const PLAYER_TOKEN_FIELDS = new Set(["_id", "x", "y", "rotation", "elevation", "level", "delta"]);
-const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar"]);
+const PLAYER_USER_FIELDS = new Set(["_id", "color", "hotbar", "settings"]);
 
 /**
  * Whether `user` may apply `op` to `doc` (for updates, `changes` is the requested diff).
@@ -179,14 +180,22 @@ export function checkWrite(
       // Players may place, move and remove their own measured templates (regions with no behaviours).
       const r = doc as RegionDoc;
       if (r.template?.author !== user._id || r.behaviors?.length) return deny;
+      if (op === "create" && !worldSetting(docs, "core.playerTemplates")) return "O mestre desligou os modelos para os jogadores";
       const allowed = new Set(["_id", "shapes", "color", "name"]);
       return op !== "update" || Object.keys(changes ?? {}).every(k => allowed.has(k)) ? null : deny;
     }
     case "Drawing":
-      // Anyone may draw; authors edit and delete their own drawings.
+      // Anyone may draw (unless the GM turned it off); authors edit and delete their own drawings.
+      if (op === "create" && !worldSetting(docs, "core.playerDrawings")) return "O mestre desligou os desenhos para os jogadores";
       return (doc as DrawingDoc).author === user._id ? null : deny;
     case "Macro": {
       // Anyone makes macros (the server marks them as the author); owners edit, share and delete them.
+      // Script macros need the world setting; without it players can't write or change scripts.
+      const scripts = !!worldSetting(docs, "core.playerMacroScript");
+      const touchesScript = (doc as MacroDoc).type === "script" || changes?.type === "script";
+      if (!scripts && op !== "delete" && touchesScript && (op === "create" || "command" in (changes ?? {}) || "type" in (changes ?? {}))) {
+        return "O mestre não deixa os jogadores fazer macros de script";
+      }
       if (op === "create") return (doc as MacroDoc).author === user._id ? null : deny;
       if (macroLevel(doc as MacroDoc, user) < OWNERSHIP.OWNER) return deny;
       return op === "update" && "author" in (changes ?? {}) ? deny : null;

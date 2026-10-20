@@ -15,6 +15,7 @@ import { normalize, prepareCreate, validate } from "./schema.ts";
 import { hashPassword } from "./auth.ts";
 import crypto from "node:crypto";
 import { DiceError, roll } from "../shared/dice.ts";
+import { worldSetting } from "../shared/settings.ts";
 
 /** At most this many [[inline]] rolls per message. */
 const MAX_INLINE = 20;
@@ -215,6 +216,13 @@ export class World implements DocLookup {
       out.roll = null;
       out.blind = false;
       out.table = null;
+      // Whispers: real users only, the author always included; players need the world setting.
+      if (Array.isArray(out.whisper)) {
+        if (user.role !== "gm" && !worldSetting(this, "core.playerWhisper")) throw new Error("O mestre desligou os sussurros");
+        const ids = new Set((out.whisper as unknown[]).filter((id): id is string => typeof id === "string" && !!this.get("User", id)));
+        if (!ids.size) throw new Error("Sussurro para ninguém");
+        out.whisper = [...ids, user._id].filter((id, i, a) => a.indexOf(id) === i);
+      } else out.whisper = null;
       if (typeof out.content !== "string" || !out.content.trim()) throw new Error("Mensagem vazia");
       // [[1d20+2]] (or [[/r 1d20]]) in the text rolls on the server; the text keeps the markers.
       const inline = [...out.content.matchAll(/\[\[(?:\/r(?:oll)?\s+)?([^\]]+)\]\]/gi)].slice(0, MAX_INLINE);

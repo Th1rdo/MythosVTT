@@ -40,3 +40,12 @@ test("gridless measures straight lines and doesn't snap", () => {
   assert.equal(measure(none, { x: 0, y: 0 }, { x: 300, y: 400 }), 7.5);
   assert.deepEqual(snapPoint(none, { x: 12.4, y: 7.6 }), { x: 12, y: 8 });
 });
+
+test("square diagonals follow the chosen rule", () => {
+  const base = { type: 1, size: 100, distance: 1.5 };
+  const a = { x: 50, y: 50 }, b = { x: 450, y: 350 }; // 4 across, 3 down
+  assert.equal(measure({ ...base, diagonals: "equidistant" }, a, b), 6);
+  assert.equal(measure({ ...base, diagonals: "alternating" }, a, b), 7.5); // 1 straight + 3 diagonals costing 1,2,1
+  assert.equal(measure({ ...base, diagonals: "rectilinear" }, a, b), 10.5);
+  assert.equal(measure({ ...base, diagonals: "exact" }, a, b), 7.8); // (1 + 3√2 ≈ 5.2) × 1.5
+});

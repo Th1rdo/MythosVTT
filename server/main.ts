@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { worldSetting } from "../shared/settings.ts";
 import http from "node:http";
 import path from "node:path";
 import express from "express";
@@ -77,10 +78,15 @@ app.post("/api/logout", (req, res) => {
 const UPLOAD_TYPES = /\.(png|jpe?g|webp|gif|svg|avif|mp3|ogg|wav|webm|mp4|m4a)$/i;
 
 /** GM uploads: raw body, filename in ?name=. Stored under the world's assets/uploads. */
-app.post("/api/upload", express.raw({ type: "*/*", limit: "200mb" }), (req, res) => {
-  if (currentUser(req)?.role !== "gm") return res.status(403).json({ error: "Só o mestre pode carregar ficheiros" });
+// Accept any body type: browsers send files of unknown type (some audio formats) without a Content-Type.
+app.post("/api/upload", express.raw({ type: () => true, limit: "200mb" }), (req, res) => {
+  const uploader = currentUser(req);
+  if (!uploader || (uploader.role !== "gm" && !worldSetting(world, "core.playerUpload"))) {
+    return res.status(403).json({ error: "Só o mestre pode carregar ficheiros" });
+  }
   const original = path.basename(String(req.query.name ?? ""));
   if (!UPLOAD_TYPES.test(original)) return res.status(400).json({ error: "Tipo de ficheiro não suportado" });
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: "Ficheiro vazio" });
   const safe = original.normalize("NFKD").replace(/[^\w.-]+/g, "-").replace(/^-+/, "").toLowerCase();
   const dir = path.join(world.assetsDir, "uploads");
   fs.mkdirSync(dir, { recursive: true });

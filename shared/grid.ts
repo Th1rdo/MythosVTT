@@ -9,6 +9,8 @@ export interface GridSpec {
   size: number;
   /** Scene units per cell. */
   distance: number;
+  /** How square grids count diagonal steps (world setting core.gridDiagonals). */
+  diagonals?: "equidistant" | "alternating" | "exact" | "rectilinear";
 }
 
 export const isHex = (g: GridSpec) => g.type >= GRID.HEX_ODD_R && g.type <= GRID.HEX_EVEN_Q;
@@ -128,7 +130,16 @@ export function measure(g: GridSpec, a: Point, b: Point): number {
     const [ax, ay, az] = cube(g, A.row, A.col), [bx, by, bz] = cube(g, B.row, B.col);
     return Math.max(Math.abs(ax - bx), Math.abs(ay - by), Math.abs(az - bz)) * g.distance;
   }
-  return Math.round(Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y)) / g.size) * g.distance;
+  const dx = Math.round(Math.abs(b.x - a.x) / g.size), dy = Math.round(Math.abs(b.y - a.y) / g.size);
+  const diag = Math.min(dx, dy), straight = Math.max(dx, dy) - diag;
+  let cells: number;
+  switch (g.diagonals) {
+    case "alternating": cells = straight + diag + Math.floor(diag / 2); break; // every second diagonal costs 2
+    case "exact": cells = Math.round((straight + diag * Math.SQRT2) * 10) / 10; break;
+    case "rectilinear": cells = dx + dy; break;
+    default: cells = straight + diag; // every diagonal costs 1
+  }
+  return Math.round(cells * g.distance * 10) / 10;
 }
 
 /** Hex centres covering a scene (for drawing hex grids). */

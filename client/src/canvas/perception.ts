@@ -4,6 +4,7 @@ import { FOG_MODE } from "../../../shared/protocol.ts";
 import type { Point } from "../../../shared/geometry.ts";
 import { pointInPolygon, unitsToPixels, visibilityPolygon, wallEdges } from "../../../shared/geometry.ts";
 import { game } from "../game.ts";
+import { settings } from "../settings.ts";
 import { onLevel } from "../../../shared/levels.ts";
 import { shapePolygon } from "../../../shared/regions.ts";
 import type { Board, TokenView } from "./board.ts";
@@ -284,7 +285,7 @@ export class Perception {
     this.#time += dt / 1000;
     for (const l of this.#lights) {
       const anim = l.config.animation;
-      if (!anim?.type) {
+      if (!anim?.type || !settings.get("core.lightAnimation")) {
         l.glow.alpha = 1;
         continue;
       }

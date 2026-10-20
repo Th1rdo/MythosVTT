@@ -2,6 +2,7 @@ import type { ChatMessageDoc } from "../../../shared/protocol.ts";
 import { game } from "../game.ts";
 import { h } from "../dom.ts";
 import { chatInputBox, messageView } from "../ui/chat.ts";
+import { settings } from "../settings.ts";
 
 export interface SidebarTab {
   id: string;
@@ -82,7 +83,7 @@ function chatDock(active: () => boolean): { element: HTMLElement; update: () => 
   const notes = h("div.chat-notes");
   const element = h("div.chat-dock", null, notes, chatInputBox());
   game.on("ChatMessage", e => {
-    if (e.op !== "create" || !active()) return;
+    if (e.op !== "create" || !active() || !settings.get("core.chatNotifications")) return;
     for (const m of e.docs as ChatMessageDoc[]) {
       const note = messageView(m);
       note.classList.add("chat-note");

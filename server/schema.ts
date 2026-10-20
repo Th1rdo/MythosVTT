@@ -1,6 +1,7 @@
 import type { BaseDoc, DocType } from "../shared/protocol.ts";
 import { DISPLAY, OWNERSHIP } from "../shared/protocol.ts";
 import { isPlainObject, mergeDeep } from "../shared/objects.ts";
+import { SETTING_MAP, fromUserStorageKey, validateSetting } from "../shared/settings.ts";
 
 const NO_LIGHT = { bright: 0, dim: 0, color: null, alpha: 0.5, angle: 360, animation: { type: null, speed: 5, intensity: 5 } };
 
@@ -8,7 +9,7 @@ const NO_LIGHT = { bright: 0, dim: 0, color: null, alpha: 0.5, angle: 360, anima
 function defaults(type: DocType): Record<string, unknown> {
   switch (type) {
     case "User":
-      return { name: "Jogador", role: "player", color: "#7c8cff", character: null, hotbar: {}, passwordHash: null };
+      return { name: "Jogador", role: "player", color: "#7c8cff", character: null, hotbar: {}, settings: {}, passwordHash: null };
     case "Actor":
       return {
         name: "Novo ator", type: "agent", img: null, system: {}, ownership: { default: OWNERSHIP.NONE }, folder: null,
@@ -232,6 +233,19 @@ export function validate(type: DocType, doc: BaseDoc): void {
   }
   if (type === "JournalEntry" && !Array.isArray(doc.categories)) throw new Error("Diário: categorias inválidas");
   if (type === "Cards" && !["deck", "hand", "pile"].includes(doc.type as string)) throw new Error("Cartas: tipo inválido");
+  if (type === "Setting") {
+    const def = SETTING_MAP.get(doc.key as string);
+    if (!def || def.scope !== "world") throw new Error(`Definição desconhecida: ${String(doc.key)}`);
+    doc.value = validateSetting(def, doc.value);
+  }
+  if (type === "User" && doc.settings) {
+    if (!isPlainObject(doc.settings)) throw new Error("Definições inválidas");
+    for (const [k, v] of Object.entries(doc.settings as Record<string, unknown>)) {
+      const def = SETTING_MAP.get(fromUserStorageKey(k));
+      if (!def || def.scope !== "user") throw new Error(`Definição desconhecida: ${k}`);
+      if (v !== null) validateSetting(def, v);
+    }
+  }
   if (type === "Card") {
     if (!Array.isArray(doc.faces) || doc.faces.length > 20) throw new Error("Carta: faces inválidas");
     if (doc.face !== null && !(Number.isInteger(doc.face) && (doc.face as number) >= 0 && (doc.face as number) < (doc.faces as unknown[]).length)) throw new Error("Carta: face inválida");
