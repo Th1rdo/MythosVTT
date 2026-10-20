@@ -34,6 +34,10 @@ function defaults(type: DocType): Record<string, unknown> {
       return { x: 0, y: 0, rotation: 0, walls: true, hidden: false, config: { ...NO_LIGHT, bright: 3, dim: 6, color: "#ffc070", alpha: 0.4 } };
     case "FogExploration":
       return { user: "", explored: "", timestamp: 0 };
+    case "Combat":
+      return { sceneId: null, round: 0, current: null, skipDefeated: true, sort: 0 };
+    case "Combatant":
+      return { actorId: null, tokenId: null, name: "", img: null, initiative: null, hidden: false, defeated: false };
     case "ChatMessage":
       return { author: "", speaker: { actor: null, alias: "" }, content: "", html: false, flavor: null, roll: null, whisper: null, timestamp: 0 };
     case "JournalEntry":
@@ -46,6 +50,7 @@ function defaults(type: DocType): Record<string, unknown> {
 const NUMBER_FIELDS: Partial<Record<DocType, string[]>> = {
   Token: ["x", "y", "width", "height", "rotation"],
   AmbientLight: ["x", "y", "rotation"],
+  Combat: ["round", "sort"],
   Scene: ["width", "height", "sort"],
   JournalEntry: ["sort"]
 };
@@ -79,6 +84,9 @@ export function validate(type: DocType, doc: BaseDoc): void {
     if (![0, 1, 2].includes(doc.dir as number) || ![0, 1, 2].includes(doc.door as number) || ![0, 1, 2].includes(doc.ds as number)) {
       throw new Error("Parede: dir/door/ds inválido");
     }
+  }
+  if (type === "Combatant" && doc.initiative !== null && (typeof doc.initiative !== "number" || !Number.isFinite(doc.initiative))) {
+    throw new Error("Iniciativa tem de ser um número");
   }
   if (type === "FogExploration") {
     if (typeof doc.explored !== "string" || doc.explored.length > MAX_FOG_IMAGE) throw new Error("Nevoeiro inválido");

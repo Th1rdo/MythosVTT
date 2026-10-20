@@ -7,6 +7,8 @@ import { WallsLayer } from "./canvas/walls.ts";
 import { LightsLayer } from "./canvas/lights.ts";
 import { Ruler } from "./canvas/ruler.ts";
 import { sceneControls } from "./canvas/controls.ts";
+import { TurnMarker } from "./canvas/turn-marker.ts";
+import { combatPanel } from "./ui/combat.ts";
 import { h } from "./dom.ts";
 import { chatPanel } from "./ui/chat.ts";
 import { actorsPanel, journalPanel, playersPanel, scenesPanel } from "./ui/panels.ts";
@@ -87,6 +89,7 @@ async function startGame(): Promise<void> {
   const walls = new WallsLayer(board, perception);
   new LightsLayer(board);
   new Ruler(board);
+  new TurnMarker(board);
   controlsHost.replaceWith(sceneControls(board, walls, hint));
   perception.refresh();
   // Debug handle for development only (stripped from production builds).
@@ -94,6 +97,7 @@ async function startGame(): Promise<void> {
 
   const tabs: [string, string, () => HTMLElement][] = [
     ["chat", "Chat", chatPanel],
+    ["combat", "Combate", () => combatPanel(id => board.panTo(id))],
     ["actors", "Atores", actorsPanel],
     ["journal", "Diário", journalPanel],
     ...(game.isGM ? [["scenes", "Cenas", scenesPanel], ["players", "Jogadores", playersPanel]] as [string, string, () => HTMLElement][] : [])

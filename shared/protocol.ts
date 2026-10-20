@@ -12,10 +12,11 @@
 
 export type DocType =
   | "User" | "Actor" | "Item" | "Scene" | "Token" | "Wall" | "AmbientLight" | "FogExploration"
-  | "ChatMessage" | "JournalEntry" | "Setting";
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Setting";
 
 export const DOC_TYPES: readonly DocType[] = [
-  "User", "Actor", "Item", "Scene", "Token", "Wall", "AmbientLight", "FogExploration", "ChatMessage", "JournalEntry", "Setting"
+  "User", "Actor", "Item", "Scene", "Token", "Wall", "AmbientLight", "FogExploration",
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Setting"
 ];
 
 /** Child types and the type of their parent. Deleting a parent deletes its children. */
@@ -24,7 +25,8 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   Token: "Scene",
   Wall: "Scene",
   AmbientLight: "Scene",
-  FogExploration: "Scene"
+  FogExploration: "Scene",
+  Combatant: "Combat"
 };
 
 export interface BaseDoc {
@@ -153,6 +155,35 @@ export interface TokenDoc extends BaseDoc {
   sight: { enabled: boolean; /** distance units; 0 = sees only lit areas */ range: number; angle: number };
   light: LightConfig;
 }
+
+export interface CombatDoc extends BaseDoc {
+  /** Scene the encounter belongs to (null = not tied to a scene). */
+  sceneId: string | null;
+  /** 0 = not started yet. */
+  round: number;
+  /** Id of the combatant whose turn it is (Mesa tracks the turn by id, not list position). */
+  current: string | null;
+  skipDefeated: boolean;
+  sort: number;
+}
+
+export interface CombatantDoc extends BaseDoc {
+  actorId: string | null;
+  tokenId: string | null;
+  name: string;
+  img: string | null;
+  initiative: number | null;
+  hidden: boolean;
+  defeated: boolean;
+}
+
+/** Server-side combat actions (socket event `combat`). */
+export type CombatAction =
+  | { action: "start" | "end" | "nextTurn" | "previousTurn" | "nextRound" | "previousRound" | "resetInitiative"; combatId: string }
+  | { action: "rollInitiative"; combatId: string; combatantIds: string[] }
+  | { action: "rollAll" | "rollNPCs"; combatId: string }
+  /** Add or remove tokens (GM) or one's own tokens (players) from the scene's encounter. */
+  | { action: "toggleTokens"; sceneId: string; tokenIds: string[] };
 
 export interface RollResult {
   formula: string;

@@ -1,14 +1,12 @@
 import type { ActorDoc, ItemDoc, UserDoc } from "../../../shared/protocol.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { opTestFormula } from "../../../shared/dice.ts";
+import { ATTRIBUTES, DEGREES, isOrdemActor, skillBonus } from "../../../shared/ordem.ts";
 import { game, toast } from "../game.ts";
 import { avatar, h, pickFile, safeHtml, upload } from "../dom.ts";
 import { closeWindow, openWindow, setWindowTitle } from "./windows.ts";
 
 // Ordem Paranormal labels (pt-PT). Keys match the ordemparanormal Foundry system's data.
-const ATTRIBUTES: [key: string, label: string][] = [
-  ["dex", "AGI"], ["str", "FOR"], ["int", "INT"], ["pre", "PRE"], ["vit", "VIG"]
-];
 const SKILLS: Record<string, string> = {
   acrobatics: "Acrobacia", animal: "Adestramento", arts: "Artes", athleticism: "Atletismo", relevance: "Atualidades",
   sciences: "Ciências", crime: "Crime", diplomacy: "Diplomacia", deception: "Enganação", resilience: "Fortitude",
@@ -17,22 +15,11 @@ const SKILLS: Record<string, string> = {
   driving: "Pilotagem", aim: "Pontaria", reflexes: "Reflexos", religion: "Religião", survival: "Sobrevivência",
   tactics: "Tática", technology: "Tecnologia", will: "Vontade", freeSkill: "Perícia livre"
 };
-const DEGREES: [label: string, name: string, bonus: number][] = [
-  ["untrained", "Destreinado", 0], ["trained", "Treinado", 5], ["veteran", "Veterano", 10], ["expert", "Expert", 15]
-];
 const RESOURCES: [key: string, label: string][] = [["PV", "PV"], ["SAN", "SAN"], ["PE", "PE"], ["PD", "PD"]];
 const OWNERSHIP_LABELS: [number, string][] = [
   [OWNERSHIP.NONE, "Nenhum"], [OWNERSHIP.LIMITED, "Limitado"], [OWNERSHIP.OBSERVER, "Observador"], [OWNERSHIP.OWNER, "Dono"]
 ];
 
-function isOrdem(actor: ActorDoc): boolean {
-  return !!actor.system?.attributes && !!actor.system?.skills;
-}
-
-export function skillBonus(skill: any): number {
-  const degree = DEGREES.find(d => d[0] === skill?.degree?.label)?.[2] ?? 0;
-  return degree + (Number(skill?.mod) || 0) + (Number(skill?.value) || 0);
-}
 
 export function openSheet(actorId: string): void {
   const key = `actor-${actorId}`;
@@ -47,7 +34,7 @@ export function openSheet(actorId: string): void {
     const a = game.get<ActorDoc>("Actor", actorId);
     if (!a) return closeWindow(key);
     setWindowTitle(key, a.name);
-    body.replaceChildren(isOrdem(a) ? ordemSheet(a) : genericSheet(a));
+    body.replaceChildren(isOrdemActor(a) ? ordemSheet(a) : genericSheet(a));
   };
   const refresh = () => {
     // Don't yank an input out from under the user while they type.

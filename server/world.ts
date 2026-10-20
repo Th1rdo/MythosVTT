@@ -1,15 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { BaseDoc, DocRequest, DocType, FogExplorationDoc, SceneDoc, TokenDoc, UserDoc, WallDoc } from "../shared/protocol.ts";
+import type {
+  BaseDoc, CombatDoc, CombatantDoc, DocRequest, DocType, FogExplorationDoc, SceneDoc, TokenDoc, UserDoc, WallDoc
+} from "../shared/protocol.ts";
 import { DOC_TYPES, PARENT_TYPE } from "../shared/protocol.ts";
 import { checkWrite } from "../shared/permissions.ts";
 import type { DocLookup } from "../shared/permissions.ts";
 import { expandDotKeys, mergeDeep, randomId } from "../shared/objects.ts";
 import { movementBlocked, wallEdges } from "../shared/geometry.ts";
+import { nextTurnState } from "../shared/combat.ts";
 import { Store } from "./store.ts";
 import { normalize, prepareCreate, validate } from "./schema.ts";
 import { hashPassword } from "./auth.ts";
 import { worldDir } from "./paths.ts";
+
+/** Identity used when the server itself changes documents. */
+const SYSTEM_USER: UserDoc = { _id: "", name: "Mesa", role: "gm", color: "#888888", character: null };
 
 export interface WorldMeta {
   id: string;
@@ -91,6 +97,11 @@ export class World implements DocLookup {
   /** Create documents as the server itself (bypasses permissions, still validates). */
   createAsSystem(type: DocType, data: Record<string, unknown>[], parent?: string): BaseDoc[] {
     return this.#commit(data.map(d => ({ type, after: prepareCreate(type, d, this.#newId(type), parent) }))).map(c => c.after!);
+  }
+
+  /** Apply a request with GM rights on behalf of the server (combat actions etc.). */
+  applyAsSystem(req: DocRequest): Change[] {
+    return this.apply(req, SYSTEM_USER);
   }
 
   apply(req: DocRequest, user: UserDoc): Change[] {
@@ -206,13 +217,53 @@ export class World implements DocLookup {
     return out;
   }
 
-  /** Only one scene may be active at a time. */
+  /**
+   * Consequences of a change that the requester didn't ask for explicitly:
+   * - only one scene may be active at a time
+   * - deleting a scene deletes its encounters; deleting a token removes it from encounters
+   * - removing the combatant whose turn it is passes the turn on
+   */
   #sideEffects(changes: Change[]): Change[] {
+    const out: Change[] = [];
     const activated = changes.find(c => c.type === "Scene" && c.after?.active && !c.before?.active);
-    if (!activated) return [];
-    return this.all<SceneDoc>("Scene")
-      .filter(s => s.active && s._id !== activated.after!._id)
-      .map(s => ({ type: "Scene" as DocType, before: s, after: { ...s, active: false } }));
+    if (activated) {
+      for (const s of this.all<SceneDoc>("Scene")) {
+        if (s.active && s._id !== activated.after!._id) out.push({ type: "Scene", before: s, after: { ...s, active: false } });
+      }
+    }
+
+    const deleted = (type: DocType) => new Set(changes.filter(c => c.type === type && !c.after).map(c => c.before!._id));
+    const goneScenes = deleted("Scene");
+    const goneTokens = deleted("Token");
+    const alreadyGone = new Set(changes.filter(c => !c.after).map(c => `${c.type}:${c.before!._id}`));
+    const remove = (type: DocType, doc: BaseDoc) => {
+      if (alreadyGone.has(`${type}:${doc._id}`)) return;
+      alreadyGone.add(`${type}:${doc._id}`);
+      out.push({ type, before: doc });
+    };
+    for (const combat of this.all<CombatDoc>("Combat")) {
+      if (combat.sceneId && goneScenes.has(combat.sceneId)) {
+        remove("Combat", combat);
+        for (const c of this.all<CombatantDoc>("Combatant")) if (c._parent === combat._id) remove("Combatant", c);
+      }
+    }
+    for (const c of this.all<CombatantDoc>("Combatant")) if (c.tokenId && goneTokens.has(c.tokenId)) remove("Combatant", c);
+
+    // Pass the turn on if the current combatant left.
+    const removedCombatants = new Set([...changes, ...out].filter(c => c.type === "Combatant" && !c.after).map(c => c.before!._id));
+    for (const combat of this.all<CombatDoc>("Combat")) {
+      if (!combat.current || !removedCombatants.has(combat.current) || alreadyGone.has(`Combat:${combat._id}`)) continue;
+      const all = this.all<CombatantDoc>("Combatant").filter(c => c._parent === combat._id);
+      const remaining = all.filter(c => !removedCombatants.has(c._id));
+      // Find who would have been next, then make sure they're still here.
+      let state = nextTurnState(combat, all);
+      for (let i = 0; i < all.length && state.current && removedCombatants.has(state.current); i++) {
+        state = nextTurnState({ ...combat, ...state }, all);
+      }
+      if (!remaining.length) state = { round: combat.round, current: null };
+      out.push({ type: "Combat", before: combat, after: { ...combat, ...state } });
+    }
+    return out;
   }
 
   #commit(changes: Change[]): Change[] {

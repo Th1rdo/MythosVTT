@@ -291,6 +291,33 @@ insert("AmbientLight", scenes.flatMap(s => {
   }));
 }));
 
+// Combats: Foundry stores the turn as an index into its sorted order (initiative desc, then id).
+const combats = await readCollection("combats");
+const sceneIds = new Set(scenes.map(s => s._id));
+insert("Combat", combats.map((c, i) => {
+  const order = [...(c.combatants ?? [])].sort((a: Raw, b: Raw) =>
+    ((b.initiative ?? -Infinity) - (a.initiative ?? -Infinity)) || (a._id > b._id ? 1 : -1));
+  return {
+    _id: c._id,
+    sceneId: sceneIds.has(c.scene) ? c.scene : null,
+    round: c.round ?? 0,
+    current: c.round > 0 && typeof c.turn === "number" ? order[c.turn]?._id ?? null : null,
+    skipDefeated: true,
+    sort: c.sort ?? i
+  };
+}));
+insert("Combatant", combats.flatMap(c => (c.combatants ?? []).map((x: Raw) => ({
+  _id: x._id,
+  _parent: c._id,
+  actorId: x.actorId ?? null,
+  tokenId: x.tokenId ?? null,
+  name: x.name ?? "",
+  img: asset(x.img),
+  initiative: typeof x.initiative === "number" ? x.initiative : null,
+  hidden: !!x.hidden,
+  defeated: !!x.defeated
+}))));
+
 const journal = await readCollection("journal");
 insert("JournalEntry", journal.map(j => {
   const pages: Raw[] = [...(j.pages ?? [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));

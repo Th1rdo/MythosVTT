@@ -6,7 +6,7 @@ import { WALL_PRESETS } from "./walls.ts";
 import { confirmDialog } from "../ui/windows.ts";
 
 const TOOLS: { name: ToolName; icon: string; label: string; gm: boolean; hint: string }[] = [
-  { name: "tokens", icon: "♟", label: "Tokens", gm: false, hint: "Arrastar: mover · Shift+roda: rodar · Duplo clique: ficha / ping · Botão direito: configurar (mestre)" },
+  { name: "tokens", icon: "♟", label: "Tokens", gm: false, hint: "Arrastar: mover · Shift+roda: rodar · C: entrar/sair do combate · Duplo clique: ficha / ping · Botão direito: configurar (mestre)" },
   { name: "ruler", icon: "📏", label: "Régua", gm: false, hint: "Arrastar para medir · Espaço: ponto intermédio" },
   { name: "walls", icon: "🧱", label: "Paredes", gm: true, hint: "Arrastar: nova parede · Ctrl ao largar: encadear · Esc: parar · Shift: sem grelha · Duplo clique: configurar · Del: apagar" },
   { name: "lights", icon: "💡", label: "Luzes", gm: true, hint: "Arrastar: nova luz (raio) · Arrastar ícone: mover · Botão direito: ligar/desligar · Duplo clique: configurar" }

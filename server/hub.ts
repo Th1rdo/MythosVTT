@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, RollRequest, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, RollRequest, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
 import { DOC_TYPES, DOOR, DOOR_STATE } from "../shared/protocol.ts";
 import { canSee } from "../shared/permissions.ts";
 import { roll } from "../shared/dice.ts";
+import { runCombatAction } from "./combat.ts";
 import type { Change, World } from "./world.ts";
 import { Sessions, parseCookies } from "./auth.ts";
 
@@ -105,6 +106,18 @@ export class Hub {
     socket.on("ping", (ping: Omit<PingEvent, "userId">) => {
       if (typeof ping?.x !== "number" || typeof ping?.y !== "number") return;
       socket.broadcast.emit("ping", { ...ping, userId: socket.data.userId } satisfies PingEvent);
+    });
+
+    socket.on("combat", (action: CombatAction, ack?: Ack<DocResponse>) => {
+      const me = this.#user(socket);
+      if (!me) return ack?.({ ok: false, error: "Sessão inválida" });
+      try {
+        const changes = runCombatAction(this.#world, me, action);
+        this.#broadcast(changes, me._id);
+        ack?.({ ok: true, result: [] });
+      } catch (err) {
+        ack?.({ ok: false, error: (err as Error).message });
+      }
     });
 
     socket.on("ruler", (r: { sceneId?: unknown; points?: unknown }) => {

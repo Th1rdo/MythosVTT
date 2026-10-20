@@ -1,6 +1,7 @@
 import { DOOR, DOOR_STATE, OWNERSHIP } from "./protocol.ts";
 import type {
-  ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, DocType, FogExplorationDoc, JournalEntryDoc, Ownership, TokenDoc, UserDoc, WallDoc
+  ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, FogExplorationDoc, JournalEntryDoc, Ownership, TokenDoc,
+  UserDoc, WallDoc
 } from "./protocol.ts";
 
 /** Read access to other documents, used to resolve ownership through parents (Token → Actor, Item → Actor). */
@@ -43,6 +44,8 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
       return !(doc as AmbientLightDoc).hidden;
     case "FogExploration":
       return (doc as FogExplorationDoc).user === user._id;
+    case "Combatant":
+      return !(doc as CombatantDoc).hidden || ownsActor((doc as CombatantDoc).actorId, user, docs);
     default:
       return true;
   }
@@ -92,6 +95,10 @@ export function checkWrite(
     }
     case "FogExploration":
       return (doc as FogExplorationDoc).user === user._id && (op !== "update" || !("user" in (changes ?? {}))) ? null : deny;
+    case "Combatant":
+      // Owners may mark their own combatant defeated; initiative comes from server-side rolls.
+      if (op !== "update" || !ownsActor((doc as CombatantDoc).actorId, user, docs)) return deny;
+      return Object.keys(changes ?? {}).every(k => k === "_id" || k === "defeated") ? null : deny;
     default:
       return deny;
   }

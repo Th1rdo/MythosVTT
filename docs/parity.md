@@ -27,9 +27,15 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ⬜ Vision modes (darkvision, etc.) and detection modes — OP doesn't use them by default
 - ✅ Ruler (waypoints with Space, shared live with other players) and distance readout while dragging tokens
 
-## Phase 2 — Combat  *(documents/combat, combatant, combatant-group; sidebar/combat-tracker)*
-- ⬜ Combat encounters per scene, add/remove combatants (from tokens), initiative roll (OP: AGI-based), sort, turns/rounds, next/previous, hidden/defeated, combatant groups
-- ⬜ Turn marker on canvas, tracker UI, combat settings
+## Phase 2 — Combat  *(documents/combat, combatant, combatant-group; sidebar/combat-tracker — REA `ev_dc722773…`)*
+- ✅ Encounters per scene (several per scene, selector), add/remove tokens with `C` (players: own tokens), created on demand
+- ✅ Initiative rolled on the server and posted to chat (OP: Iniciativa skill test; others 1d20), roll all / threats only, GM edits values, reset
+- ✅ Turns and rounds: start, next/previous turn, next/previous round, end; defeated skipped; current turn tracked by combatant id
+- ✅ Players: roll own initiative, end their own turn, mark own combatant defeated; hidden combatants hidden from players (and roll privately)
+- ✅ Cascades: token deleted → leaves combat (turn passes on), scene deleted → encounters deleted
+- ✅ Tracker tab, click row → pan to token, pulsing turn marker on the canvas
+- ✅ Importer brings Foundry combats (turn index → current combatant)
+- ⬜ Combatant groups, combat sounds, turn/round hooks, combat settings UI, multi-select tokens (Phase 3/7)
 
 ## Phase 3 — Actors, items, effects  *(documents/actor, actor-delta, item, active-effect; hud/token-hud)*
 - ⬜ Item documents with sheets (OP: weapons, protection, rituals, abilities, generic items), drag items onto actors, inventory/spaces

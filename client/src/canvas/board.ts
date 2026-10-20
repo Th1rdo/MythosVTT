@@ -9,6 +9,7 @@ import { game, toast } from "../game.ts";
 import { initials } from "../dom.ts";
 import { openSheet } from "../ui/sheet.ts";
 import { openTokenConfig } from "../ui/canvas-config.ts";
+import { toggleCombat } from "../ui/combat.ts";
 
 const DISPOSITION_COLOR: Record<number, number> = { [-1]: 0xd9534f, 0: 0xe0b84a, 1: 0x4fa3d9 };
 const MIN_ZOOM = 0.1;
@@ -52,6 +53,7 @@ export class Board {
     background: new Container(),
     grid: new Graphics(),
     glow: new Container(),
+    markers: new Container(),
     tokens: new Container(),
     effects: new Container(),
     walls: new Container(),
@@ -78,9 +80,9 @@ export class Board {
     await this.app.init({ resizeTo: host, background: 0x0b0b0e, antialias: true, autoDensity: true, resolution: devicePixelRatio });
     host.append(this.app.canvas);
     const L = this.layers;
-    this.world.addChild(L.background, L.grid, L.glow, L.tokens, L.effects, L.walls, L.doors, L.lights, L.controls, L.pings);
+    this.world.addChild(L.background, L.grid, L.glow, L.markers, L.tokens, L.effects, L.walls, L.doors, L.lights, L.controls, L.pings);
     // Overlays never take input: in PIXI v8 even passive graphics win hit tests and would swallow token clicks.
-    for (const layer of [L.grid, L.glow, L.effects, L.walls, L.controls, L.pings]) layer.eventMode = "none";
+    for (const layer of [L.grid, L.glow, L.markers, L.effects, L.walls, L.controls, L.pings]) layer.eventMode = "none";
     this.#dragLabel.anchor.set(0.5, 1);
     this.#dragLabel.visible = false;
     L.controls.addChild(this.#dragLabel);
@@ -218,6 +220,15 @@ export class Board {
     for (let x = 0; x <= scene.width; x += size) this.layers.grid.moveTo(x, 0).lineTo(x, scene.height);
     for (let y = 0; y <= scene.height; y += size) this.layers.grid.moveTo(0, y).lineTo(scene.width, y);
     this.layers.grid.stroke({ width: 1, color, alpha });
+  }
+
+  /** Centre the view on a token without changing the zoom. */
+  panTo(tokenId: string): void {
+    const v = this.tokens.get(tokenId);
+    if (!v || !v.root.visible) return;
+    const c = this.tokenCenter(v);
+    const s = this.world.scale.x;
+    this.world.position.set(this.app.screen.width / 2 - c.x * s, this.app.screen.height / 2 - c.y * s);
   }
 
   /** Zoom to fit the whole scene in the viewport. */
@@ -531,6 +542,8 @@ export class Board {
     if (!v || !scene || this.tool !== "tokens") return;
     if ((e.key === "Delete" || e.key === "Backspace") && game.isGM) {
       game.delete("Token", v.doc._id, scene._id);
+    } else if (e.key.toLowerCase() === "c" && !e.metaKey && !e.ctrlKey) {
+      toggleCombat([v.doc._id]);
     } else if (e.key.toLowerCase() === "h" && game.isGM) {
       game.update("Token", { _id: v.doc._id, hidden: !v.doc.hidden }, scene._id);
     } else if (e.key.startsWith("Arrow") && this.canMove(v.doc)) {
