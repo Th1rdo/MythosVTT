@@ -111,8 +111,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ⬜ Video popouts, favourite folders, S3/external sources
 - ✅ Setup screen (REA `ev_59d3fb59…`): /setup with admin password (none = this computer only; `MESA_ADMIN_PASSWORD`), worlds list (launch, close, enter, edit title/description, delete with typed id), create world, import a Foundry world from a folder (+ system compendia), backups (consistent DB snapshot + assets) and restore (keeps the replaced state); server starts without a world and switches worlds live
 - ⬜ Packages (systems/modules install), world thumbnails, invitation links, update checks
-- ⬜ Localization (pt-PT first, en)
-- ⬜ Tours / help
+- ✅ Localization (REA `ev_70c23fcb…`): gettext-style `t("texto em pt-PT", {params})` (the Portuguese source is the key, so a missing translation still reads correctly), English table, language per browser in Definições → Interface (reloads), `tools/i18n-check.py` coverage report; the shell, settings, keys, main menu, pause and setup screen are wrapped
+- ⬜ Localization, rest: sheets, windows, canvas configs, chat and journal strings (≈270 literals, see `python3 tools/i18n-check.py`); per-system/module language files; list formatting and sorting by locale
+- ✅ Tours (REA `ev_70c23fcb…`): guided tours that highlight a part of the screen (cut-out + card beside it), GM-only tours/steps, open the right sidebar tab first, progress per browser (new / in progress / seen, resume or restart), Esc leaves; offered once on first entry; Definições → Visitas guiadas; three tours (first steps, the map, preparing a session)
+- ⬜ Tours registered by systems/modules, canvas-placed steps
 
 ## Phase 8 — Extensibility  *(helpers/hooks, packages)*
 - ⬜ Hooks API, module/system package format, enable/disable modules, hot reload

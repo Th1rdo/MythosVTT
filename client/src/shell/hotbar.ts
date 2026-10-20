@@ -13,6 +13,7 @@ import { registerKey } from "../keybindings.ts";
 import { executeMacro } from "../macros.ts";
 import { macroIcon, openMacroConfig } from "../ui/macros.ts";
 import { confirmDialog, contextMenu } from "../ui/windows.ts";
+import { t } from "../i18n.ts";
 
 const PAGES = 5;
 const DOC_DRAG = "application/x-mesa-doc";
@@ -60,7 +61,7 @@ export function hotbar(): HTMLElement {
 
   const onDrop = (slot: number, ev: DragEvent) => {
     ev.preventDefault();
-    if (locked) return toast("A barra está trancada");
+    if (locked) return toast(t("A barra está trancada"));
     const dt = ev.dataTransfer;
     const item = dt?.getData(ITEM_DRAG);
     const doc = dt?.getData(DOC_DRAG);
@@ -90,7 +91,7 @@ export function hotbar(): HTMLElement {
       const macro = entry?.type === "Macro" && info ? (info.doc as MacroDoc) : null;
       return h("li", {
         className: info ? "slot filled" : "slot",
-        title: info ? info.name : "Clica para criar uma macro, ou arrasta um item, ator, entrada ou macro para aqui",
+        title: info ? info.name : t("Clica para criar uma macro, ou arrasta um item, ator, entrada ou macro para aqui"),
         draggable: !!info && !locked,
         ondragstart: (e: DragEvent) => e.dataTransfer?.setData(SLOT_DRAG, String(slot)),
         onclick: () => execute(slot, true),
@@ -99,10 +100,10 @@ export function hotbar(): HTMLElement {
           if (!info) return;
           const mine = macro && macroLevel(macro, game.user) >= OWNERSHIP.OWNER;
           contextMenu(e, [
-            ...(mine ? [{ label: "Editar macro", icon: "fa-solid fa-pen", run: () => openMacroConfig(macro!._id) }] : []),
-            ...(!locked ? [{ label: "Tirar da barra", icon: "fa-solid fa-xmark", run: () => save(slot, null) }] : []),
+            ...(mine ? [{ label: t("Editar macro"), icon: "fa-solid fa-pen", run: () => openMacroConfig(macro!._id) }] : []),
+            ...(!locked ? [{ label: t("Tirar da barra"), icon: "fa-solid fa-xmark", run: () => save(slot, null) }] : []),
             ...(mine ? [{
-              label: "Apagar macro", icon: "fa-solid fa-trash",
+              label: t("Apagar macro"), icon: "fa-solid fa-trash",
               run: async () => { if (await confirmDialog(`Apagar a macro "${macro!.name}"?`)) { await game.delete("Macro", macro!._id); save(slot, null); } }
             }] : [])
           ]);
@@ -118,21 +119,21 @@ export function hotbar(): HTMLElement {
       h("div.hotbar-side", null,
         h("button.control-btn.small", {
           className: `control-btn small${audio.settings.muted ? " active" : ""}`,
-          title: audio.settings.muted ? "Ligar o som" : "Silenciar tudo",
+          title: audio.settings.muted ? t("Ligar o som") : t("Silenciar tudo"),
           onclick: () => audio.setMuted(!audio.settings.muted)
         }, h("i", { className: audio.settings.muted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high" })),
-        h("button.control-btn.small", { title: collapsed ? "Mostrar barra" : "Esconder barra", onclick: () => { collapsed = !collapsed; render(); } }, h("i.fa-solid.fa-bars"))),
+        h("button.control-btn.small", { title: collapsed ? t("Mostrar barra") : t("Esconder barra"), onclick: () => { collapsed = !collapsed; render(); } }, h("i.fa-solid.fa-bars"))),
       collapsed ? null : h("menu.slots", null, cells),
       collapsed ? null : h("div.hotbar-side.right", null,
         h("div.pages", null,
-          h("button.icon", { title: "Página seguinte", onclick: () => { page = (page % PAGES) + 1; render(); } }, h("i.fa-solid.fa-caret-up")),
+          h("button.icon", { title: t("Página seguinte"), onclick: () => { page = (page % PAGES) + 1; render(); } }, h("i.fa-solid.fa-caret-up")),
           h("span.page", null, String(page)),
-          h("button.icon", { title: "Página anterior", onclick: () => { page = ((page + PAGES - 2) % PAGES) + 1; render(); } }, h("i.fa-solid.fa-caret-down"))),
+          h("button.icon", { title: t("Página anterior"), onclick: () => { page = ((page + PAGES - 2) % PAGES) + 1; render(); } }, h("i.fa-solid.fa-caret-down"))),
         h("div.hotbar-buttons", null,
-          h("button.control-btn.small", { title: locked ? "Destrancar" : "Trancar", onclick: () => { locked = !locked; writeLocked(locked); render(); } },
+          h("button.control-btn.small", { title: locked ? t("Destrancar") : t("Trancar"), onclick: () => { locked = !locked; writeLocked(locked); render(); } },
             h("i", { className: `fa-solid fa-lock${locked ? "" : "-open"}` })),
           h("button.control-btn.small", {
-            title: "Limpar esta página",
+            title: t("Limpar esta página"),
             onclick: () => {
               if (locked) return;
               const updates: Record<string, null> = {};
@@ -146,7 +147,7 @@ export function hotbar(): HTMLElement {
   // Number keys 1–0 use the slots of the current page (rebindable).
   for (let i = 1; i <= 10; i++) {
     registerKey({
-      id: `core.hotbar${i}`, name: `Usar a casa ${i} da barra de macros`, category: "Barra de macros",
+      id: `core.hotbar${i}`, name: t("Usar a casa {n} da barra de macros", { n: i }), category: t("Barra de macros"),
       bindings: [{ key: `Digit${i % 10}` }],
       onDown: () => {
         execute((page - 1) * 10 + i);
@@ -154,8 +155,8 @@ export function hotbar(): HTMLElement {
       }
     });
   }
-  registerKey({ id: "core.hotbarNext", name: "Página seguinte da barra", category: "Barra de macros", bindings: [], onDown: () => { page = (page % PAGES) + 1; render(); return true; } });
-  registerKey({ id: "core.hotbarPrevious", name: "Página anterior da barra", category: "Barra de macros", bindings: [], onDown: () => { page = ((page + PAGES - 2) % PAGES) + 1; render(); return true; } });
+  registerKey({ id: "core.hotbarNext", name: t("Página seguinte da barra"), category: t("Barra de macros"), bindings: [], onDown: () => { page = (page % PAGES) + 1; render(); return true; } });
+  registerKey({ id: "core.hotbarPrevious", name: t("Página anterior da barra"), category: t("Barra de macros"), bindings: [], onDown: () => { page = ((page + PAGES - 2) % PAGES) + 1; render(); return true; } });
   audio.onChange(render);
   game.on("User", ev => ev.ids.includes(game.userId) && render());
   for (const t of ["Item", "Actor", "JournalEntry", "Macro", "RollTable"] as const) game.on(t, render);

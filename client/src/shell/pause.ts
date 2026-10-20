@@ -3,6 +3,7 @@ import { h } from "../dom.ts";
 import { settings } from "../settings.ts";
 import { registerKey } from "../keybindings.ts";
 import type { Board } from "../canvas/board.ts";
+import { t } from "../i18n.ts";
 
 export const isPaused = () => !!settings.get("core.paused");
 
@@ -18,14 +19,14 @@ export function togglePause(): void {
 export function pauseBanner(board: Board): HTMLElement {
   const el = h("div#pause", { hidden: true },
     h("i.fa-solid.fa-circle-pause"),
-    h("span", null, "Jogo em pausa"),
-    game.isGM ? h("button.small", { onclick: togglePause }, "Retomar") : null);
+    h("span", null, t("Jogo em pausa")),
+    game.isGM ? h("button.small", { onclick: togglePause }, t("Retomar")) : null);
   const sync = () => (el.hidden = !isPaused());
   settings.onChange("core.paused", sync);
   game.on("ready", sync);
   sync();
   registerKey({
-    id: "core.pause", name: "Pausar / retomar o jogo", category: "Geral", gm: true, bindings: [{ key: "Space" }], precedence: 30,
+    id: "core.pause", name: t("Pausar / retomar o jogo"), category: t("Geral"), gm: true, bindings: [{ key: "Space" }], precedence: 30,
     // Space also pans the view while held: toggle only on a release without a drag.
     onDown: () => true,
     onUp: () => {

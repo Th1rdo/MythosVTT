@@ -3,6 +3,7 @@ import { game } from "../game.ts";
 import { h } from "../dom.ts";
 import { chatInputBox, messageView } from "../ui/chat.ts";
 import { settings } from "../settings.ts";
+import { t } from "../i18n.ts";
 
 export interface SidebarTab {
   id: string;
@@ -47,6 +48,7 @@ export function sidebar(tabs: SidebarTab[]): HTMLElement {
     strip.replaceChildren(h("menu", null,
       tabs.map(t => h("li", null, h("button", {
         className: `control-btn tab${state.expanded && t.id === state.tab ? " active" : ""}`,
+        dataset: { tab: t.id },
         title: t.label,
         onclick: () => {
           if (state.expanded && state.tab === t.id) state.expanded = false;
@@ -59,7 +61,7 @@ export function sidebar(tabs: SidebarTab[]): HTMLElement {
         }
       }, h("i", { className: t.icon })))),
       h("li", null, h("button.control-btn.tab.collapse", {
-        title: state.expanded ? "Fechar barra lateral" : "Abrir barra lateral",
+        title: state.expanded ? t("Fechar barra lateral") : t("Abrir barra lateral"),
         onclick: () => {
           state.expanded = !state.expanded;
           save();

@@ -1,4 +1,5 @@
 import { h } from "../dom.ts";
+import { t } from "../i18n.ts";
 
 interface Win {
   el: HTMLElement;
@@ -22,7 +23,7 @@ export function openWindow(key: string, title: string, opts: { width?: number; o
   const body = h("div.win-body");
   const titleEl = h("span.win-title", null, title);
   const el = h("section.win", { style: { width: `${opts.width ?? 420}px`, zIndex: String(++z) }, dataset: { key } },
-    h("header.win-head", null, titleEl, h("button.icon", { title: "Fechar", onclick: () => closeWindow(key) }, "✕")),
+    h("header.win-head", null, titleEl, h("button.icon", { title: t("Fechar"), onclick: () => closeWindow(key) }, "✕")),
     body
   );
   const count = open.size;
@@ -95,11 +96,11 @@ export function prompt(title: string, fields: { name: string; label: string; val
   });
 }
 
-export function confirmDialog(message: string, confirmLabel = "Apagar"): Promise<boolean> {
+export function confirmDialog(message: string, confirmLabel = t("Apagar")): Promise<boolean> {
   return new Promise(resolve => {
     const key = `confirm-${Math.random()}`;
     let done = false;
-    const body = openWindow(key, "Confirmar", { width: 320, onClose: () => !done && resolve(false) })!;
+    const body = openWindow(key, t("Confirmar"), { width: 320, onClose: () => !done && resolve(false) })!;
     const answer = (v: boolean) => {
       done = true;
       resolve(v);
@@ -108,7 +109,7 @@ export function confirmDialog(message: string, confirmLabel = "Apagar"): Promise
     body.append(
       h("p", null, message),
       h("div.row.end", null,
-        h("button", { onclick: () => answer(false) }, "Cancelar"),
+        h("button", { onclick: () => answer(false) }, t("Cancelar")),
         h("button.danger", { onclick: () => answer(true) }, confirmLabel))
     );
   });

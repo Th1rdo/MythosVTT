@@ -69,6 +69,10 @@ export const SETTINGS: SettingDef[] = [
     key: "core.maxFPS", scope: "client", category: "canvas", name: "Máximo de imagens por segundo",
     hint: "Baixa em computadores fracos ou portáteis a bateria (0 = sem limite).", default: 60, type: { kind: "number", min: 0, max: 240, step: 10, range: true }
   },
+  {
+    key: "core.language", scope: "client", category: "interface", name: "Língua", hint: "A língua da interface neste browser.", default: "pt-PT", reload: true,
+    type: { kind: "select", choices: [["pt-PT", "Português (Portugal)"], ["en", "English"]] }
+  },
   bool("core.reduceMotion", "client", "interface", "Reduzir animações", false, "Desliga a animação dos tokens a mover e dos sinais.")
 ];
 

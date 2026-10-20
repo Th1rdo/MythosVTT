@@ -4,6 +4,7 @@ import type { Board } from "../canvas/board.ts";
 import { registerKey, startKeybindings } from "../keybindings.ts";
 import { openSheet } from "../ui/sheet.ts";
 import { closeMainMenu, toggleMainMenu } from "./main-menu.ts";
+import { endTour } from "../tours.ts";
 
 /**
  * The core keyboard shortcuts (Foundry's set, where Mesa has the feature). Defaults follow Foundry;
@@ -14,6 +15,10 @@ export function registerCoreKeys(board: Board): void {
     id: "core.dismiss", name: "Fechar / largar a seleção", category: "Geral", bindings: [], fixed: [{ key: "Escape" }], precedence: 10,
     onDown: () => {
       // The newest window first, then the selection.
+      if (document.getElementById("tour")) {
+        endTour();
+        return true;
+      }
       if (closeMainMenu()) return true;
       const wins = [...document.querySelectorAll<HTMLElement>("#windows .win")];
       const top = wins.sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];

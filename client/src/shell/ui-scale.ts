@@ -1,4 +1,5 @@
 import { h } from "../dom.ts";
+import { t } from "../i18n.ts";
 
 /**
  * Per-browser GUI size for the three parts of the shell. Stored locally (it depends on the screen,
@@ -66,11 +67,11 @@ export function uiScaleSettings(): HTMLElement {
     for (const v of box.querySelectorAll(".scale-value")) v.textContent = "100%";
   };
   const box = h("div.settings-block", null,
-    h("h4", null, "Tamanho da interface (só neste browser)"),
-    slider("left", "Barra esquerda (controlos, cenas, jogadores)"),
-    slider("right", "Barra direita (separadores e painel)"),
-    slider("hotbar", "Barra de macros"),
-    h("div.row.end", null, h("button.small", { onclick: reset }, "Repor 100%"))
+    h("h4", null, t("Tamanho da interface (só neste browser)")),
+    slider("left", t("Barra esquerda (controlos, cenas, jogadores)")),
+    slider("right", t("Barra direita (separadores e painel)")),
+    slider("hotbar", t("Barra de macros")),
+    h("div.row.end", null, h("button.small", { onclick: reset }, t("Repor 100%")))
   );
   return box;
 }

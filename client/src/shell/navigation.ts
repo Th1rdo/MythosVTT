@@ -2,6 +2,7 @@ import type { SceneDoc, UserDoc } from "../../../shared/protocol.ts";
 import { game } from "../game.ts";
 import { h, setChildren } from "../dom.ts";
 import { sceneLevels } from "../../../shared/levels.ts";
+import { t } from "../i18n.ts";
 
 /**
  * Scene navigation (top-left, like Foundry's): the viewed scene as a pill with the players who are
@@ -21,7 +22,7 @@ export function sceneNavigation(): HTMLElement {
 
   const pill = (s: SceneDoc, viewed: boolean) => h("li", {
     className: ["scene-pill", viewed && "viewed", s.active && "active"].filter(Boolean).join(" "),
-    title: game.isGM ? "Clique: ver · Botão direito: ativar para todos" : s.name,
+    title: game.isGM ? t("Clique: ver · Botão direito: ativar para todos") : s.name,
     onclick: () => game.isGM && game.view(s._id),
     oncontextmenu: (e: Event) => {
       e.preventDefault();
@@ -29,8 +30,8 @@ export function sceneNavigation(): HTMLElement {
     }
   },
     h("span.scene-name", null, s.name),
-    s.active && h("i.fa-solid.fa-bullseye", { title: "Cena ativa" }),
-    !s.navigation && game.isGM && h("i.fa-solid.fa-eye-slash", { title: "Escondida da navegação dos jogadores" }),
+    s.active && h("i.fa-solid.fa-bullseye", { title: t("Cena ativa") }),
+    !s.navigation && game.isGM && h("i.fa-solid.fa-eye-slash", { title: t("Escondida da navegação dos jogadores") }),
     pips(s._id)
   );
 
@@ -51,13 +52,13 @@ export function sceneNavigation(): HTMLElement {
       .filter(s => s._id !== viewed?._id && (game.isGM ? s.navigation || s.active : s.active))
       .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"));
     setChildren(el, 
-      others.length > 0 ? h("button.nav-expand", { title: expanded ? "Esconder cenas" : "Mostrar cenas", onclick: () => { expanded = !expanded; render(); } },
+      others.length > 0 ? h("button.nav-expand", { title: expanded ? t("Esconder cenas") : t("Mostrar cenas"), onclick: () => { expanded = !expanded; render(); } },
         h("i", { className: `fa-solid fa-caret-${expanded ? "up" : "down"}` })) : null,
       h("menu.scene-list", null,
-        viewed ? pill(viewed, true) : h("li.scene-pill.viewed", null, h("span.scene-name", null, "Sem cena")),
+        viewed ? pill(viewed, true) : h("li.scene-pill.viewed", null, h("span.scene-name", null, t("Sem cena"))),
         viewed ? levelMenu(viewed._id) : null,
         expanded ? others.map(s => pill(s, false)) : null,
-        viewed && game.isGM && !viewed.active ? h("li.scene-note", null, "pré-visualização — os jogadores não veem esta cena") : null
+        viewed && game.isGM && !viewed.active ? h("li.scene-note", null, t("pré-visualização — os jogadores não veem esta cena")) : null
       )
     );
   };

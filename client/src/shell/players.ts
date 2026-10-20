@@ -3,6 +3,7 @@ import { game } from "../game.ts";
 import { h, setChildren } from "../dom.ts";
 import type { Board } from "../canvas/board.ts";
 import { openUserConfig } from "../ui/user-config.ts";
+import { t } from "../i18n.ts";
 
 /** Players (bottom-left): who's online, their character, and connection/frame-rate stats. */
 export function playersList(board: Board): HTMLElement {
@@ -16,7 +17,7 @@ export function playersList(board: Board): HTMLElement {
     const editable = game.isGM || u._id === game.userId;
     return h("li", {
       className: `${game.online.includes(u._id) ? "player online" : "player"}${editable ? " editable" : ""}`, style: { "--player-color": u.color },
-      title: editable ? "Clica para configurar" : u.pronouns || "",
+      title: editable ? t("Clica para configurar") : u.pronouns || "",
       onclick: () => editable && openUserConfig(u._id)
     },
       u.avatar ? h("img.player-avatar", { src: u.avatar, alt: "" }) : h("span.player-dot"),
@@ -32,9 +33,9 @@ export function playersList(board: Board): HTMLElement {
       expanded && inactive.length ? h("ol.players-list.inactive", null, inactive.map(row)) : null,
       h("ol.players-list", null, active.map(row)),
       h("div.perf", null,
-        h("span.stat", null, "Latência ", latency),
+        h("span.stat", null, t("Latência "), latency),
         h("span.stat", null, "FPS ", fps),
-        inactive.length ? h("button.icon.small", { title: expanded ? "Esconder offline" : "Mostrar offline", onclick: () => { expanded = !expanded; render(); } },
+        inactive.length ? h("button.icon.small", { title: expanded ? t("Esconder offline") : t("Mostrar offline"), onclick: () => { expanded = !expanded; render(); } },
           h("i", { className: `fa-solid fa-caret-${expanded ? "down" : "up"}` })) : null)
     );
   };

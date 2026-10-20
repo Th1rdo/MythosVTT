@@ -1,4 +1,5 @@
 import { h, setChildren, timeLabel } from "./dom.ts";
+import { t } from "./i18n.ts";
 
 interface WorldRow {
   id: string;
@@ -52,8 +53,8 @@ export async function setupScreen(app: HTMLElement): Promise<void> {
       const isActive = w.id === s.active;
       const backups = h("ul.backup-list", { hidden: true }, w.backups.map(b => h("li", null,
         h("span.grow", null, `${new Date(b.created).toLocaleString("pt-PT")} · ${size(b.size)}`),
-        h("button.small", { onclick: () => confirm(`Repor "${w.title}" como estava a ${new Date(b.created).toLocaleString("pt-PT")}? O estado atual fica guardado como outra cópia.`) && act("/restore", { id: w.id, backup: b.name }, "Mundo reposto") }, "Repor"),
-        h("button.small.danger", { onclick: () => confirm("Apagar esta cópia?") && act("/deleteBackup", { id: w.id, backup: b.name }) }, "✕"))));
+        h("button.small", { onclick: () => confirm(`Repor "${w.title}" como estava a ${new Date(b.created).toLocaleString("pt-PT")}? O estado atual fica guardado como outra cópia.`) && act("/restore", { id: w.id, backup: b.name }, t("Mundo reposto")) }, t("Repor")),
+        h("button.small.danger", { onclick: () => confirm(t("Apagar esta cópia?")) && act("/deleteBackup", { id: w.id, backup: b.name }) }, "✕"))));
       return h("article", { className: `world-card${isActive ? " active" : ""}` },
         h("header.row", null,
           h("div.stack.grow", null, h("h3", null, w.title), h("span.muted.small", null, `${w.id} · ${w.system}${w.lastPlayed ? ` · jogado ${timeLabel(w.lastPlayed)}` : ""}`)),
@@ -61,30 +62,30 @@ export async function setupScreen(app: HTMLElement): Promise<void> {
         w.description ? h("p.small", null, w.description) : null,
         h("div.row.wrap", null,
           isActive
-            ? h("button.primary", { onclick: () => (location.href = "/") }, h("i.fa-solid.fa-door-open"), " Entrar")
-            : h("button.primary", { onclick: async () => { if (await act("/launch", { id: w.id })) location.href = "/"; } }, h("i.fa-solid.fa-play"), " Lançar"),
-          isActive ? h("button", { onclick: () => act("/close", {}, "Mundo fechado — os jogadores foram desligados.") }, h("i.fa-solid.fa-power-off"), " Fechar") : null,
+            ? h("button.primary", { onclick: () => (location.href = "/") }, h("i.fa-solid.fa-door-open"), (" " + t("Entrar")))
+            : h("button.primary", { onclick: async () => { if (await act("/launch", { id: w.id })) location.href = "/"; } }, h("i.fa-solid.fa-play"), (" " + t("Lançar"))),
+          isActive ? h("button", { onclick: () => act("/close", {}, t("Mundo fechado — os jogadores foram desligados.")) }, h("i.fa-solid.fa-power-off"), (" " + t("Fechar"))) : null,
           h("button", {
             onclick: async () => {
-              const title = prompt("Título do mundo", w.title);
+              const title = prompt(t("Título do mundo"), w.title);
               if (title === null) return;
-              const description = prompt("Descrição (opcional)", w.description ?? "") ?? w.description ?? "";
+              const description = prompt(t("Descrição (opcional)"), w.description ?? "") ?? w.description ?? "";
               act("/edit", { id: w.id, title, description });
             }
-          }, h("i.fa-solid.fa-pen"), " Editar"),
-          h("button", { onclick: () => act("/backup", { id: w.id }, "Cópia de segurança feita") }, h("i.fa-solid.fa-box-archive"), " Cópia de segurança"),
+          }, h("i.fa-solid.fa-pen"), (" " + t("Editar"))),
+          h("button", { onclick: () => act("/backup", { id: w.id }, t("Cópia de segurança feita")) }, h("i.fa-solid.fa-box-archive"), (" " + t("Cópia de segurança"))),
           w.backups.length ? h("button", { onclick: () => (backups.hidden = !backups.hidden) }, `Cópias (${w.backups.length})`) : null,
           !isActive ? h("button.danger", {
             onclick: () => {
               const typed = prompt(`Apagar "${w.title}" para sempre? Escreve o id (${w.id}) para confirmar.`);
-              if (typed) act("/delete", { id: w.id, confirm: typed }, "Mundo apagado");
+              if (typed) act("/delete", { id: w.id, confirm: typed }, t("Mundo apagado"));
             }
           }, h("i.fa-solid.fa-trash")) : null),
         backups);
     };
 
-    const newId = h("input", { placeholder: "id (ex.: akrasia)", pattern: "[a-z0-9][a-z0-9-]*" });
-    const newTitle = h("input", { placeholder: "Título" });
+    const newId = h("input", { placeholder: t("id (ex.: akrasia)"), pattern: "[a-z0-9][a-z0-9-]*" });
+    const newTitle = h("input", { placeholder: t("Título") });
     const newSystem = h("input", { value: "ordemparanormal" });
     const importPath = h("input", { placeholder: "~/Library/Application Support/FoundryVTT/Data/worlds/<mundo>" });
     const importId = h("input", { placeholder: "id na Mesa (vazio = o do Foundry)" });
@@ -94,39 +95,39 @@ export async function setupScreen(app: HTMLElement): Promise<void> {
 
     setChildren(app, h("main.setup", null,
       h("header.setup-head", null,
-        h("h1", null, "Mesa · Configuração"),
+        h("h1", null, t("Mesa · Configuração")),
         h("span.grow"),
-        s.active ? h("button", { onclick: () => (location.href = "/") }, "Voltar ao jogo") : null,
-        s.hasPassword ? h("button", { onclick: async () => { await api("/logout", {}); render(); } }, h("i.fa-solid.fa-right-from-bracket"), " Sair") : null),
+        s.active ? h("button", { onclick: () => (location.href = "/") }, t("Voltar ao jogo")) : null,
+        s.hasPassword ? h("button", { onclick: async () => { await api("/logout", {}); render(); } }, h("i.fa-solid.fa-right-from-bracket"), (" " + t("Sair"))) : null),
       message,
-      !s.hasPassword ? h("p.setup-warning", null, "Sem palavra-passe de administrador: só este computador abre a configuração. Define uma antes de pôr a Mesa na internet.") : null,
-      h("section", null, h("h2", null, "Mundos"), worlds.length ? h("div.world-grid", null, worlds.map(card)) : h("p.muted", null, "Ainda não há mundos.")),
+      !s.hasPassword ? h("p.setup-warning", null, t("Sem palavra-passe de administrador: só este computador abre a configuração. Define uma antes de pôr a Mesa na internet.")) : null,
+      h("section", null, h("h2", null, t("Mundos")), worlds.length ? h("div.world-grid", null, worlds.map(card)) : h("p.muted", null, t("Ainda não há mundos."))),
       h("section.setup-forms", null,
         h("form.setup-box.stack", {
-          onsubmit: (e: Event) => { e.preventDefault(); act("/create", { id: newId.value.trim(), title: newTitle.value.trim(), system: newSystem.value.trim() }, "Mundo criado (o utilizador \"Mestre\" não tem palavra-passe)"); }
-        }, h("h3", null, "Criar mundo"), newId, newTitle, h("label.field", null, h("span", null, "Sistema"), newSystem), h("button.primary", { type: "submit" }, "Criar")),
+          onsubmit: (e: Event) => { e.preventDefault(); act("/create", { id: newId.value.trim(), title: newTitle.value.trim(), system: newSystem.value.trim() }, t("Mundo criado (o utilizador \"Mestre\" não tem palavra-passe)")); }
+        }, h("h3", null, t("Criar mundo")), newId, newTitle, h("label.field", null, h("span", null, t("Sistema")), newSystem), h("button.primary", { type: "submit" }, t("Criar"))),
         h("form.setup-box.stack", {
           onsubmit: async (e: Event) => {
             e.preventDefault();
-            say("A importar… (pode demorar)");
+            say(t("A importar… (pode demorar)"));
             const r = await api<{ ok: boolean; output?: string; id?: string }>("/import", { path: importPath.value.trim(), id: importId.value.trim(), systemPacks: importPacks.checked });
             importOutput.hidden = !r.output;
             importOutput.textContent = r.output ?? "";
             say(r.error ?? `Importado como "${r.id}"`, !!r.error);
             render();
           }
-        }, h("h3", null, "Importar do Foundry"),
-          h("label.field", null, h("span", null, "Pasta do mundo (neste computador)"), importPath), importId,
-          h("label.row", null, importPacks, "Trazer também os compêndios do sistema"),
-          h("button.primary", { type: "submit" }, "Importar"), importOutput),
+        }, h("h3", null, t("Importar do Foundry")),
+          h("label.field", null, h("span", null, t("Pasta do mundo (neste computador)")), importPath), importId,
+          h("label.row", null, importPacks, t("Trazer também os compêndios do sistema")),
+          h("button.primary", { type: "submit" }, t("Importar")), importOutput),
         h("form.setup-box.stack", {
-          onsubmit: (e: Event) => { e.preventDefault(); act("/password", { password: pw.value }, pw.value ? "Palavra-passe definida — volta a entrar" : "Palavra-passe retirada"); }
-        }, h("h3", null, "Palavra-passe de administrador"), pw, h("button", { type: "submit" }, "Guardar"))),
+          onsubmit: (e: Event) => { e.preventDefault(); act("/password", { password: pw.value }, pw.value ? t("Palavra-passe definida — volta a entrar") : t("Palavra-passe retirada")); }
+        }, h("h3", null, t("Palavra-passe de administrador")), pw, h("button", { type: "submit" }, t("Guardar")))),
       s.dataDir ? h("p.muted.small", null, `Dados em ${s.dataDir}`) : null));
   };
 
   const renderLogin = (s: SetupState) => {
-    const pw = h("input", { type: "password", placeholder: "Palavra-passe de administrador", autocomplete: "current-password" });
+    const pw = h("input", { type: "password", placeholder: t("Palavra-passe de administrador"), autocomplete: "current-password" });
     setChildren(app, h("main.join", null, h("form.join-card.stack", {
       onsubmit: async (e: Event) => {
         e.preventDefault();
@@ -135,11 +136,11 @@ export async function setupScreen(app: HTMLElement): Promise<void> {
         else render();
       }
     },
-      h("h1", null, "Mesa · Configuração"),
-      s.hasPassword ? pw : h("p", null, "Ainda não há palavra-passe de administrador: abre esta página no computador onde a Mesa está a correr."),
+      h("h1", null, t("Mesa · Configuração")),
+      s.hasPassword ? pw : h("p", null, t("Ainda não há palavra-passe de administrador: abre esta página no computador onde a Mesa está a correr.")),
       message,
-      s.hasPassword ? h("button.primary", { type: "submit" }, "Entrar") : null,
-      h("a.muted.small", { href: "/" }, "Voltar"))));
+      s.hasPassword ? h("button.primary", { type: "submit" }, t("Entrar")) : null,
+      h("a.muted.small", { href: "/" }, t("Voltar")))));
     pw.focus();
   };
 

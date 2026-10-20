@@ -11,7 +11,7 @@ const { setupRouter } = await import("./setup.ts");
 const { World } = await import("./world.ts");
 
 test("setup: create, edit, back up, restore, delete; admin password guards it", async () => {
-  let active: InstanceType<typeof World> | null = null;
+  let active: ReturnType<typeof World.open> | null = null;
   const app = express();
   app.use(express.json());
   app.use("/api/setup", setupRouter({
@@ -54,7 +54,7 @@ test("setup: create, edit, back up, restore, delete; admin password guards it", 
     await call("/login", { password: "segredo" });
     assert.equal((await call("")).authed, true);
   } finally {
-    active?.close();
+    (active as ReturnType<typeof World.open> | null)?.close();
     server.close();
   }
 });
