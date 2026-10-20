@@ -493,3 +493,12 @@ fieldset.card-face { border: 1px solid var(--line); border-radius: 4px; padding:
 .setting { border-bottom: 1px solid rgba(255, 255, 255, 0.04); padding-bottom: 8px; }
 .setting p { margin: 2px 0 0; }
 .setting-head { gap: 8px; }
+
+/* ---- Keybindings ---- */
+.key-group h4 { margin: 12px 0 4px; color: var(--accent-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.key-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+.key-chip { display: inline-flex; align-items: center; }
+kbd { display: inline-block; min-width: 26px; padding: 2px 7px; border-radius: 4px; background: #2a2a35; border: 1px solid var(--control-border); border-bottom-width: 2px; font-family: var(--font); font-size: 12px; text-align: center; cursor: pointer; }
+kbd.fixed { opacity: 0.55; cursor: default; }
+kbd.clash { border-color: #c9a227; color: #ffd76a; }
+kbd.capturing, .capturing { border-color: var(--accent-2); color: var(--accent-2); font-style: italic; }

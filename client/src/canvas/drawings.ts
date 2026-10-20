@@ -250,13 +250,15 @@ export class DrawingsLayer implements Tool {
       }
       return true;
     }
-    if ((e.key === "Delete" || e.key === "Backspace") && this.#selected) {
-      const d = game.get<DrawingDoc>("Drawing", this.#selected);
-      if (d) game.delete("Drawing", d._id, d._parent);
-      this.#selected = null;
-      return true;
-    }
     return false;
+  }
+
+  delete(): boolean {
+    if (!this.#selected) return false;
+    const d = game.get<DrawingDoc>("Drawing", this.#selected);
+    if (d) game.delete("Drawing", d._id, d._parent);
+    this.#selected = null;
+    return true;
   }
 
   dblclick(p: Point): boolean {

@@ -21,6 +21,7 @@ import { tablesPanel } from "./ui/tables.ts";
 import { compendiaPanel } from "./ui/compendia.ts";
 import { cardsPanel } from "./ui/cards.ts";
 import { onRunMacro, setMacroBoard } from "./macros.ts";
+import { registerCoreKeys } from "./shell/keys.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { openSettingsConfig } from "./ui/settings.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
@@ -107,6 +108,7 @@ async function startGame(): Promise<void> {
   const sounds = new SoundsLayer(board, ambient);
   const playlists = new PlaylistPlayer();
   setMacroBoard(board);
+  registerCoreKeys(board);
   game.socket.on("runMacro", (e: RunMacroEvent) => onRunMacro(e));
   game.socket.on("showEntry", (e: ShowEntryEvent) => game.get("JournalEntry", e.entryId) && openJournal(e.entryId, { pageId: e.pageId }));
   game.socket.on("shareImage", (e: ShareImageEvent) => openImagePopout(e.src, e.title));

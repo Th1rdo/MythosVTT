@@ -270,12 +270,15 @@ export class WallsLayer implements Tool {
       this.#preview.clear();
       return true;
     }
-    if ((e.key === "Delete" || e.key === "Backspace") && this.#selected && scene) {
-      game.delete("Wall", this.#selected, scene._id);
-      this.#selected = null;
-      return true;
-    }
     return false;
+  }
+
+  delete(): boolean {
+    const scene = this.#board.scene;
+    if (!game.isGM || !this.#selected || !scene) return false;
+    game.delete("Wall", this.#selected, scene._id);
+    this.#selected = null;
+    return true;
   }
 
   dblclick(p: Point): boolean {

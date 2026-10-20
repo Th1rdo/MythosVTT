@@ -202,15 +202,19 @@ export class TilesLayer implements Tool {
     return false;
   }
 
+  /** Delete the selected tile (the "delete" shortcut). */
+  delete(): boolean {
+    const t = this.#selected ? game.get<TileDoc>("Tile", this.#selected) : undefined;
+    if (!t) return false;
+    game.delete("Tile", t._id, t._parent);
+    this.#selected = null;
+    return true;
+  }
+
   key(e: KeyboardEvent): boolean {
     if (this.#board.tool !== "tiles" || !this.#selected) return false;
     const t = game.get<TileDoc>("Tile", this.#selected);
     if (!t) return false;
-    if (e.key === "Delete" || e.key === "Backspace") {
-      game.delete("Tile", t._id, t._parent);
-      this.#selected = null;
-      return true;
-    }
     if (e.key === "Escape") {
       this.#selected = null;
       this.redraw();

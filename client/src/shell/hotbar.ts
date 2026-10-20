@@ -9,6 +9,7 @@ import { openItemSheet, rollItem, useItem } from "../ui/item-sheet.ts";
 import { openJournal } from "../ui/journal.ts";
 import { stateOf } from "../actors.ts";
 import { audio } from "../audio/engine.ts";
+import { registerKey } from "../keybindings.ts";
 import { executeMacro } from "../macros.ts";
 import { macroIcon, openMacroConfig } from "../ui/macros.ts";
 import { confirmDialog, contextMenu } from "../ui/windows.ts";
@@ -142,12 +143,19 @@ export function hotbar(): HTMLElement {
     );
   };
 
-  // Number keys 1–0 use the slots of the current page.
-  window.addEventListener("keydown", e => {
-    if ((e.target as HTMLElement)?.closest("input, textarea, select, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (!/^[0-9]$/.test(e.key)) return;
-    execute((page - 1) * 10 + (e.key === "0" ? 10 : Number(e.key)));
-  });
+  // Number keys 1–0 use the slots of the current page (rebindable).
+  for (let i = 1; i <= 10; i++) {
+    registerKey({
+      id: `core.hotbar${i}`, name: `Usar a casa ${i} da barra de macros`, category: "Barra de macros",
+      bindings: [{ key: `Digit${i % 10}` }],
+      onDown: () => {
+        execute((page - 1) * 10 + i);
+        return true;
+      }
+    });
+  }
+  registerKey({ id: "core.hotbarNext", name: "Página seguinte da barra", category: "Barra de macros", bindings: [], onDown: () => { page = (page % PAGES) + 1; render(); return true; } });
+  registerKey({ id: "core.hotbarPrevious", name: "Página anterior da barra", category: "Barra de macros", bindings: [], onDown: () => { page = ((page + PAGES - 2) % PAGES) + 1; render(); return true; } });
   audio.onChange(render);
   game.on("User", ev => ev.ids.includes(game.userId) && render());
   for (const t of ["Item", "Actor", "JournalEntry", "Macro", "RollTable"] as const) game.on(t, render);

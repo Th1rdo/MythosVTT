@@ -138,15 +138,12 @@ export class NotesLayer implements Tool {
     return false;
   }
 
-  key(e: KeyboardEvent): boolean {
-    if (this.#board.tool !== "notes" || !this.#selected) return false;
-    if (e.key === "Delete" || e.key === "Backspace") {
-      const n = game.get<NoteDoc>("Note", this.#selected);
-      if (n) game.delete("Note", n._id, n._parent);
-      this.#selected = null;
-      return true;
-    }
-    return false;
+  delete(): boolean {
+    if (!this.#selected) return false;
+    const n = game.get<NoteDoc>("Note", this.#selected);
+    if (n) game.delete("Note", n._id, n._parent);
+    this.#selected = null;
+    return true;
   }
 
   dblclick(_p: Point): boolean {

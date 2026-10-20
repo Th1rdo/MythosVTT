@@ -6,6 +6,7 @@ import { settings } from "../settings.ts";
 import { openWindow } from "./windows.ts";
 import { uiScaleSettings } from "../shell/ui-scale.ts";
 import { volumeControls } from "./audio-config.ts";
+import { bindingFromEvent, bindingLabel, bindingsOf, conflictsFor, keyActions, onBindingsChange, resetAllBindings, setBindings } from "../keybindings.ts";
 
 const SCOPE_NOTE: Record<SettingDef["scope"], string> = {
   world: "para toda a mesa", user: "a tua conta, em qualquer computador", client: "só neste browser"
@@ -13,6 +14,7 @@ const SCOPE_NOTE: Record<SettingDef["scope"], string> = {
 
 /** Sections that aren't plain settings but belong in the same window. */
 const EXTRA: { id: string; label: string; make: () => HTMLElement }[] = [
+  { id: "keys", label: "Teclas", make: () => keybindingsPanel() },
   { id: "audio", label: "Som", make: () => h("div.settings-block", null, h("p.muted.small", null, "Volumes deste browser."), volumeControls()) },
   { id: "size", label: "Tamanho da interface", make: uiScaleSettings }
 ];
@@ -103,4 +105,68 @@ export function openSettingsConfig(initial?: string): void {
   };
   body.append(h("div.settings-config", null, nav, pane));
   render();
+}
+
+/** Definições → Teclas: every shortcut with its keys; click a key to change it, ✕ to remove, + to add. */
+export function keybindingsPanel(): HTMLElement {
+  const box = h("div.keybindings");
+  let capturing: { id: string; index: number } | null = null;
+  const render = () => {
+    const groups = new Map<string, ReturnType<typeof keyActions>>();
+    for (const a of keyActions()) groups.set(a.category, [...(groups.get(a.category) ?? []), a]);
+    setChildren(box,
+      h("p.muted.small", null, "As teclas são as posições do teclado (funcionam em qualquer disposição). Teclas a cinzento não se mudam. Só neste browser."),
+      [...groups].map(([cat, list]) => h("section.key-group", null, h("h4", null, cat), list.map(a => {
+        const current = bindingsOf(a.id);
+        return h("div.key-row", null,
+          h("span.grow", null, a.name),
+          (a.fixed ?? []).map(b => h("kbd.fixed", { title: "Fixa" }, bindingLabel(b))),
+          current.map((b, i) => {
+            const clashes = conflictsFor(a.id, b).map(x => x.name);
+            return h("span.key-chip", null,
+              h("kbd", {
+                className: capturing?.id === a.id && capturing.index === i ? "capturing" : clashes.length ? "clash" : "",
+                title: clashes.length ? `Também usada em: ${clashes.join(", ")} (corre a primeira que se aplicar)` : "Clica para mudar",
+                onclick: () => { capturing = { id: a.id, index: i }; render(); }
+              }, capturing?.id === a.id && capturing.index === i ? "carrega numa tecla…" : bindingLabel(b)),
+              h("button.icon.small", { title: "Tirar", onclick: () => setBindings(a.id, current.filter((_, k) => k !== i)) }, "✕"));
+          }),
+          h("button.icon.small", {
+            title: "Juntar uma tecla",
+            onclick: () => { capturing = { id: a.id, index: current.length }; render(); }
+          }, capturing?.id === a.id && capturing.index === current.length ? h("span.capturing", null, "carrega numa tecla…") : h("i.fa-solid.fa-plus")),
+          custom(a.id) && h("button.icon.small", { title: "Repor esta", onclick: () => setBindings(a.id, null) }, h("i.fa-solid.fa-rotate-left")));
+      }))),
+      h("div.row.end", null, h("button", { onclick: () => resetAllBindings() }, h("i.fa-solid.fa-rotate-left"), " Repor todas")));
+  };
+  const custom = (id: string) => JSON.stringify(bindingsOf(id)) !== JSON.stringify(keyActions().find(a => a.id === id)?.bindings ?? []);
+  // While capturing, the next key press becomes the binding (Escape cancels).
+  const onKey = (e: KeyboardEvent) => {
+    if (!capturing || !box.isConnected) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.code === "Escape") {
+      capturing = null;
+      return render();
+    }
+    const b = bindingFromEvent(e);
+    if (!b) return;
+    const list = [...bindingsOf(capturing.id)];
+    list[capturing.index] = b;
+    const id = capturing.id;
+    capturing = null;
+    setBindings(id, list);
+  };
+  window.addEventListener("keydown", onKey, true);
+  const off = onBindingsChange(render);
+  const stop = new MutationObserver(() => {
+    if (!box.isConnected) {
+      window.removeEventListener("keydown", onKey, true);
+      off();
+      stop.disconnect();
+    }
+  });
+  requestAnimationFrame(() => box.parentElement && stop.observe(document.body, { childList: true, subtree: true }));
+  render();
+  return box;
 }

@@ -32,7 +32,10 @@ export interface Tool {
   down?(p: Point, e: FederatedPointerEvent): boolean;
   move?(p: Point, e: FederatedPointerEvent): void;
   up?(p: Point, e: FederatedPointerEvent): void;
+  /** Context keys while the tool is active (Enter/Escape to finish shapes, Space for waypoints…). */
   key?(e: KeyboardEvent): boolean;
+  /** The "delete" shortcut: remove what the tool has selected. */
+  delete?(): boolean;
   dblclick?(p: Point, e: MouseEvent): boolean;
 }
 
@@ -757,29 +760,64 @@ export class Board {
       this.#space = true;
       if (this.tool !== "ruler") e.preventDefault();
     }
-    if (this.#tools.get(this.tool)?.key?.(e)) return;
+    if (this.#tools.get(this.tool)?.key?.(e)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Actions behind keyboard shortcuts (see shell/keys.ts). Each returns whether it did something.
+
+  /** Clear the selection (tokens tool). */
+  deselect(): boolean {
+    if (this.tool !== "tokens" || !this.#selected.size) return false;
+    this.select([]);
+    return true;
+  }
+
+  selectAll(): boolean {
+    if (this.tool !== "tokens" || !this.scene) return false;
+    this.select([...this.tokens.values()].filter(v => v.root.visible && this.canMove(v.doc)).map(v => v.doc._id));
+    return true;
+  }
+
+  /** Delete what the active tool has selected (tokens: GM only). */
+  deleteSelected(): boolean {
+    const tool = this.#tools.get(this.tool);
+    if (tool?.delete) return tool.delete();
+    const scene = this.scene;
+    if (this.tool !== "tokens" || !scene || !game.isGM || !this.#selected.size) return false;
+    game.delete("Token", [...this.#selected], scene._id);
+    return true;
+  }
+
+  /** GM: hide or show the selected tokens. */
+  toggleHidden(): boolean {
     const scene = this.scene;
     const selected = this.selected;
-    if (!scene || this.tool !== "tokens") return;
-    if (e.key === "Escape") return this.select([]);
-    if ((e.key === "a" || e.key === "A") && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      return this.select([...this.tokens.values()].filter(v => v.root.visible && this.canMove(v.doc)).map(v => v.doc._id));
-    }
-    if (!selected.length) return;
-    const ids = selected.map(v => v.doc._id);
-    if ((e.key === "Delete" || e.key === "Backspace") && game.isGM) {
-      game.delete("Token", ids, scene._id);
-    } else if (e.key.toLowerCase() === "h" && game.isGM) {
-      const hide = selected.some(v => !v.doc.hidden);
-      game.update("Token", ids.map(_id => ({ _id, hidden: hide })), scene._id);
-    } else if (e.key.toLowerCase() === "c" && !e.metaKey && !e.ctrlKey) {
-      toggleCombat(ids);
-    } else if (e.key.startsWith("Arrow")) {
-      e.preventDefault();
+    if (!game.isGM || !scene || !selected.length) return false;
+    const hide = selected.some(v => !v.doc.hidden);
+    game.update("Token", selected.map(v => ({ _id: v.doc._id, hidden: hide })), scene._id);
+    return true;
+  }
+
+  /** Add or remove the selected tokens from combat. */
+  toggleCombatSelected(): boolean {
+    if (this.tool !== "tokens" || !this.#selected.size) return false;
+    toggleCombat([...this.#selected]);
+    return true;
+  }
+
+  /** Step the selected tokens by whole cells. */
+  moveSelected(cx: number, cy: number): boolean {
+    const scene = this.scene;
+    const selected = this.selected;
+    if (this.tool !== "tokens" || !scene || !selected.length) return false;
+    {
       const size = scene.grid.size;
-      const dx = e.key === "ArrowLeft" ? -size : e.key === "ArrowRight" ? size : 0;
-      const dy = e.key === "ArrowUp" ? -size : e.key === "ArrowDown" ? size : 0;
+      const dx = cx * size;
+      const dy = cy * size;
       const movable = selected.filter(v => this.canMove(v.doc));
       // Step from where each token is heading, so quick repeated presses add up.
       // On hex grids a step lands on the neighbouring hex in that direction.
@@ -796,6 +834,20 @@ export class Board {
         });
       }
     }
+    return true;
+  }
+
+  /** Zoom around the centre of the view. */
+  zoomBy(factor: number): boolean {
+    if (!this.scene) return false;
+    const w = this.world;
+    const cx = this.app.screen.width / 2, cy = this.app.screen.height / 2;
+    const before = { x: (cx - w.x) / w.scale.x, y: (cy - w.y) / w.scale.y };
+    const s = clamp(w.scale.x * factor, MIN_ZOOM, MAX_ZOOM);
+    w.scale.set(s);
+    w.position.set(cx - before.x * s, cy - before.y * s);
+    this.emit("frame");
+    return true;
   }
 
   #onPing(p: PingEvent): void {

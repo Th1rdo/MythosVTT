@@ -259,13 +259,15 @@ export class RegionsLayer implements Tool {
       else { this.#polygon = null; this.#preview.clear(); }
       return true;
     }
-    if ((e.key === "Delete" || e.key === "Backspace") && this.#selected) {
-      const r = game.get<RegionDoc>("Region", this.#selected);
-      if (r) game.delete("Region", r._id, r._parent);
-      this.#selected = null;
-      return true;
-    }
     return false;
+  }
+
+  delete(): boolean {
+    if (!this.#selected) return false;
+    const r = game.get<RegionDoc>("Region", this.#selected);
+    if (r) game.delete("Region", r._id, r._parent);
+    this.#selected = null;
+    return true;
   }
 
   dblclick(p: Point): boolean {

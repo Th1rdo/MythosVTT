@@ -144,15 +144,12 @@ export class LightsLayer implements Tool {
     await game.create("AmbientLight", { x: d.at.x, y: d.at.y, config: { dim, bright: dim / 2 }, levels: game.viewedLevelId ? [game.viewedLevelId] : [] }, scene._id);
   }
 
-  key(e: KeyboardEvent): boolean {
-    if (this.#board.tool !== "lights" || !this.#selected) return false;
+  delete(): boolean {
     const scene = this.#board.scene;
-    if ((e.key === "Delete" || e.key === "Backspace") && scene) {
-      game.delete("AmbientLight", this.#selected, scene._id);
-      this.#selected = null;
-      return true;
-    }
-    return false;
+    if (!this.#selected || !scene) return false;
+    game.delete("AmbientLight", this.#selected, scene._id);
+    this.#selected = null;
+    return true;
   }
 
   dblclick(p: Point): boolean {

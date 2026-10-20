@@ -170,15 +170,12 @@ export class SoundsLayer implements Tool {
     if (created) openAmbientSoundConfig(created._id, scene._id);
   }
 
-  key(e: KeyboardEvent): boolean {
-    if (this.#board.tool !== "sounds" || !this.#selected) return false;
+  delete(): boolean {
     const scene = this.#board.scene;
-    if ((e.key === "Delete" || e.key === "Backspace") && scene) {
-      game.delete("AmbientSound", this.#selected, scene._id);
-      this.#selected = null;
-      return true;
-    }
-    return false;
+    if (!this.#selected || !scene) return false;
+    game.delete("AmbientSound", this.#selected, scene._id);
+    this.#selected = null;
+    return true;
   }
 
   dblclick(p: Point): boolean {
