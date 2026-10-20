@@ -37,12 +37,18 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer brings Foundry combats (turn index → current combatant)
 - ⬜ Combatant groups, combat sounds, turn/round hooks, combat settings UI, multi-select tokens (Phase 3/7)
 
-## Phase 3 — Actors, items, effects  *(documents/actor, actor-delta, item, active-effect; hud/token-hud)*
-- ⬜ Item documents with sheets (OP: weapons, protection, rituals, abilities, generic items), drag items onto actors, inventory/spaces
-- ⬜ Linked vs unlinked tokens (actor deltas), prototype token config, token config sheet
-- ⬜ Token HUD: resource bars (bar1/bar2), status effects, elevation, visibility, combat toggle
-- ⬜ Active effects (changes to actor data, durations, status conditions)
-- ⬜ Folders for every directory, sorting, search/filter
+## Phase 3 — Actors, items, effects  *(documents/actor, actor-delta, item, active-effect, token, folder; hud/token-hud — REA `ev_c306a076…`)*
+- ✅ World items (Items tab, GM; share with ownership) and actor items; OP item sheets per type (arma, proteção, equipamento, ritual, habilidade); drag items onto sheets; weapon attack/damage rolls; rituals/abilities posted to chat; spaces used
+- ✅ Linked vs unlinked tokens: unlinked tokens edit a delta (name, image, system, effects) over the base actor, like Foundry's synthetic actors
+- ✅ Prototype token settings per actor (size, link, disposition, name/bar display, bars, vision, light); dropped tokens use them
+- ✅ Token HUD (right-click): bars with absolute/relative input, elevation, conditions, combat toggle, visibility, sheet, config
+- ✅ Resource bars (bar1/bar2 attributes, display modes), name display modes, elevation label, status icons, dead overlay
+- ✅ Active effects: changes (add/multiply/override/upgrade/downgrade, Foundry order), conditions (32 OP conditions), duration in combat rounds with automatic expiry, effect editor; derived values shown on the sheet and used for rolls and initiative
+- ✅ Folders for Actors, Items, Journal, Scenes (nesting, colour, drag in/out, collapse remembered, delete moves contents up)
+- ✅ Multi-select: Shift+click, box select, Ctrl/⌘+A, group drag/arrow moves, group hide/delete/combat; right-drag or Space+drag pans
+- ✅ Importer: folders, world items, actor effects, prototype tokens, token link/delta/bars/display/elevation (nested LevelDB embeds resolved)
+- ⬜ Items on unlinked tokens (currently shared with the base actor), item effects that transfer to the actor
+- ⬜ Targeting (T), directory search/filter, folder sort modes, duplicate/context menus, token image wildcards
 
 ## Phase 4 — More placeables  *(placeables/*, layers/*)*
 - ⬜ Tiles (image/video, overhead/occlusion, z-order)

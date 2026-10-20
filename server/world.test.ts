@@ -137,4 +137,14 @@ test("deleting a folder moves its contents up", () => {
   assert.equal((world.get("Actor", actor._id) as any).folder, outer._id);
 });
 
+test("active effects: owners manage them; others see them only with a visible linked token", () => {
+  const { world, gm, alice, bob, scene, actor } = setup();
+  const [fx] = world.apply({ op: "create", type: "ActiveEffect", parent: actor._id, data: [{ name: "Abalado", statuses: ["abalado"] }] }, alice);
+  assert.throws(() => world.apply({ op: "delete", type: "ActiveEffect", parent: actor._id, ids: [fx.after!._id] }, bob), /permissão/);
+  assert.equal(canSee("ActiveEffect", fx.after!, bob, world), false, "Bob can't see Alice's actor and no linked token is out");
+  world.apply({ op: "create", type: "Token", parent: scene._id, data: [{ actorId: actor._id, actorLink: true }] }, gm);
+  assert.equal(canSee("ActiveEffect", fx.after!, bob, world), true, "the token shows its status icons to everyone");
+  assert.throws(() => world.apply({ op: "create", type: "ActiveEffect", parent: actor._id, data: [{ changes: [{ key: "x", type: "explode", value: "1" }], statuses: [] }] }, alice), /inválida/);
+});
+
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

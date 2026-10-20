@@ -11,7 +11,7 @@ import { TurnMarker } from "./canvas/turn-marker.ts";
 import { combatPanel } from "./ui/combat.ts";
 import { h } from "./dom.ts";
 import { chatPanel } from "./ui/chat.ts";
-import { actorsPanel, journalPanel, playersPanel, scenesPanel } from "./ui/panels.ts";
+import { actorsPanel, itemsPanel, journalPanel, playersPanel, scenesPanel } from "./ui/panels.ts";
 
 interface WorldInfo {
   world: { id: string; title: string; system: string };
@@ -95,15 +95,17 @@ async function startGame(): Promise<void> {
   // Debug handle for development only (stripped from production builds).
   if (import.meta.env.DEV) Object.assign(window, { mesa: { game, board, perception, walls } });
 
-  const tabs: [string, string, () => HTMLElement][] = [
-    ["chat", "Chat", chatPanel],
-    ["combat", "Combate", () => combatPanel(id => board.panTo(id))],
-    ["actors", "Atores", actorsPanel],
-    ["journal", "Diário", journalPanel],
-    ...(game.isGM ? [["scenes", "Cenas", scenesPanel], ["players", "Jogadores", playersPanel]] as [string, string, () => HTMLElement][] : [])
+  // [id, icon, label, panel]
+  const tabs: [string, string, string, () => HTMLElement][] = [
+    ["chat", "💬", "Chat", chatPanel],
+    ["combat", "⚔️", "Combate", () => combatPanel(id => board.panTo(id))],
+    ["actors", "👤", "Atores", actorsPanel],
+    ["items", "🎒", "Itens", itemsPanel],
+    ["journal", "📜", "Diário", journalPanel],
+    ...(game.isGM ? [["scenes", "🗺️", "Cenas", scenesPanel], ["players", "👥", "Jogadores", playersPanel]] as [string, string, string, () => HTMLElement][] : [])
   ];
-  const panels = new Map(tabs.map(([id, , make]) => [id, make()]));
-  const nav = h("nav.tabs", null, tabs.map(([id, label]) => h("button", { dataset: { tab: id }, onclick: () => show(id) }, label)));
+  const panels = new Map(tabs.map(([id, , , make]) => [id, make()]));
+  const nav = h("nav.tabs", null, tabs.map(([id, icon, label]) => h("button", { dataset: { tab: id }, title: label, onclick: () => show(id) }, h("span.tab-icon", null, icon), h("span.tab-label", null, label))));
   const content = h("div.tab-content");
   const show = (id: string) => {
     for (const b of nav.querySelectorAll("button")) b.classList.toggle("active", b.dataset.tab === id);

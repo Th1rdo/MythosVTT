@@ -1,4 +1,4 @@
-import type { AmbientLightDoc, LightConfig, TokenDoc, WallDoc } from "../../../shared/protocol.ts";
+import type { ActorDoc, AmbientLightDoc, LightConfig, TokenDoc, WallDoc } from "../../../shared/protocol.ts";
 import { game } from "../game.ts";
 import { h } from "../dom.ts";
 import { closeWindow, openWindow } from "./windows.ts";
@@ -106,46 +106,106 @@ export function openLightConfig(lightId: string, sceneId: string): void {
   ));
 }
 
+const DISPLAY_OPTIONS: [number, string][] = [
+  [0, "Nunca"], [10, "Quando selecionado"], [20, "Dono, ao passar o rato"], [30, "Ao passar o rato"], [40, "Sempre para o dono"], [50, "Sempre para todos"]
+];
+
+/** Attributes that look like resources ({value, max}) in an actor's system data. */
+function barChoices(actorId: string | null): [string, string][] {
+  const actor = actorId ? game.get<ActorDoc>("Actor", actorId) : undefined;
+  const keys = Object.entries(actor?.system ?? {})
+    .filter(([, v]) => v && typeof v === "object" && typeof (v as any).value === "number" && "max" in (v as any))
+    .map(([k]) => [k, k] as [string, string]);
+  return [["", "— nenhuma —"], ...keys];
+}
+
+type TokenSettings = Pick<TokenDoc, "width" | "height" | "disposition" | "actorLink" | "displayName" | "displayBars" | "bar1" | "bar2" | "sight" | "light">;
+
+/** The settings form shared by placed tokens and an actor's prototype token. */
+function tokenSettingsForm(
+  values: TokenSettings & { name?: string; rotation?: number; elevation?: number },
+  actorId: string | null,
+  units: string,
+  onSave: (data: Record<string, unknown>) => Promise<unknown>
+): HTMLFormElement {
+  const name = values.name !== undefined ? h("input", { value: values.name }) : null;
+  const width = num(values.width, { min: 0.5, step: 0.5 });
+  const height = num(values.height, { min: 0.5, step: 0.5 });
+  const disposition = select([[-1, "Hostil"], [0, "Neutro"], [1, "Amigável"]], values.disposition);
+  const rotation = values.rotation !== undefined ? num(values.rotation, { min: 0, max: 359 }) : null;
+  const elevation = values.elevation !== undefined ? num(values.elevation) : null;
+  const actorLink = h("input", { type: "checkbox", checked: values.actorLink });
+  const displayName = select(DISPLAY_OPTIONS, values.displayName);
+  const displayBars = select(DISPLAY_OPTIONS, values.displayBars);
+  const bars = barChoices(actorId);
+  const bar1 = select(bars, values.bar1?.attribute ?? "");
+  const bar2 = select(bars, values.bar2?.attribute ?? "");
+  const sightOn = h("input", { type: "checkbox", checked: values.sight.enabled });
+  const sightRange = num(values.sight.range, { min: 0 });
+  const sightAngle = num(values.sight.angle, { min: 1, max: 360 });
+  const lf = lightFields(values.light, units);
+  return h("form.stack", {
+    onsubmit: async (e: Event) => {
+      e.preventDefault();
+      await onSave({
+        ...(name ? { name: name.value.trim() } : {}),
+        ...(rotation ? { rotation: Number(rotation.value) || 0 } : {}),
+        ...(elevation ? { elevation: Number(elevation.value) || 0 } : {}),
+        width: Math.max(0.5, Number(width.value) || 1),
+        height: Math.max(0.5, Number(height.value) || 1),
+        disposition: Number(disposition.value),
+        actorLink: actorLink.checked,
+        displayName: Number(displayName.value),
+        displayBars: Number(displayBars.value),
+        bar1: { attribute: bar1.value || null },
+        bar2: { attribute: bar2.value || null },
+        sight: { enabled: sightOn.checked, range: Math.max(0, Number(sightRange.value) || 0), angle: Math.min(360, Math.max(1, Number(sightAngle.value) || 360)) },
+        light: lf.read()
+      });
+    }
+  },
+    name && field("Nome", name),
+    h("div.row", null, field("Largura (quadrados)", width), field("Altura (quadrados)", height)),
+    h("div.row", null, field("Atitude", disposition), rotation && field("Direção (graus)", rotation), elevation && field("Elevação", elevation)),
+    h("label.row", null, actorLink, "Ligado ao ator (alterações no token mudam a ficha do ator)"),
+    h("h4", null, "Nome e barras"),
+    h("div.row", null, field("Mostrar nome", displayName), field("Mostrar barras", displayBars)),
+    h("div.row", null, field("Barra 1 (em baixo)", bar1), field("Barra 2 (em cima)", bar2)),
+    h("h4", null, "Visão"),
+    h("label.row", null, sightOn, "Tem visão"),
+    h("div.row", null, field(`Alcance no escuro (${units}, 0 = só vê o que está iluminado)`, sightRange), field("Ângulo", sightAngle)),
+    h("h4", null, "Luz emitida"),
+    ...lf.nodes,
+    h("div.row.end", null, h("button.primary", { type: "submit" }, "Guardar"))
+  );
+}
+
 export function openTokenConfig(tokenId: string, sceneId: string): void {
   const key = `token-${tokenId}`;
   const t = game.get<TokenDoc>("Token", tokenId);
   const scene = game.get("Scene", sceneId) as { grid: { units: string } } | undefined;
   if (!t || !scene) return;
-  const body = openWindow(key, `Token: ${t.name}`, { width: 400 });
+  const body = openWindow(key, `Token: ${t.name}`, { width: 440 });
   if (!body) return;
-  const name = h("input", { value: t.name });
-  const width = num(t.width, { min: 0.5, step: 0.5 });
-  const height = num(t.height, { min: 0.5, step: 0.5 });
-  const disposition = select([[-1, "Hostil"], [0, "Neutro"], [1, "Amigável"]], t.disposition);
-  const rotation = num(t.rotation, { min: 0, max: 359 });
-  const sightOn = h("input", { type: "checkbox", checked: t.sight.enabled });
-  const sightRange = num(t.sight.range, { min: 0 });
-  const sightAngle = num(t.sight.angle, { min: 1, max: 360 });
-  const lf = lightFields(t.light, scene.grid.units);
-  body.append(h("form.stack", {
-    onsubmit: async (e: Event) => {
-      e.preventDefault();
-      await game.update("Token", {
-        _id: tokenId,
-        name: name.value.trim() || t.name,
-        width: Math.max(0.5, Number(width.value) || 1),
-        height: Math.max(0.5, Number(height.value) || 1),
-        disposition: Number(disposition.value),
-        rotation: Number(rotation.value) || 0,
-        sight: { enabled: sightOn.checked, range: Math.max(0, Number(sightRange.value) || 0), angle: Math.min(360, Math.max(1, Number(sightAngle.value) || 360)) },
-        light: lf.read()
-      }, sceneId);
+  body.append(tokenSettingsForm(t, t.actorId, scene.grid.units, async data => {
+    await game.update("Token", { _id: tokenId, ...data, name: (data.name as string) || t.name }, sceneId);
+    closeWindow(key);
+  }));
+}
+
+/** GM: the token settings new tokens of this actor start with. */
+export function openPrototypeConfig(actorId: string): void {
+  const key = `proto-${actorId}`;
+  const actor = game.get<ActorDoc>("Actor", actorId);
+  if (!actor) return;
+  const units = game.viewedScene?.grid.units ?? "m";
+  const body = openWindow(key, `Token de ${actor.name}`, { width: 440 });
+  if (!body) return;
+  body.append(
+    h("p.muted.small", null, "Valores usados quando arrastas este ator para o mapa."),
+    tokenSettingsForm(actor.token, actorId, units, async data => {
+      await game.update("Actor", { _id: actorId, token: { ...actor.token, ...data } });
       closeWindow(key);
-    }
-  },
-    field("Nome", name),
-    h("div.row", null, field("Largura (quadrados)", width), field("Altura (quadrados)", height)),
-    h("div.row", null, field("Atitude", disposition), field("Direção (graus)", rotation)),
-    h("h4", null, "Visão"),
-    h("label.row", null, sightOn, "Tem visão"),
-    h("div.row", null, field(`Alcance no escuro (${scene.grid.units}, 0 = só vê o que está iluminado)`, sightRange), field("Ângulo", sightAngle)),
-    h("h4", null, "Luz emitida"),
-    ...lf.nodes,
-    h("div.row.end", null, h("button.primary", { type: "submit" }, "Guardar"))
-  ));
+    })
+  );
 }

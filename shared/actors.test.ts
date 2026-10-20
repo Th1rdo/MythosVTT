@@ -33,7 +33,7 @@ function lookup(docs: Partial<Record<DocType, BaseDoc[]>>) {
 
 test("unlinked tokens overlay their delta; linked tokens are the actor", () => {
   const base = { ...actor };
-  const ae = { _id: "e1", _parent: "a", ...effect([{ key: "system.defense.value", type: "add", value: "1" }], { statuses: ["abalado"] }) };
+  const ae = { ...effect([{ key: "system.defense.value", type: "add", value: "1" }], { statuses: ["abalado"] }), _id: "e1", _parent: "a" };
   const docs = lookup({ Actor: [base], ActiveEffect: [ae] });
   const tok = (extra: Partial<TokenDoc>) => ({ _id: "t", actorId: "a", actorLink: false, delta: {}, ...extra } as unknown as TokenDoc);
 

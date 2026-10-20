@@ -141,15 +141,17 @@ export class Perception {
     this.refresh();
   }
 
-  /** Sources the local viewer looks through, or null when vision doesn't apply (GM overview, vision off). */
+  /**
+   * Tokens the local viewer looks through, or null when vision doesn't apply. Like Foundry: selected
+   * tokens with vision if there are any; otherwise players see through every token they observe and
+   * GMs see everything.
+   */
   #viewers(scene: SceneDoc): TokenView[] | null {
     if (!scene.tokenVision) return null;
-    const tokens = [...this.#board.tokens.values()];
-    if (game.isGM) {
-      const sel = this.#board.selectedToken;
-      return sel?.doc.sight.enabled ? [sel] : null;
-    }
-    return tokens.filter(t => t.doc.sight.enabled && this.#board.isObserver(t.doc));
+    const selected = this.#board.selected.filter(t => t.doc.sight.enabled && this.#board.isObserver(t.doc));
+    if (selected.length) return selected;
+    if (game.isGM) return null;
+    return [...this.#board.tokens.values()].filter(t => t.doc.sight.enabled && this.#board.isObserver(t.doc));
   }
 
   #compute(): void {

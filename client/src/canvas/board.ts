@@ -1,19 +1,23 @@
 import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import type { FederatedPointerEvent } from "pixi.js";
-import type { ActorDoc, PingEvent, SceneDoc, TokenDoc, UserDoc } from "../../../shared/protocol.ts";
-import { OWNERSHIP } from "../../../shared/protocol.ts";
+import type { ActorDoc, DisplayMode, PingEvent, SceneDoc, TokenDoc, UserDoc } from "../../../shared/protocol.ts";
+import { DISPLAY, OWNERSHIP } from "../../../shared/protocol.ts";
 import { ownershipLevel } from "../../../shared/permissions.ts";
 import type { Point } from "../../../shared/geometry.ts";
 import { gridDistance } from "../../../shared/geometry.ts";
+import { barValue, tokenActor } from "../../../shared/actors.ts";
+import type { TokenActor } from "../../../shared/actors.ts";
+import { CONDITION_BY_ID, DEAD } from "../../../shared/conditions.ts";
 import { game, toast } from "../game.ts";
 import { initials } from "../dom.ts";
 import { openSheet } from "../ui/sheet.ts";
-import { openTokenConfig } from "../ui/canvas-config.ts";
 import { toggleCombat } from "../ui/combat.ts";
+import { openTokenHUD } from "./token-hud.ts";
 
 const DISPOSITION_COLOR: Record<number, number> = { [-1]: 0xd9534f, 0: 0xe0b84a, 1: 0x4fa3d9 };
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
+const FONT = "Inter, system-ui, sans-serif";
 
 export type ToolName = "tokens" | "walls" | "lights" | "ruler";
 
@@ -33,17 +37,31 @@ export interface TokenView {
   root: Container;
   body: Container;
   frame: Graphics;
+  bars: Graphics;
+  statuses: Container;
+  elevation: Text;
   label: Text;
   doc: TokenDoc;
-  /** Animation target while a remote move is easing in. */
+  hovered: boolean;
+  /** Animation target while a move is easing in. */
   target: { x: number; y: number } | null;
 }
 
 type BoardEvent = "scene" | "tokens" | "selection" | "tool" | "frame";
 
+type Drag =
+  | { kind: "tokens"; anchor: string; offsets: Map<string, Point>; moved: boolean; start: Point }
+  | { kind: "pan"; sx: number; sy: number; wx: number; wy: number }
+  | { kind: "box"; from: Point; to: Point; additive: boolean }
+  | { kind: "tool" };
+
 /**
- * The scene canvas. Owns the PIXI application, the viewed scene's tokens, pan/zoom and the active tool.
- * Other canvas modules (walls, lights, perception, ruler) attach to `layers` and listen to board events.
+ * The scene canvas. Owns the PIXI application, the viewed scene's tokens, selection, pan/zoom and the
+ * active tool. Other canvas modules (walls, lights, perception, ruler, HUD) attach to `layers` and
+ * listen to board events.
+ *
+ * Input (tokens tool): click selects, Shift+click adds, drag on empty space draws a selection box,
+ * right-drag or Space+drag pans, wheel zooms, Shift+wheel rotates the selection.
  * Coordinates: `world` is the panned/zoomed container; scene pixel (0,0) is the scene's top-left.
  */
 export class Board {
@@ -65,16 +83,14 @@ export class Board {
   tokens = new Map<string, TokenView>();
   tool: ToolName = "tokens";
   #tools = new Map<ToolName, Tool>();
-  #selected: string | null = null;
-  #drag:
-    | { kind: "token"; id: string; dx: number; dy: number; moved: boolean; start: Point }
-    | { kind: "pan"; sx: number; sy: number; wx: number; wy: number }
-    | { kind: "tool" }
-    | null = null;
+  #selected = new Set<string>();
+  #drag: Drag | null = null;
+  #space = false;
   #sceneId: string | null = null;
   #views = new Map<string, { x: number; y: number; scale: number }>();
   #listeners = new Map<BoardEvent, Set<() => void>>();
-  #dragLabel = new Text({ text: "", style: { fill: 0xffffff, fontSize: 22, fontWeight: "700", fontFamily: "Inter, system-ui, sans-serif", stroke: { color: 0x000000, width: 5 } } });
+  #dragLabel = new Text({ text: "", style: { fill: 0xffffff, fontSize: 22, fontWeight: "700", fontFamily: FONT, stroke: { color: 0x000000, width: 5 } } });
+  #box = new Graphics();
 
   async mount(host: HTMLElement): Promise<void> {
     await this.app.init({ resizeTo: host, background: 0x0b0b0e, antialias: true, autoDensity: true, resolution: devicePixelRatio });
@@ -85,7 +101,7 @@ export class Board {
     for (const layer of [L.grid, L.glow, L.markers, L.effects, L.walls, L.controls, L.pings]) layer.eventMode = "none";
     this.#dragLabel.anchor.set(0.5, 1);
     this.#dragLabel.visible = false;
-    L.controls.addChild(this.#dragLabel);
+    L.controls.addChild(this.#dragLabel, this.#box);
     this.app.stage.addChild(this.world);
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;
@@ -102,6 +118,9 @@ export class Board {
     });
     this.app.canvas.addEventListener("drop", e => this.#onDrop(e));
     window.addEventListener("keydown", e => this.#onKey(e));
+    window.addEventListener("keyup", e => {
+      if (e.key === " ") this.#space = false;
+    });
     this.app.ticker.add(() => this.#animate());
 
     game.on("view", () => this.#loadScene());
@@ -110,7 +129,9 @@ export class Board {
       if (e.ids.includes(this.#sceneId ?? "")) this.#drawScene(false);
     });
     game.on("Token", e => this.#onTokens(e.op, e.docs as TokenDoc[], e.ids));
-    game.on("Actor", () => this.#redrawAllTokens());
+    const redrawAll = () => this.redrawTokens();
+    game.on("Actor", redrawAll);
+    game.on("ActiveEffect", redrawAll);
     game.on("ping", p => this.#onPing(p));
     this.#loadScene();
   }
@@ -137,9 +158,8 @@ export class Board {
     this.#tools.get(this.tool)?.deactivate?.();
     this.tool = name;
     this.#tools.get(name)?.activate?.();
-    // Tokens only take input in the tokens tool (and the ruler, to measure from them).
     for (const v of this.tokens.values()) v.root.eventMode = name === "tokens" ? "static" : "none";
-    this.#select(null);
+    this.select([]);
     this.emit("tool");
   }
 
@@ -150,8 +170,14 @@ export class Board {
     return game.viewedScene;
   }
 
+  /** Selected ("controlled") tokens. */
+  get selected(): TokenView[] {
+    return [...this.#selected].map(id => this.tokens.get(id)).filter((v): v is TokenView => !!v);
+  }
+
+  /** The first selected token (for single-token actions). */
   get selectedToken(): TokenView | undefined {
-    return this.#selected ? this.tokens.get(this.#selected) : undefined;
+    return this.selected[0];
   }
 
   /** Scene pixels per distance unit. */
@@ -174,16 +200,25 @@ export class Board {
     return { x: v.root.x + (v.doc.width * size) / 2, y: v.root.y + (v.doc.height * size) / 2 };
   }
 
+  /** Token's position on screen (CSS pixels relative to the canvas). */
+  tokenScreenRect(v: TokenView): { x: number; y: number; w: number; h: number } {
+    const size = this.scene?.grid.size ?? 100;
+    const s = this.world.scale.x;
+    const g = v.root.getGlobalPosition();
+    return { x: g.x, y: g.y, w: v.doc.width * size * s, h: v.doc.height * size * s };
+  }
+
   #loadScene(): void {
     if (this.#sceneId) this.#views.set(this.#sceneId, { x: this.world.x, y: this.world.y, scale: this.world.scale.x });
     this.#sceneId = game.viewedSceneId;
     for (const t of this.tokens.values()) t.root.destroy({ children: true });
     this.tokens.clear();
-    this.#selected = null;
+    this.#selected.clear();
     this.#drawScene(true);
     if (this.scene) for (const t of game.children<TokenDoc>("Token", this.scene._id)) this.#upsertToken(t);
     this.emit("scene");
     this.emit("tokens");
+    this.emit("selection");
   }
 
   async #drawScene(resetView: boolean): Promise<void> {
@@ -255,6 +290,24 @@ export class Board {
     return game.isGM || game.owns(game.get<ActorDoc>("Actor", doc.actorId));
   }
 
+  /** The actor a token represents (synthetic for unlinked tokens), with effects applied. */
+  actorOf(doc: TokenDoc): TokenActor | null {
+    return tokenActor(doc, game);
+  }
+
+  select(ids: string[], additive = false): void {
+    const next = new Set(additive ? [...this.#selected, ...ids] : ids);
+    const changed = next.size !== this.#selected.size || [...next].some(id => !this.#selected.has(id));
+    if (!changed) return;
+    const touched = new Set([...this.#selected, ...next]);
+    this.#selected = next;
+    for (const id of touched) {
+      const v = this.tokens.get(id);
+      if (v) this.#decorate(v);
+    }
+    this.emit("selection");
+  }
+
   #onTokens(op: string, docs: TokenDoc[], ids: string[]): void {
     if (op === "delete") {
       for (const id of ids) this.#removeToken(id);
@@ -269,13 +322,10 @@ export class Board {
     if (!t) return;
     t.root.destroy({ children: true });
     this.tokens.delete(id);
-    if (this.#selected === id) {
-      this.#selected = null;
-      this.emit("selection");
-    }
+    if (this.#selected.delete(id)) this.emit("selection");
   }
 
-  #redrawAllTokens(): void {
+  redrawTokens(): void {
     for (const t of this.tokens.values()) this.#upsertToken(t.doc);
     this.emit("tokens");
   }
@@ -289,17 +339,25 @@ export class Board {
       root.eventMode = this.tool === "tokens" ? "static" : "none";
       root.cursor = "pointer";
       root.on("pointerdown", e => this.#onTokenDown(doc._id, e));
-      root.on("pointerover", () => (view!.label.visible = true));
-      root.on("pointerout", () => (view!.label.visible = this.#selected === doc._id));
-      const body = new Container();
-      const frame = new Graphics();
-      const label = new Text({ text: "", style: { fill: 0xffffff, fontSize: 16, fontFamily: "Inter, system-ui, sans-serif", stroke: { color: 0x000000, width: 4 } } });
+      root.on("pointerover", () => {
+        view!.hovered = true;
+        this.#decorate(view!);
+      });
+      root.on("pointerout", () => {
+        view!.hovered = false;
+        this.#decorate(view!);
+      });
+      const label = new Text({ text: "", style: { fill: 0xffffff, fontSize: 16, fontFamily: FONT, stroke: { color: 0x000000, width: 4 } } });
       label.anchor.set(0.5, 0);
-      label.visible = false;
-      root.addChild(body, frame, label);
+      const elevation = new Text({ text: "", style: { fill: 0xffffff, fontSize: 14, fontWeight: "700", fontFamily: FONT, stroke: { color: 0x000000, width: 4 } } });
+      elevation.anchor.set(1, 0);
+      view = {
+        root, body: new Container(), frame: new Graphics(), bars: new Graphics(), statuses: new Container(), elevation, label,
+        doc, hovered: false, target: null
+      };
+      root.addChild(view.body, view.frame, view.bars, view.statuses, view.elevation, view.label);
       root.position.set(doc.x, doc.y);
       this.layers.tokens.addChild(root);
-      view = { root, body, frame, label, doc, target: null };
       this.tokens.set(doc._id, view);
     }
     const prev = view.doc;
@@ -307,8 +365,9 @@ export class Board {
 
     const w = doc.width * size;
     const ht = doc.height * size;
-    const actor = game.get<ActorDoc>("Actor", doc.actorId);
-    const img = doc.img ?? actor?.token.img ?? actor?.img ?? null;
+    const state = this.actorOf(doc);
+    const actor = state?.source;
+    const img = doc.img ?? actor?.token?.img ?? actor?.img ?? null;
     const name = doc.name || actor?.name || "";
 
     const key = `${img}|${w}|${ht}|${name}|${doc.disposition}`;
@@ -331,43 +390,103 @@ export class Board {
 
     view.label.text = name;
     view.label.position.set(w / 2, ht + 4);
-    view.root.alpha = doc.hidden ? 0.45 : 1;
-    this.#drawFrame(view);
+    view.elevation.text = doc.elevation ? `${doc.elevation > 0 ? "+" : ""}${doc.elevation}` : "";
+    view.elevation.position.set(w - 2, 2);
+    this.#drawStatuses(view, state, w);
+    this.#decorate(view);
 
-    const dragging = this.#drag?.kind === "token" && this.#drag.id === doc._id;
+    const dragging = this.#drag?.kind === "tokens" && this.#drag.offsets.has(doc._id);
     if (!dragging && (prev.x !== doc.x || prev.y !== doc.y || !animate)) {
       if (animate) view.target = { x: doc.x, y: doc.y };
       else view.root.position.set(doc.x, doc.y);
     }
   }
 
-  #drawFrame(view: TokenView): void {
-    const size = this.scene?.grid.size ?? 100;
-    const w = view.doc.width * size;
-    const ht = view.doc.height * size;
-    view.frame.clear();
-    if (this.#selected !== view.doc._id) return;
-    view.frame.rect(1, 1, w - 2, ht - 2).stroke({ width: 3, color: 0xff9f1c });
-    // Facing marker for tokens with a vision/light cone.
-    if (view.doc.sight.angle < 360 || view.doc.light.angle < 360) {
-      const a = (view.doc.rotation * Math.PI) / 180 + Math.PI / 2;
-      const cx = w / 2, cy = ht / 2, r = Math.min(w, ht) / 2 + 6;
-      view.frame.circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 5).fill(0xff9f1c);
+  #shows(mode: DisplayMode | undefined, v: TokenView): boolean {
+    const owner = this.canMove(v.doc);
+    switch (mode ?? DISPLAY.HOVER) {
+      case DISPLAY.NONE: return false;
+      case DISPLAY.CONTROL: return this.#selected.has(v.doc._id);
+      case DISPLAY.OWNER_HOVER: return owner && v.hovered;
+      case DISPLAY.HOVER: return v.hovered || this.#selected.has(v.doc._id);
+      case DISPLAY.OWNER: return owner;
+      case DISPLAY.ALWAYS: return true;
+      default: return false;
     }
   }
 
-  #select(id: string | null): void {
-    if (id === this.#selected) return;
-    const prev = this.#selected;
-    this.#selected = id;
-    for (const i of [prev, id]) {
-      const v = i ? this.tokens.get(i) : undefined;
-      if (v) {
-        this.#drawFrame(v);
-        v.label.visible = v.doc._id === id;
+  /** Selection frame, facing marker, name and bars — the parts that depend on hover/selection. */
+  #decorate(view: TokenView): void {
+    const size = this.scene?.grid.size ?? 100;
+    const w = view.doc.width * size;
+    const ht = view.doc.height * size;
+    const selected = this.#selected.has(view.doc._id);
+    view.root.alpha = view.doc.hidden ? 0.45 : 1;
+    view.frame.clear();
+    if (selected) {
+      view.frame.rect(1, 1, w - 2, ht - 2).stroke({ width: 3, color: 0xff9f1c });
+      if (view.doc.sight.angle < 360 || view.doc.light.angle < 360) {
+        const a = (view.doc.rotation * Math.PI) / 180 + Math.PI / 2;
+        const r = Math.min(w, ht) / 2 + 6;
+        view.frame.circle(w / 2 + Math.cos(a) * r, ht / 2 + Math.sin(a) * r, 5).fill(0xff9f1c);
       }
+    } else if (view.hovered) {
+      view.frame.rect(1, 1, w - 2, ht - 2).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
     }
-    this.emit("selection");
+    view.label.visible = this.#shows(view.doc.displayName, view);
+
+    view.bars.clear();
+    if (!this.#shows(view.doc.displayBars, view)) return;
+    const state = this.actorOf(view.doc);
+    if (!state) return;
+    const barH = Math.max(6, ht * 0.08);
+    const draw = (attr: string | null, y: number, color: (pct: number) => number) => {
+      const bar = barValue(state.derived, attr);
+      if (!bar || bar.max <= 0) return;
+      const pct = Math.max(0, Math.min(1, bar.value / bar.max));
+      view.bars.roundRect(0, y, w, barH, 3).fill({ color: 0x000000, alpha: 0.7 });
+      view.bars.roundRect(1, y + 1, Math.max(0, (w - 2) * pct), barH - 2, 2).fill(color(pct));
+    };
+    draw(view.doc.bar1.attribute, ht - barH, pct => (pct > 0.5 ? 0x3fbf5f : pct > 0.25 ? 0xe0b84a : 0xd9534f));
+    draw(view.doc.bar2.attribute, 0, () => 0x4f8fd9);
+  }
+
+  #drawStatuses(view: TokenView, state: TokenActor | null, w: number): void {
+    view.statuses.removeChildren().forEach(c => c.destroy());
+    if (!state) return;
+    const ids = [...state.statuses];
+    const dead = state.statuses.has(DEAD);
+    view.body.alpha = dead ? 0.5 : 1;
+    if (dead) {
+      const skull = new Text({ text: "💀", style: { fontSize: w * 0.6 } });
+      skull.anchor.set(0.5);
+      skull.position.set(w / 2, w / 2);
+      view.statuses.addChild(skull);
+    }
+    const icon = Math.max(14, w * 0.22);
+    ids.filter(id => id !== DEAD).forEach((id, i) => {
+      const c = CONDITION_BY_ID.get(id);
+      const effect = state.effects.find(e => e.statuses?.includes(id));
+      const t = new Text({ text: c?.icon ?? effect?.icon ?? "✨", style: { fontSize: icon * 0.75 } });
+      t.anchor.set(0.5);
+      const cell = new Container();
+      cell.addChild(new Graphics().circle(0, 0, icon / 2).fill({ color: 0x000000, alpha: 0.65 }), t);
+      const perRow = Math.max(1, Math.floor(w / icon));
+      cell.position.set(icon / 2 + (i % perRow) * icon, icon / 2 + Math.floor(i / perRow) * icon);
+      view.statuses.addChild(cell);
+    });
+    // Effects without a condition but with an icon (custom effects) show too.
+    const extra = state.effects.filter(e => !e.disabled && !(e.statuses ?? []).length && e.icon);
+    extra.forEach((e, j) => {
+      const i = ids.filter(id => id !== DEAD).length + j;
+      const t = new Text({ text: e.icon.length <= 4 ? e.icon : "✨", style: { fontSize: icon * 0.75 } });
+      t.anchor.set(0.5);
+      const cell = new Container();
+      cell.addChild(new Graphics().circle(0, 0, icon / 2).fill({ color: 0x000000, alpha: 0.65 }), t);
+      const perRow = Math.max(1, Math.floor(w / icon));
+      cell.position.set(icon / 2 + (i % perRow) * icon, icon / 2 + Math.floor(i / perRow) * icon);
+      view.statuses.addChild(cell);
+    });
   }
 
   #animate(): void {
@@ -393,41 +512,57 @@ export class Board {
   }
 
   #onTokenDown(id: string, e: FederatedPointerEvent): void {
-    if (e.button !== 0) {
-      if (e.button === 2) {
-        e.stopPropagation();
-        const v = this.tokens.get(id)!;
-        if (game.isGM) openTokenConfig(v.doc._id, v.doc._parent!);
-      }
+    const v = this.tokens.get(id)!;
+    if (e.button === 2) {
+      e.stopPropagation();
+      if (!this.canMove(v.doc)) return;
+      if (!this.#selected.has(id)) this.select([id]);
+      openTokenHUD(this, id);
       return;
     }
+    if (e.button !== 0 || this.#space) return;
     e.stopPropagation();
-    const v = this.tokens.get(id)!;
-    this.#select(id);
-    if (!this.canMove(v.doc)) return;
+    if (e.shiftKey) {
+      // Shift+click toggles the token in the selection.
+      if (this.#selected.has(id)) this.select([...this.#selected].filter(x => x !== id));
+      else this.select([id], true);
+      return;
+    }
+    if (!this.#selected.has(id)) this.select([id]);
+    // Drag every selected token the user may move, keeping their relative positions.
     const p = this.toWorld(e);
-    v.target = null;
-    this.#drag = { kind: "token", id, dx: p.x - v.root.x, dy: p.y - v.root.y, moved: false, start: { x: v.root.x, y: v.root.y } };
-    this.layers.tokens.addChild(v.root); // bring to front
+    const offsets = new Map<string, Point>();
+    for (const s of this.selected) {
+      if (!this.canMove(s.doc)) continue;
+      s.target = null;
+      offsets.set(s.doc._id, { x: p.x - s.root.x, y: p.y - s.root.y });
+      this.layers.tokens.addChild(s.root); // bring to front
+    }
+    if (!offsets.size) return;
+    this.#drag = { kind: "tokens", anchor: id, offsets, moved: false, start: { x: v.root.x, y: v.root.y } };
   }
 
   #onStageDown(e: FederatedPointerEvent): void {
+    const pan = () => (this.#drag = { kind: "pan", sx: e.global.x, sy: e.global.y, wx: this.world.x, wy: this.world.y });
+    if (e.button === 1 || e.button === 2 || this.#space) return void pan();
+    if (e.button !== 0) return;
     const tool = this.#tools.get(this.tool);
-    if (e.button === 0 && tool?.down?.(this.toWorld(e), e)) {
+    if (tool?.down?.(this.toWorld(e), e)) {
       this.#drag = { kind: "tool" };
       return;
     }
-    if (this.tool === "tokens") this.#select(null);
-    this.#drag = { kind: "pan", sx: e.global.x, sy: e.global.y, wx: this.world.x, wy: this.world.y };
+    if (this.tool === "tokens") {
+      const p = this.toWorld(e);
+      if (!e.shiftKey) this.select([]);
+      this.#drag = { kind: "box", from: p, to: p, additive: e.shiftKey };
+      return;
+    }
+    pan();
   }
 
   #onMove(e: FederatedPointerEvent): void {
     const d = this.#drag;
-    if (!d) {
-      this.#tools.get(this.tool)?.move?.(this.toWorld(e), e);
-      return;
-    }
-    if (d.kind === "tool") {
+    if (!d || d.kind === "tool") {
       this.#tools.get(this.tool)?.move?.(this.toWorld(e), e);
       return;
     }
@@ -435,18 +570,27 @@ export class Board {
       this.world.position.set(d.wx + e.global.x - d.sx, d.wy + e.global.y - d.sy);
       return;
     }
-    const v = this.tokens.get(d.id);
+    if (d.kind === "box") {
+      d.to = this.toWorld(e);
+      const x = Math.min(d.from.x, d.to.x), y = Math.min(d.from.y, d.to.y);
+      this.#box.clear().rect(x, y, Math.abs(d.to.x - d.from.x), Math.abs(d.to.y - d.from.y))
+        .fill({ color: 0xff9f1c, alpha: 0.08 }).stroke({ width: 2 / this.world.scale.x, color: 0xff9f1c });
+      return;
+    }
     const scene = this.scene;
-    if (!v || !scene) return;
+    if (!scene) return;
     const p = this.toWorld(e);
-    v.root.position.set(p.x - d.dx, p.y - d.dy);
+    for (const [id, off] of d.offsets) this.tokens.get(id)?.root.position.set(p.x - off.x, p.y - off.y);
     d.moved = true;
-    // Distance readout while dragging.
-    const size = scene.grid.size;
-    const dist = gridDistance(d.start, { x: Math.round(v.root.x / size) * size, y: Math.round(v.root.y / size) * size }, size, scene.grid.distance);
-    this.#dragLabel.text = `${formatNumber(dist)} ${scene.grid.units}`;
-    this.#dragLabel.position.set(v.root.x + (v.doc.width * size) / 2, v.root.y - 6);
-    this.#dragLabel.visible = true;
+    // Distance readout for the token under the pointer.
+    const v = this.tokens.get(d.anchor);
+    if (v) {
+      const size = scene.grid.size;
+      const dist = gridDistance(d.start, { x: Math.round(v.root.x / size) * size, y: Math.round(v.root.y / size) * size }, size, scene.grid.distance);
+      this.#dragLabel.text = `${formatNumber(dist)} ${scene.grid.units}`;
+      this.#dragLabel.position.set(v.root.x + (v.doc.width * size) / 2, v.root.y - 6);
+      this.#dragLabel.visible = true;
+    }
     this.emit("frame");
   }
 
@@ -458,30 +602,48 @@ export class Board {
       this.#tools.get(this.tool)?.up?.(this.toWorld(e), e);
       return;
     }
-    if (!d || d.kind !== "token" || !d.moved) return;
-    const v = this.tokens.get(d.id);
+    if (d?.kind === "box") {
+      this.#box.clear();
+      const x1 = Math.min(d.from.x, d.to.x), x2 = Math.max(d.from.x, d.to.x);
+      const y1 = Math.min(d.from.y, d.to.y), y2 = Math.max(d.from.y, d.to.y);
+      if (x2 - x1 < 4 && y2 - y1 < 4) return;
+      const inside = [...this.tokens.values()].filter(v => {
+        const c = this.tokenCenter(v);
+        return v.root.visible && this.canMove(v.doc) && c.x >= x1 && c.x <= x2 && c.y >= y1 && c.y <= y2;
+      });
+      this.select(inside.map(v => v.doc._id), d.additive);
+      return;
+    }
+    if (!d || d.kind !== "tokens" || !d.moved) return;
     const scene = this.scene;
-    if (!v || !scene) return;
+    if (!scene) return;
     const size = scene.grid.size;
-    const maxX = scene.width - v.doc.width * size;
-    const maxY = scene.height - v.doc.height * size;
-    const x = clamp(Math.round(v.root.x / size) * size, 0, Math.max(0, maxX));
-    const y = clamp(Math.round(v.root.y / size) * size, 0, Math.max(0, maxY));
-    v.target = { x, y };
+    const updates: { _id: string; x: number; y: number }[] = [];
+    for (const id of d.offsets.keys()) {
+      const v = this.tokens.get(id);
+      if (!v) continue;
+      const x = clamp(Math.round(v.root.x / size) * size, 0, Math.max(0, scene.width - v.doc.width * size));
+      const y = clamp(Math.round(v.root.y / size) * size, 0, Math.max(0, scene.height - v.doc.height * size));
+      v.target = { x, y };
+      updates.push({ _id: id, x, y });
+    }
     try {
-      await game.update("Token", { _id: v.doc._id, x, y }, scene._id);
+      await game.update("Token", updates, scene._id);
     } catch {
-      v.target = { x: v.doc.x, y: v.doc.y };
+      for (const id of d.offsets.keys()) {
+        const v = this.tokens.get(id);
+        if (v) v.target = { x: v.doc.x, y: v.doc.y };
+      }
     }
   }
 
   #onWheel(e: WheelEvent): void {
     e.preventDefault();
-    // Shift + wheel rotates the selected token (15° steps).
-    const sel = this.selectedToken;
-    if (e.shiftKey && sel && this.canMove(sel.doc) && this.scene) {
-      const rotation = (((sel.doc.rotation + (e.deltaY > 0 ? 15 : -15)) % 360) + 360) % 360;
-      game.update("Token", { _id: sel.doc._id, rotation }, this.scene._id);
+    // Shift + wheel rotates the selected tokens (15° steps).
+    const movable = this.selected.filter(v => this.canMove(v.doc));
+    if (e.shiftKey && movable.length && this.scene) {
+      const step = e.deltaY > 0 ? 15 : -15;
+      game.update("Token", movable.map(v => ({ _id: v.doc._id, rotation: (((v.doc.rotation + step) % 360) + 360) % 360 })), this.scene._id);
       return;
     }
     const rect = this.app.canvas.getBoundingClientRect();
@@ -503,11 +665,15 @@ export class Board {
   #onDoubleClick(e: MouseEvent): void {
     const p = this.eventToWorld(e);
     if (this.#tools.get(this.tool)?.dblclick?.(p, e)) return;
-    if (this.tool === "tokens" && this.#selected) {
-      const t = this.tokens.get(this.#selected)!;
-      const actor = game.get<ActorDoc>("Actor", t.doc.actorId);
-      if (actor) openSheet(actor._id);
-      return;
+    if (this.tool === "tokens") {
+      const v = [...this.tokens.values()].find(t => {
+        const size = this.scene?.grid.size ?? 100;
+        return t.root.visible && p.x >= t.root.x && p.x <= t.root.x + t.doc.width * size && p.y >= t.root.y && p.y <= t.root.y + t.doc.height * size;
+      });
+      if (v) {
+        if (v.doc.actorId && this.scene) openSheet(v.doc.actorId, v.doc.actorLink ? undefined : { tokenId: v.doc._id, sceneId: this.scene._id });
+        return;
+      }
     }
     game.ping(p.x, p.y);
     this.#onPing({ userId: game.userId, sceneId: this.#sceneId!, x: p.x, y: p.y });
@@ -522,43 +688,59 @@ export class Board {
     if (!game.isGM) return toast("Só o mestre pode pôr tokens no mapa");
     const size = scene.grid.size;
     const p = this.eventToWorld(e);
-    const x = Math.floor(p.x / size) * size;
-    const y = Math.floor(p.y / size) * size;
-    const isAgent = actor.type === "agent";
+    const proto = actor.token;
     await game.create("Token", {
-      name: actor.name, actorId: actor._id, img: actor.token.img ?? actor.img, x, y,
-      width: actor.token.width, height: actor.token.height,
-      disposition: isAgent ? 1 : actor.type === "threat" ? -1 : 0,
-      // Agents get vision by default so player vision works out of the box.
-      sight: { enabled: isAgent, range: 0, angle: 360 }
+      name: actor.name, actorId: actor._id, img: proto.img ?? actor.img,
+      x: Math.floor(p.x / size) * size, y: Math.floor(p.y / size) * size,
+      width: proto.width, height: proto.height, disposition: proto.disposition,
+      actorLink: proto.actorLink, displayName: proto.displayName, displayBars: proto.displayBars,
+      bar1: proto.bar1, bar2: proto.bar2, sight: proto.sight, light: proto.light
     }, scene._id);
   }
 
   #onKey(e: KeyboardEvent): void {
     if ((e.target as HTMLElement)?.closest("input, textarea, select, [contenteditable]")) return;
+    if (e.key === " ") {
+      this.#space = true;
+      if (this.tool !== "ruler") e.preventDefault();
+    }
     if (this.#tools.get(this.tool)?.key?.(e)) return;
-    const v = this.selectedToken;
     const scene = this.scene;
-    if (!v || !scene || this.tool !== "tokens") return;
+    const selected = this.selected;
+    if (!scene || this.tool !== "tokens") return;
+    if (e.key === "Escape") return this.select([]);
+    if ((e.key === "a" || e.key === "A") && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      return this.select([...this.tokens.values()].filter(v => v.root.visible && this.canMove(v.doc)).map(v => v.doc._id));
+    }
+    if (!selected.length) return;
+    const ids = selected.map(v => v.doc._id);
     if ((e.key === "Delete" || e.key === "Backspace") && game.isGM) {
-      game.delete("Token", v.doc._id, scene._id);
-    } else if (e.key.toLowerCase() === "c" && !e.metaKey && !e.ctrlKey) {
-      toggleCombat([v.doc._id]);
+      game.delete("Token", ids, scene._id);
     } else if (e.key.toLowerCase() === "h" && game.isGM) {
-      game.update("Token", { _id: v.doc._id, hidden: !v.doc.hidden }, scene._id);
-    } else if (e.key.startsWith("Arrow") && this.canMove(v.doc)) {
+      const hide = selected.some(v => !v.doc.hidden);
+      game.update("Token", ids.map(_id => ({ _id, hidden: hide })), scene._id);
+    } else if (e.key.toLowerCase() === "c" && !e.metaKey && !e.ctrlKey) {
+      toggleCombat(ids);
+    } else if (e.key.startsWith("Arrow")) {
       e.preventDefault();
       const size = scene.grid.size;
       const dx = e.key === "ArrowLeft" ? -size : e.key === "ArrowRight" ? size : 0;
       const dy = e.key === "ArrowUp" ? -size : e.key === "ArrowDown" ? size : 0;
-      // Step from where the token is heading, so quick repeated presses add up.
-      const from = v.target ?? { x: v.doc.x, y: v.doc.y };
-      const x = clamp(from.x + dx, 0, scene.width - v.doc.width * size);
-      const y = clamp(from.y + dy, 0, scene.height - v.doc.height * size);
-      v.target = { x, y };
-      game.update("Token", { _id: v.doc._id, x, y }, scene._id).catch(() => {
-        v.target = { x: v.doc.x, y: v.doc.y };
+      const movable = selected.filter(v => this.canMove(v.doc));
+      // Step from where each token is heading, so quick repeated presses add up.
+      const updates = movable.map(v => {
+        const from = v.target ?? { x: v.doc.x, y: v.doc.y };
+        const x = clamp(from.x + dx, 0, scene.width - v.doc.width * size);
+        const y = clamp(from.y + dy, 0, scene.height - v.doc.height * size);
+        v.target = { x, y };
+        return { _id: v.doc._id, x, y };
       });
+      if (updates.length) {
+        game.update("Token", updates, scene._id).catch(() => {
+          for (const v of movable) v.target = { x: v.doc.x, y: v.doc.y };
+        });
+      }
     }
   }
 
@@ -607,7 +789,7 @@ function placeholder(name: string, w: number, h: number, color: number): Contain
   const c = new Container();
   const r = Math.min(w, h) / 2 - 4;
   c.addChild(new Graphics().circle(w / 2, h / 2, r).fill({ color: 0x1b1b22 }).stroke({ width: 4, color }));
-  const t = new Text({ text: initials(name), style: { fill: 0xffffff, fontSize: r * 0.8, fontWeight: "700", fontFamily: "Inter, system-ui, sans-serif" } });
+  const t = new Text({ text: initials(name), style: { fill: 0xffffff, fontSize: r * 0.8, fontWeight: "700", fontFamily: FONT } });
   t.anchor.set(0.5);
   t.position.set(w / 2, h / 2);
   c.addChild(t);

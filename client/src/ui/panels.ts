@@ -1,22 +1,24 @@
-import type { ActorDoc, JournalEntryDoc, SceneDoc, UserDoc } from "../../../shared/protocol.ts";
+import type { ActorDoc, ItemDoc, JournalEntryDoc, SceneDoc, UserDoc } from "../../../shared/protocol.ts";
+import { ITEM_TYPES, itemTemplate } from "../../../shared/ordem.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { game, toast } from "../game.ts";
 import { avatar, h, imageSize, pickFile, safeHtml, upload } from "../dom.ts";
-import { openSheet, ownershipEditor } from "./sheet.ts";
+import { ITEM_DRAG, openSheet, ownershipEditor } from "./sheet.ts";
+import { openItemSheet } from "./item-sheet.ts";
+import { createFolder, directory } from "./directory.ts";
 import { closeWindow, confirmDialog, openWindow, prompt, setWindowTitle } from "./windows.ts";
 
 // ---------------------------------------------------------------------------
 // Actors
 
 export function actorsPanel(): HTMLElement {
-  const list = h("ul.doc-list");
-  const render = () => {
-    const actors = game.all<ActorDoc>("Actor").sort((a, b) => a.name.localeCompare(b.name, "pt"));
-    list.replaceChildren(...actors.map(a => h("li", {
-      draggable: game.isGM,
-      ondragstart: (e: DragEvent) => e.dataTransfer?.setData("application/x-mesa-actor", a._id),
-      onclick: () => openSheet(a._id)
-    },
+  const dir = directory<ActorDoc>({
+    type: "Actor",
+    docs: () => game.all<ActorDoc>("Actor"),
+    empty: "Sem atores.",
+    onOpen: a => openSheet(a._id),
+    dragData: (a, dt) => dt.setData("application/x-mesa-actor", a._id),
+    entry: a => [
       avatar(a.img, a.name, 32),
       h("span.grow", null, a.name),
       h("span.muted.small", null, a.type),
@@ -27,23 +29,67 @@ export function actorsPanel(): HTMLElement {
           if (await confirmDialog(`Apagar "${a.name}"?`)) game.delete("Actor", a._id);
         }
       }, "✕")
-    )));
-    if (!actors.length) list.append(h("li.muted", null, "Sem atores."));
-  };
-  game.on("Actor", render);
-  game.on("ready", render);
-  render();
+    ]
+  });
 
   const add = async () => {
     const v = await prompt("Novo ator", [{ name: "name", label: "Nome" }, { name: "type", label: "Tipo (agent / threat)", value: "agent" }]);
     if (!v?.name) return;
-    const [actor] = await game.create<ActorDoc>("Actor", { name: v.name, type: v.type || "agent", system: v.type === "threat" ? {} : blankAgent() });
+    const agent = v.type !== "threat";
+    const [actor] = await game.create<ActorDoc>("Actor", {
+      name: v.name, type: agent ? "agent" : "threat", system: blankAgent(),
+      // Agents are player characters: linked tokens that see; threats are copies.
+      token: agent
+        ? { actorLink: true, disposition: 1, sight: { enabled: true, range: 0, angle: 360 }, bar1: { attribute: "PV" }, bar2: { attribute: "SAN" } }
+        : { actorLink: false, disposition: -1, bar1: { attribute: "PV" } }
+    });
     openSheet(actor._id);
   };
 
   return h("div.panel", null,
-    game.isGM && h("div.row.toolbar", null, h("button.primary", { onclick: add }, "+ Ator"), h("span.muted.small", null, "Arrasta um ator para o mapa")),
-    list
+    game.isGM && h("div.row.toolbar", null,
+      h("button.primary", { onclick: add }, "+ Ator"),
+      h("button", { onclick: () => createFolder("Actor") }, "+ Pasta"),
+      h("span.muted.small", null, "Arrasta para o mapa")),
+    dir.element
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Items
+
+export function itemsPanel(): HTMLElement {
+  const dir = directory<ItemDoc>({
+    type: "Item",
+    docs: () => game.all<ItemDoc>("Item").filter(i => !i._parent),
+    empty: game.isGM ? "Sem itens. Cria um com + Item." : "O mestre ainda não partilhou itens.",
+    onOpen: i => openItemSheet(i._id),
+    dragData: (i, dt) => dt.setData(ITEM_DRAG, JSON.stringify({ id: i._id })),
+    entry: i => [
+      avatar(i.img, i.name, 28),
+      h("span.grow", null, i.name),
+      h("span.muted.small", null, ITEM_TYPES.find(([t]) => t === i.type)?.[1] ?? i.type),
+      game.isGM && h("button.icon.small", {
+        title: "Apagar",
+        onclick: async (e: Event) => {
+          e.stopPropagation();
+          if (await confirmDialog(`Apagar "${i.name}"?`)) game.delete("Item", i._id);
+        }
+      }, "✕")
+    ]
+  });
+  const add = async () => {
+    const v = await prompt("Novo item", [{ name: "name", label: "Nome" }]);
+    if (!v?.name) return;
+    const [item] = await game.create<ItemDoc>("Item", { name: v.name, type: "generalEquipment", system: itemTemplate("generalEquipment") });
+    if (item) openItemSheet(item._id);
+  };
+  return h("div.panel", null,
+    game.isGM && h("div.row.toolbar", null,
+      h("button.primary", { onclick: add }, "+ Item"),
+      h("button", { onclick: () => createFolder("Item") }, "+ Pasta"),
+      h("span.muted.small", null, "Arrasta para uma ficha")),
+    dir.element
   );
 }
 
@@ -70,13 +116,14 @@ function blankAgent(): Record<string, unknown> {
 // Scenes (GM)
 
 export function scenesPanel(): HTMLElement {
-  const list = h("ul.doc-list");
-  const render = () => {
-    const scenes = game.all<SceneDoc>("Scene").sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"));
-    list.replaceChildren(...scenes.map(s => h("li", {
-      className: s._id === game.viewedSceneId ? "current" : "",
-      onclick: () => game.view(s._id)
-    },
+  const dir = directory<SceneDoc>({
+    type: "Scene",
+    docs: () => game.all<SceneDoc>("Scene"),
+    empty: "Sem cenas.",
+    sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
+    rowClass: s => (s._id === game.viewedSceneId ? "current" : ""),
+    onOpen: s => game.view(s._id),
+    entry: s => [
       h("span.grow", null, s.active ? "● " : "", s.name),
       !s.active && h("button.small", { title: "Ativar para todos", onclick: (e: Event) => (e.stopPropagation(), game.update("Scene", { _id: s._id, active: true })) }, "Ativar"),
       h("button.icon.small", { title: "Configurar", onclick: (e: Event) => (e.stopPropagation(), sceneConfig(s._id)) }, "⚙"),
@@ -87,12 +134,10 @@ export function scenesPanel(): HTMLElement {
           if (await confirmDialog(`Apagar a cena "${s.name}" e os seus tokens?`)) game.delete("Scene", s._id);
         }
       }, "✕")
-    )));
-  };
-  game.on("Scene", render);
-  game.on("view", render);
-  game.on("ready", render);
-  render();
+    ]
+  });
+  game.on("view", dir.render);
+  const list = dir.element;
 
   const add = async () => {
     const v = await prompt("Nova cena", [{ name: "name", label: "Nome" }]);
@@ -105,6 +150,7 @@ export function scenesPanel(): HTMLElement {
   return h("div.panel", null,
     h("div.row.toolbar", null,
       h("button.primary", { onclick: add }, "+ Cena"),
+      h("button", { onclick: () => createFolder("Scene") }, "+ Pasta"),
       h("button", { title: "Levar os jogadores para a cena que estás a ver", onclick: () => game.viewedSceneId && game.pullPlayers(game.viewedSceneId) }, "Puxar jogadores")
     ),
     list
@@ -185,18 +231,17 @@ function sceneConfig(sceneId: string): void {
 // Journal
 
 export function journalPanel(): HTMLElement {
-  const list = h("ul.doc-list");
-  const render = () => {
-    const entries = game.all<JournalEntryDoc>("JournalEntry").sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"));
-    list.replaceChildren(...entries.map(j => h("li", { onclick: () => openJournal(j._id) },
+  const dir = directory<JournalEntryDoc>({
+    type: "JournalEntry",
+    docs: () => game.all<JournalEntryDoc>("JournalEntry"),
+    empty: "Sem entradas.",
+    sort: (a, b) => a.sort - b.sort || a.name.localeCompare(b.name, "pt"),
+    onOpen: j => openJournal(j._id),
+    entry: j => [
       h("span.grow", null, j.name),
       game.isGM && (j.ownership.default ?? 0) >= OWNERSHIP.LIMITED && h("span.tag", null, "partilhado")
-    )));
-    if (!entries.length) list.append(h("li.muted", null, "Sem entradas."));
-  };
-  game.on("JournalEntry", render);
-  game.on("ready", render);
-  render();
+    ]
+  });
 
   const add = async () => {
     const v = await prompt("Nova entrada", [{ name: "name", label: "Título" }]);
@@ -205,7 +250,10 @@ export function journalPanel(): HTMLElement {
     openJournal(entry._id, true);
   };
 
-  return h("div.panel", null, game.isGM && h("div.row.toolbar", null, h("button.primary", { onclick: add }, "+ Entrada")), list);
+  return h("div.panel", null,
+    game.isGM && h("div.row.toolbar", null, h("button.primary", { onclick: add }, "+ Entrada"), h("button", { onclick: () => createFolder("JournalEntry") }, "+ Pasta")),
+    dir.element
+  );
 }
 
 function openJournal(id: string, startEditing = false): void {

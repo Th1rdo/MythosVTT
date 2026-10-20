@@ -36,3 +36,36 @@ export function initiativeFormula(actor: ActorDoc | undefined): string {
   if (!actor || !isOrdemActor(actor)) return "1d20";
   return skillFormula(actor, "initiative");
 }
+
+/** Skill names (pt), keyed like the Foundry system's data. */
+export const SKILL_LABELS: Record<string, string> = {
+  acrobatics: "Acrobacia", animal: "Adestramento", arts: "Artes", athleticism: "Atletismo", relevance: "Atualidades",
+  sciences: "Ciências", crime: "Crime", diplomacy: "Diplomacia", deception: "Enganação", resilience: "Fortitude",
+  stealth: "Furtividade", initiative: "Iniciativa", intimidation: "Intimidação", intuition: "Intuição",
+  investigation: "Investigação", fighting: "Luta", medicine: "Medicina", occultism: "Ocultismo", perception: "Percepção",
+  driving: "Pilotagem", aim: "Pontaria", reflexes: "Reflexos", religion: "Religião", survival: "Sobrevivência",
+  tactics: "Tática", technology: "Tecnologia", will: "Vontade", freeSkill: "Perícia livre"
+};
+
+/** Item types of the ordemparanormal system. */
+export const ITEM_TYPES: [type: string, label: string][] = [
+  ["armament", "Arma"], ["protection", "Proteção"], ["generalEquipment", "Equipamento"], ["ritual", "Ritual"], ["ability", "Habilidade"]
+];
+
+/** Default system data for a new item of each type (mirrors the system's template.json). */
+export function itemTemplate(type: string): Record<string, unknown> {
+  const base = { description: "", weight: 1, category: 0 };
+  switch (type) {
+    case "armament":
+      return {
+        ...base, quantity: 1, proficiency: 0, critical: "20/x2", range: "",
+        formulas: { attack: { formula: "", attr: "", skill: "fighting", bonus: "" }, damage: { formula: "1d6", attr: "", bonus: "", type: "" } }
+      };
+    case "protection": return { ...base, defense: 0, quantity: 1 };
+    case "generalEquipment": return { ...base, quantity: 1 };
+    case "ritual":
+      return { description: "", circle: 1, element: "", target: "", execution: "", range: "", area: { name: "", size: "", type: "" }, duration: "", resistance: "" };
+    case "ability": return { description: "", abilityType: "", preRequisite: "" };
+    default: return { description: "" };
+  }
+}

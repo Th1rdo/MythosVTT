@@ -57,27 +57,33 @@ async function readLevel(name: string, dir: string): Promise<Raw[]> {
   fs.cpSync(dir, copy, { recursive: true });
   fs.rmSync(path.join(copy, "LOCK"), { force: true });
   const db = new ClassicLevel<string, Raw>(copy, { keyEncoding: "utf8", valueEncoding: "json", createIfMissing: false });
-  const primary = new Map<string, Raw>();
-  const embedded = new Map<string, Map<string, Raw>>(); // "<embeddedName>" -> "<parentId>.<childId>" -> doc
+  // sublevel ("actors", "scenes.tokens", "scenes.tokens.delta", …) → id path ("scene.token.delta") → doc
+  const subs = new Map<string, Map<string, Raw>>();
   for await (const [key, value] of db.iterator()) {
     const m = /^!([^!]+)!(.+)$/.exec(key);
-    if (!m) continue;
-    const [, sub, id] = m;
-    if (sub === name) primary.set(id, value);
-    else if (sub.startsWith(name + ".")) {
-      const emb = sub.slice(name.length + 1);
-      if (!embedded.has(emb)) embedded.set(emb, new Map());
-      embedded.get(emb)!.set(id, value);
-    }
+    if (!m || (m[1] !== name && !m[1].startsWith(name + "."))) continue;
+    if (!subs.has(m[1])) subs.set(m[1], new Map());
+    subs.get(m[1])!.set(m[2], value);
   }
   await db.close();
-  for (const doc of primary.values()) {
-    for (const [emb, children] of embedded) {
-      const ids: unknown[] = Array.isArray(doc[emb]) ? doc[emb] : [];
-      doc[emb] = ids.map(c => typeof c === "string" ? children.get(`${doc._id}.${c}`) : c).filter(Boolean);
+
+  // Embedded fields hold either an array of child ids or (for single embeds like a token's delta) one id.
+  const attach = (doc: Raw, sub: string, idPath: string) => {
+    for (const [childSub, children] of subs) {
+      if (!childSub.startsWith(sub + ".") || childSub.slice(sub.length + 1).includes(".")) continue;
+      const field = childSub.slice(sub.length + 1);
+      const resolve = (id: string) => {
+        const child = children.get(`${idPath}.${id}`);
+        if (child) attach(child, childSub, `${idPath}.${id}`);
+        return child;
+      };
+      if (Array.isArray(doc[field])) doc[field] = doc[field].map((c: unknown) => (typeof c === "string" ? resolve(c) : c)).filter(Boolean);
+      else if (typeof doc[field] === "string") doc[field] = resolve(doc[field]) ?? null;
     }
-  }
-  return [...primary.values()];
+  };
+  const primary = [...(subs.get(name) ?? new Map()).entries()];
+  for (const [id, doc] of primary) attach(doc, name, id);
+  return primary.map(([, doc]) => doc);
 }
 
 function readNedb(file: string): Raw[] {
@@ -135,71 +141,6 @@ function rewriteHtml(html: unknown): string {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Conversion
-
-const counts: Record<string, number> = {};
-function insert(type: Parameters<World["insertRaw"]>[0], docs: BaseDoc[]) {
-  if (!docs.length) return;
-  target.insertRaw(type, docs);
-  counts[type] = (counts[type] ?? 0) + docs.length;
-}
-
-const users = await readCollection("users");
-insert("User", users.map(u => ({
-  _id: u._id,
-  name: u.name,
-  role: (u.role ?? 1) >= 3 ? "gm" : "player",
-  color: typeof u.color === "string" ? u.color : "#7c8cff",
-  character: u.character ?? null,
-  passwordHash: null
-})));
-
-const actors = await readCollection("actors");
-insert("Actor", actors.map(a => ({
-  _id: a._id,
-  name: a.name,
-  type: a.type,
-  img: asset(a.img),
-  system: a.system ?? a.data ?? {},
-  ownership: a.ownership ?? a.permission ?? { default: 0 },
-  token: {
-    width: a.prototypeToken?.width ?? a.token?.width ?? 1,
-    height: a.prototypeToken?.height ?? a.token?.height ?? 1,
-    img: asset(a.prototypeToken?.texture?.src ?? a.token?.img)
-  }
-})));
-insert("Item", actors.flatMap(a => (a.items ?? []).map((i: Raw) => ({
-  _id: i._id, _parent: a._id, name: i.name, type: i.type, img: asset(i.img), system: i.system ?? i.data ?? {}
-}))));
-
-const scenes = await readCollection("scenes");
-insert("Scene", scenes.map(s => {
-  const grid = typeof s.grid === "object" && s.grid ? s.grid : { size: s.grid, color: s.gridColor, alpha: s.gridAlpha, distance: s.gridDistance, units: s.gridUnits };
-  return {
-    _id: s._id,
-    name: s.name,
-    img: asset(s.background?.src ?? s.img),
-    width: s.width ?? 3000,
-    height: s.height ?? 2000,
-    backgroundColor: s.backgroundColor ?? "#111111",
-    grid: { size: grid.size ?? 100, color: grid.color ?? "#000000", alpha: grid.alpha ?? 0.2, distance: grid.distance ?? 1.5, units: grid.units ?? "m" },
-    active: !!s.active,
-    navigation: s.navigation ?? true,
-    sort: s.navOrder ?? s.sort ?? 0,
-    tokenVision: s.tokenVision ?? true,
-    fog: {
-      mode: typeof s.fog?.mode === "number" ? s.fog.mode : s.fogExploration === false ? 0 : 1,
-      explored: s.fog?.colors?.explored ?? "#000000",
-      unexplored: s.fog?.colors?.unexplored ?? "#000000"
-    },
-    environment: {
-      darkness: s.environment?.darknessLevel ?? s.darkness ?? 0,
-      globalLight: s.environment?.globalLight?.enabled ?? s.globalLight ?? false,
-      globalLightThreshold: s.environment?.globalLight?.darkness?.max ?? s.globalLightThreshold ?? 1
-    }
-  };
-}));
 // Foundry pads the canvas around the scene by `padding` (default 0.25 of each side), rounded up to whole
 // grid squares, and placeable coordinates include that offset. Mesa scenes have no padding.
 function sceneOffset(s: Raw): { padX: number; padY: number } {
@@ -233,6 +174,134 @@ function lightConfig(l: Raw | undefined) {
   };
 }
 
+// Foundry core status ids → Mesa's Ordem Paranormal conditions.
+const STATUS_MAP: Record<string, string> = {
+  dead: "morto", unconscious: "inconsciente", prone: "caido", blind: "cego", deaf: "surdo", stun: "atordoado",
+  paralysis: "paralisado", restrain: "agarrado", bleeding: "sangrando", poison: "envenenado", invisible: "invisivel",
+  burning: "em-chamas", fear: "apavorado", sleep: "inconsciente", frozen: "paralisado"
+};
+// Foundry ≤ v13 numeric change modes and v14 string types → Mesa change types.
+const MODE_MAP: Record<string, string> = { "1": "multiply", "2": "add", "3": "downgrade", "4": "upgrade", "5": "override", multiply: "multiply", add: "add", subtract: "add", downgrade: "downgrade", upgrade: "upgrade", override: "override" };
+
+function effectData(e: Raw) {
+  const rawChanges: Raw[] = e.system?.changes ?? e.changes ?? [];
+  const changes = rawChanges
+    .map(c => ({ key: String(c.key ?? ""), type: MODE_MAP[String(c.type ?? c.mode)], value: String(c.type === "subtract" ? -Number(c.value) : c.value ?? "") }))
+    .filter(c => c.key && c.type);
+  const rounds = e.duration?.rounds ?? (e.duration?.units === "rounds" ? e.duration?.value : null) ?? null;
+  return {
+    _id: e._id,
+    name: e.name ?? e.label ?? "Efeito",
+    icon: "✨",
+    disabled: !!e.disabled,
+    statuses: [...new Set<string>((e.statuses ?? []).map((id: string) => STATUS_MAP[id] ?? id))],
+    changes,
+    duration: { rounds: typeof rounds === "number" && rounds > 0 ? rounds : null, startRound: null, combat: null },
+    description: String(e.description ?? "")
+  };
+}
+
+const DISPLAY_OK = new Set([0, 10, 20, 30, 40, 50]);
+const display = (v: unknown, fallback: number) => (typeof v === "number" && DISPLAY_OK.has(v) ? v : fallback);
+
+/** Token settings shared by placed tokens and prototype tokens. */
+function tokenSettings(t: Raw) {
+  return {
+    width: t.width ?? 1,
+    height: t.height ?? 1,
+    disposition: Math.max(-1, Math.min(1, t.disposition ?? 0)),
+    actorLink: !!t.actorLink,
+    displayName: display(t.displayName, 30),
+    displayBars: display(t.displayBars, 40),
+    bar1: { attribute: t.bar1?.attribute ?? null },
+    bar2: { attribute: t.bar2?.attribute ?? null },
+    sight: {
+      enabled: t.sight?.enabled ?? !!t.vision,
+      range: Number(t.sight?.range ?? t.dimSight ?? 0) || 0,
+      angle: t.sight?.angle ?? t.sightAngle ?? 360
+    },
+    light: lightConfig(t.light ?? { bright: t.brightLight, dim: t.dimLight, color: t.lightColor, angle: t.lightAngle })
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Conversion
+
+const counts: Record<string, number> = {};
+function insert(type: Parameters<World["insertRaw"]>[0], docs: BaseDoc[]) {
+  if (!docs.length) return;
+  target.insertRaw(type, docs);
+  counts[type] = (counts[type] ?? 0) + docs.length;
+}
+
+const users = await readCollection("users");
+insert("User", users.map(u => ({
+  _id: u._id,
+  name: u.name,
+  role: (u.role ?? 1) >= 3 ? "gm" : "player",
+  color: typeof u.color === "string" ? u.color : "#7c8cff",
+  character: u.character ?? null,
+  passwordHash: null
+})));
+
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene"]);
+const folders = (await readCollection("folders")).filter(f => FOLDER_TYPES.has(f.type));
+const folderIds = new Set(folders.map(f => f._id));
+const folderOf = (id: unknown) => (typeof id === "string" && folderIds.has(id) ? id : null);
+insert("Folder", folders.map(f => ({
+  _id: f._id, name: f.name, type: f.type, folder: folderOf(f.folder), color: f.color ?? null, sort: f.sort ?? 0
+})));
+
+const actors = await readCollection("actors");
+insert("Actor", actors.map(a => ({
+  _id: a._id,
+  name: a.name,
+  type: a.type,
+  img: asset(a.img),
+  system: a.system ?? a.data ?? {},
+  ownership: a.ownership ?? a.permission ?? { default: 0 },
+  folder: folderOf(a.folder),
+  token: { ...tokenSettings(a.prototypeToken ?? a.token ?? {}), img: asset(a.prototypeToken?.texture?.src ?? a.token?.img) }
+})));
+insert("Item", actors.flatMap(a => (a.items ?? []).map((i: Raw) => ({
+  _id: i._id, _parent: a._id, name: i.name, type: i.type, img: asset(i.img), system: i.system ?? i.data ?? {}
+}))));
+insert("ActiveEffect", actors.flatMap(a => (a.effects ?? []).map((e: Raw) => ({ ...effectData(e), _parent: a._id }))));
+
+const worldItems = await readCollection("items");
+insert("Item", worldItems.map(i => ({
+  _id: i._id, name: i.name, type: i.type, img: asset(i.img), system: i.system ?? i.data ?? {},
+  ownership: i.ownership ?? i.permission ?? { default: 0 }, folder: folderOf(i.folder), sort: i.sort ?? 0
+})));
+
+const scenes = await readCollection("scenes");
+insert("Scene", scenes.map(s => {
+  const grid = typeof s.grid === "object" && s.grid ? s.grid : { size: s.grid, color: s.gridColor, alpha: s.gridAlpha, distance: s.gridDistance, units: s.gridUnits };
+  return {
+    _id: s._id,
+    name: s.name,
+    img: asset(s.background?.src ?? s.img),
+    width: s.width ?? 3000,
+    height: s.height ?? 2000,
+    backgroundColor: s.backgroundColor ?? "#111111",
+    grid: { size: grid.size ?? 100, color: grid.color ?? "#000000", alpha: grid.alpha ?? 0.2, distance: grid.distance ?? 1.5, units: grid.units ?? "m" },
+    active: !!s.active,
+    navigation: s.navigation ?? true,
+    sort: s.navOrder ?? s.sort ?? 0,
+    folder: folderOf(s.folder),
+    tokenVision: s.tokenVision ?? true,
+    fog: {
+      mode: typeof s.fog?.mode === "number" ? s.fog.mode : s.fogExploration === false ? 0 : 1,
+      explored: s.fog?.colors?.explored ?? "#000000",
+      unexplored: s.fog?.colors?.unexplored ?? "#000000"
+    },
+    environment: {
+      darkness: s.environment?.darknessLevel ?? s.darkness ?? 0,
+      globalLight: s.environment?.globalLight?.enabled ?? s.globalLight ?? false,
+      globalLightThreshold: s.environment?.globalLight?.darkness?.max ?? s.globalLightThreshold ?? 1
+    }
+  };
+}));
 insert("Token", scenes.flatMap(s => {
   const { padX, padY } = sceneOffset(s);
   return (s.tokens ?? []).map((t: Raw) => ({
@@ -243,19 +312,26 @@ insert("Token", scenes.flatMap(s => {
     img: asset(t.texture?.src ?? t.img),
     x: (t.x ?? 0) - padX,
     y: (t.y ?? 0) - padY,
-    width: t.width ?? 1,
-    height: t.height ?? 1,
     hidden: !!t.hidden,
-    disposition: Math.max(-1, Math.min(1, t.disposition ?? 0)),
     rotation: t.rotation ?? 0,
-    sight: {
-      enabled: t.sight?.enabled ?? !!t.vision,
-      range: Number(t.sight?.range ?? t.dimSight ?? 0) || 0,
-      angle: t.sight?.angle ?? t.sightAngle ?? 360
-    },
-    light: lightConfig(t.light ?? { bright: t.brightLight, dim: t.dimLight, color: t.lightColor, angle: t.lightAngle })
+    elevation: t.elevation ?? 0,
+    ...tokenSettings(t),
+    delta: tokenDelta(t)
   }));
 }));
+
+/** An unlinked token's differences from its actor (older Foundry used `actorData`). */
+function tokenDelta(t: Raw) {
+  if (t.actorLink) return {};
+  const d: Raw = (t.delta && typeof t.delta === "object" ? t.delta : t.actorData) ?? {};
+  const out: Raw = {};
+  if (d.name && d.name !== t.name) out.name = d.name;
+  if (d.img) out.img = asset(d.img);
+  if (d.system && Object.keys(d.system).length) out.system = d.system;
+  else if (d.data && Object.keys(d.data).length) out.system = d.data;
+  if (Array.isArray(d.effects) && d.effects.length) out.effects = d.effects.filter((e: unknown) => e && typeof e === "object").map(effectData);
+  return out;
+}
 
 const SENSE_OK = new Set([0, 10, 20]);
 // Foundry's proximity/distance senses (30/40) need thresholds Mesa doesn't model yet; treat them as limited.
@@ -332,7 +408,7 @@ insert("JournalEntry", journal.map(j => {
         return title + `<p><em>(página "${escapeHtml(p.type)}" não importada)</em></p>`;
       }).join("\n")
     : rewriteHtml(j.content);
-  return { _id: j._id, name: j.name, content, ownership: j.ownership ?? j.permission ?? { default: 0 }, sort: j.sort ?? 0 };
+  return { _id: j._id, name: j.name, content, ownership: j.ownership ?? j.permission ?? { default: 0 }, folder: folderOf(j.folder), sort: j.sort ?? 0 };
 }));
 
 const messages = await readCollection("messages");
