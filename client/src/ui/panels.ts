@@ -31,8 +31,7 @@ export function actorsPanel(): HTMLElement {
     dragData: (a, dt) => dt.setData("application/x-mesa-actor", a._id),
     entry: a => [
       avatar(a.img, a.name, 44),
-      h("span.grow", null, a.name),
-      h("span.muted.small", null, a.type)
+      h("span.grow", null, a.name)
     ]
   });
 
@@ -70,8 +69,7 @@ export function itemsPanel(): HTMLElement {
     dragData: (i, dt) => dt.setData(ITEM_DRAG, JSON.stringify({ id: i._id })),
     entry: i => [
       avatar(i.img, i.name, 36),
-      h("span.grow", null, i.name),
-      h("span.muted.small", null, ITEM_TYPES.find(([t]) => t === i.type)?.[1] ?? i.type)
+      h("span.grow", null, i.name)
     ]
   });
   const add = async (folder?: string | null) => {

@@ -409,5 +409,24 @@ export const EN: Record<string, string> = {
   "Ver avatar": "View avatar",
   "Puxar para esta cena": "Pull to this scene",
   "Expulsar": "Kick",
-  "Expulsar {nome}? Volta ao ecrã de entrada (pode entrar outra vez).": "Kick {nome}? They go back to the join screen (and may log in again)."
+  "Expulsar {nome}? Volta ao ecrã de entrada (pode entrar outra vez).": "Kick {nome}? They go back to the join screen (and may log in again).",
+
+  // Directories
+  "Procurar em todo o texto (clicar: só o nome)": "Search all text (click: name only)",
+  "Procurar só no nome (clicar: em todo o texto)": "Search names only (click: all text)",
+  "Procurar atores": "Search actors",
+  "Procurar itens": "Search items",
+  "Procurar cenas": "Search scenes",
+  "Procurar entradas": "Search entries",
+  "Procurar tabelas": "Search tables",
+  "Procurar macros": "Search macros",
+  "Procurar playlists": "Search playlists",
+  "Procurar cartas": "Search cards",
+  "Procurar…": "Search…",
+  "Criar pasta": "Create folder",
+  "Fechar todas as pastas": "Collapse all folders",
+  "Nova pasta": "New folder",
+  "Criar tabela": "Create table",
+  "Criar macro": "Create macro",
+  "Criar playlist": "Create playlist"
 };

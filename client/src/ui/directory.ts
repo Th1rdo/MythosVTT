@@ -11,7 +11,16 @@ import { t } from "../i18n.ts";
 type DirType = FolderDoc["type"];
 const DOC_DRAG = "application/x-mesa-doc";
 const FOLDER_DRAG = "application/x-mesa-folder";
-const COLLAPSED_KEY = "mesa.collapsedFolders";
+/** Open folders (Foundry starts every folder closed). */
+const COLLAPSED_KEY = "mesa.expandedFolders";
+/** Foundry allows folders four levels deep. */
+const MAX_DEPTH = 4;
+/** "Procurar atores" etc. */
+const SEARCH_LABELS: Partial<Record<DirType, string>> = {
+  Actor: "Procurar atores", Item: "Procurar itens", Scene: "Procurar cenas", JournalEntry: "Procurar entradas",
+  RollTable: "Procurar tabelas", Macro: "Procurar macros", Playlist: "Procurar playlists", Cards: "Procurar cartas"
+};
+const FULL_TEXT_KEY = "mesa.directoryFullText";
 
 function loadCollapsed(): Set<string> {
   try {
@@ -20,10 +29,10 @@ function loadCollapsed(): Set<string> {
     return new Set();
   }
 }
-const collapsed = loadCollapsed();
+const expanded = loadCollapsed();
 function saveCollapsed(): void {
   try {
-    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]));
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...expanded]));
   } catch {
     // Private mode etc.: collapse state just isn't remembered.
   }
@@ -68,11 +77,31 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
   const alpha = (a: T, b: T) => a.name.localeCompare(b.name, "pt");
   let alphabetical = !opts.sort;
   let query = "";
+  // Foundry's two search modes: the name only, or every text the document holds.
+  let fullText = (() => { try { return localStorage.getItem(FULL_TEXT_KEY) === "1"; } catch { return false; } })();
   const sortFn = () => (alphabetical ? alpha : opts.sort ?? alpha);
-  const matches = (d: T) => !query || d.name.toLocaleLowerCase("pt").includes(query);
+  const fold = (x: string) => x.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt");
+  const matches = (d: T) => {
+    if (!query) return true;
+    const q = fold(query);
+    return fold(d.name).includes(q) || (fullText && fold(JSON.stringify(d)).includes(q));
+  };
 
+  const searchMode = h("button.icon.search-mode", {
+    onclick: () => {
+      fullText = !fullText;
+      try { localStorage.setItem(FULL_TEXT_KEY, fullText ? "1" : "0"); } catch { /* not remembered */ }
+      paintMode();
+      render();
+    }
+  });
+  const paintMode = () => {
+    searchMode.title = fullText ? t("Procurar em todo o texto (clicar: só o nome)") : t("Procurar só no nome (clicar: em todo o texto)");
+    searchMode.replaceChildren(h("i", { className: fullText ? "fa-solid fa-file-magnifying-glass" : "fa-solid fa-magnifying-glass" }));
+  };
+  paintMode();
   const search = h("input.dir-search", {
-    type: "search", placeholder: "Procurar…",
+    type: "search", placeholder: t(SEARCH_LABELS[opts.type] ?? "Procurar…"),
     oninput: (e: Event) => {
       query = (e.target as HTMLInputElement).value.trim().toLocaleLowerCase("pt");
       render();
@@ -81,16 +110,16 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
   const sortBtn = h("button.icon", { onclick: () => { alphabetical = !alphabetical; render(); } });
   const header = h("header.dir-header", null,
     (game.isGM || opts.create?.everyone) && h("div.dir-create", null,
-      opts.create && h("button", { onclick: opts.create.run }, h("i", { className: opts.create.icon }), " ", opts.create.label),
-      game.isGM && h("button", { onclick: () => createFolder(opts.type) }, h("i.fa-solid.fa-folder"), " Criar pasta")),
+      opts.create && h("button", { onclick: () => opts.create!.run() }, h("i", { className: opts.create.icon }), " ", t(opts.create.label)),
+      game.isGM && h("button", { onclick: () => createFolder(opts.type) }, h("i.fa-solid.fa-folder"), " ", t("Criar pasta"))),
     h("div.dir-search-row", null,
-      h("i.fa-solid.fa-magnifying-glass"),
+      searchMode,
       search,
       opts.sort ? sortBtn : null,
       h("button.icon", {
-        title: "Fechar todas as pastas",
+        title: t("Fechar todas as pastas"),
         onclick: () => {
-          for (const f of game.all<FolderDoc>("Folder")) if (f.type === opts.type) collapsed.add(f._id);
+          for (const f of game.all<FolderDoc>("Folder")) if (f.type === opts.type) expanded.delete(f._id);
           saveCollapsed();
           render();
         }
@@ -155,29 +184,37 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
 
     const folderNode = (f: FolderDoc, depth: number): HTMLElement | null => {
       if ((!game.isGM || searching) && !hasContent(f._id)) return null;
-      const open = searching || !collapsed.has(f._id);
-      const head = h("div.folder-head", {
+      const open = searching || expanded.has(f._id);
+      const head = h("header.folder-head", {
         dataset: { folder: f._id },
-        style: { borderLeftColor: f.color ?? "transparent" },
+        className: `folder-head${f.color ? " coloured" : ""}`,
+        style: f.color ? { backgroundColor: f.color } : undefined,
         draggable: game.isGM,
         ondragstart: (e: DragEvent) => e.dataTransfer?.setData(FOLDER_DRAG, f._id),
         onclick: () => {
-          if (open) collapsed.add(f._id);
-          else collapsed.delete(f._id);
+          if (open) expanded.delete(f._id);
+          else expanded.add(f._id);
           saveCollapsed();
           render();
         }
       },
-        h("span.chevron", null, open ? "▾" : "▸"),
-        h("span.grow", null, "📁 ", f.name)
+        h("i", { className: `fa-solid ${open ? "fa-folder-open" : "fa-folder"} fa-fw` }),
+        h("span.folder-name", null, f.name),
+        // Foundry's folder buttons: a subfolder (while depth allows) and a new entry inside.
+        game.isGM && depth + 1 < MAX_DEPTH && h("button.icon.folder-create", {
+          title: t("Criar subpasta"), onclick: (e: Event) => { e.stopPropagation(); createFolder(opts.type, f._id); }
+        }, h("i.fa-solid.fa-folder-plus")),
+        (game.isGM || opts.create?.everyone) && opts.create && h("button.icon.folder-create", {
+          title: t(opts.create.label), onclick: (e: Event) => { e.stopPropagation(); expanded.add(f._id); saveCollapsed(); opts.create!.run(f._id); }
+        }, h("i", { className: opts.create.icon }), h("i.fa-solid.fa-plus.plus-badge"))
       );
       acceptDrop(head, f._id);
-      const inner = h("ul.doc-list");
+      const inner = h("ul.doc-list.subdirectory", { style: f.color ? { borderLeftColor: f.color } : undefined });
       if (open) {
         inner.append(...childrenOf(f._id).map(c => folderNode(c, depth + 1)).filter((n): n is HTMLElement => !!n));
         inner.append(...docsIn(f._id).map(entryRow));
       }
-      return h("li.folder", { style: { paddingLeft: depth ? "12px" : "0" } }, head, inner);
+      return h("li", { className: `folder${open ? " expanded" : ""}`, dataset: { depth: String(depth) } }, head, inner);
     };
 
     const top = [
@@ -242,6 +279,6 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
 }
 
 export async function createFolder(type: DirType, parent: string | null = null): Promise<void> {
-  const v = await prompt("Nova pasta", [{ name: "name", label: "Nome" }]);
-  if (v?.name.trim()) await game.create("Folder", { name: v.name.trim(), type, folder: parent, sort: Date.now() });
+  const v = await prompt(t("Nova pasta"), [{ name: "name", label: t("Nome") }, { name: "color", label: t("Cor"), value: "#4a3a63", type: "color" }]);
+  if (v?.name.trim()) await game.create("Folder", { name: v.name.trim(), type, folder: parent, color: v.color || null, sort: Date.now() });
 }
