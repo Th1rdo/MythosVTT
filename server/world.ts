@@ -13,6 +13,11 @@ import { defaultLevel, onLevel } from "../shared/levels.ts";
 import { Store } from "./store.ts";
 import { normalize, prepareCreate, validate } from "./schema.ts";
 import { hashPassword } from "./auth.ts";
+import crypto from "node:crypto";
+import { DiceError, roll } from "../shared/dice.ts";
+
+/** At most this many [[inline]] rolls per message. */
+const MAX_INLINE = 20;
 import { worldDir } from "./paths.ts";
 
 /** Identity used when the server itself changes documents. */
@@ -198,7 +203,16 @@ export class World implements DocLookup {
       out.timestamp = Date.now();
       out.html = false;
       out.roll = null;
+      out.blind = false;
       if (typeof out.content !== "string" || !out.content.trim()) throw new Error("Mensagem vazia");
+      // [[1d20+2]] (or [[/r 1d20]]) in the text rolls on the server; the text keeps the markers.
+      const inline = [...out.content.matchAll(/\[\[(?:\/r(?:oll)?\s+)?([^\]]+)\]\]/gi)].slice(0, MAX_INLINE);
+      try {
+        out.inline = inline.map(m => roll(m[1], f => crypto.randomInt(1, f + 1)));
+      } catch (err) {
+        if (err instanceof DiceError) throw new Error(`Rolagem no texto: ${err.message}`);
+        throw err;
+      }
     }
     if (type === "Drawing" && op === "create") out.author = user._id;
     if (type === "Macro" && op === "create") out.author = user._id;

@@ -72,7 +72,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer: playlists, tracks, ambient sounds (untested against real Foundry data — claude-tests has none)
 - ⬜ Drag a track onto the map to make an ambient sound; sound-effect previews in the config; playlist bulk-import dialog filters; auto-preload of the next track; audio analyser (band levels for modules)
 
-## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`)*
+## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`, dice `ev_b3b33516…`)*
 - ⬜ Compendium packs (create, browse, import), import OP system packs
 - ⬜ Roll tables (draw, results to chat)
 - ⬜ Cards (decks, hands, piles)
@@ -84,7 +84,10 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ⬜ Journal: multiple pages (text, image, PDF, video, markdown), categories, show-to-players, share image
 - ⬜ Text enrichment: document links, inline rolls `[[/r 1d20]]`, embeds, secret blocks
 - ⬜ Adventure export/import
-- ⬜ Full dice grammar (parenthetical, functions, pools, exploding/reroll, fate, coins), roll resolver, dice config
+- ✅ Full dice grammar (own parser, REA `ev_b3b33516…`): + − * / % and parentheses, (N)d(M), functions (floor, max, …), pools `{…}kh`, fate `dF`, coins `dc`, flavour `[…]`; modifiers r rr x xo k kh kl d dh dl min max even odd cs cf df sf ms, coin call `c`
+- ✅ Roll modes /r /gr /br (blind: only GMs see the result) /sr (self); `[[formula]]` inline rolls rolled by the server; `@campo` from the speaker's actor data
+- ✅ Roll card: per-group dice with discarded/rerolled/exploded/success/failure styling; importer keeps Foundry dice results
+- ⬜ Roll resolver (manual/physical dice entry), dice config (fulfilment methods), deferred inline rolls `[[/r …]]` as buttons, Dice So Nice-style 3D
 
 ## Phase 7 — UX and administration  *(applications/ui, settings, sidebar, helpers — shell REA `ev_9483b78d…`)*
 - ✅ Foundry-like shell: two-column scene controls (layer groups + tools), scene navigation pill with user pips, players list with latency/FPS, hotbar (10 slots × 5 pages, drop items/actors/journal, keys 1–0, lock/clear), collapsible sidebar icon strip with floating chat dock + notifications, directory headers (create, folder, search, sort, collapse all), scene banners

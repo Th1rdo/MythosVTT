@@ -522,8 +522,26 @@ export interface RollResult {
   terms: RollTerm[];
 }
 
+/** One die (or pool entry) as rolled. `count` replaces the value in the total (successes, min/max). */
+export interface DieResult {
+  value: number;
+  active: boolean;
+  discarded?: boolean;
+  rerolled?: boolean;
+  exploded?: boolean;
+  success?: boolean;
+  failure?: boolean;
+  count?: number;
+}
+
+/**
+ * What a roll card shows: one entry per group of dice (or pool), in formula order.
+ * Older messages hold `{kind:"dice", keep, keepCount, sign, results: {value, kept}}` and `{kind:"number"}` terms.
+ */
 export type RollTerm =
-  | { kind: "dice"; count: number; faces: number; keep: "all" | "high" | "low"; keepCount: number; results: { value: number; kept: boolean }[]; sign: 1 | -1 }
+  | { kind: "dice"; formula: string; count: number; faces: number | "f" | "c"; results: DieResult[]; total: number; flavor?: string | null }
+  | { kind: "pool"; formula: string; results: DieResult[]; total: number; flavor?: string | null }
+  | { kind: "dice"; count: number; faces: number; keep: "all" | "high" | "low"; keepCount: number; results: { value: number; kept: boolean }[]; sign: 1 | -1; formula?: undefined }
   | { kind: "number"; value: number; sign: 1 | -1 };
 
 export interface ChatMessageDoc extends BaseDoc {
@@ -536,6 +554,10 @@ export interface ChatMessageDoc extends BaseDoc {
   roll: RollResult | null;
   /** Ids of users who may see this message; null = everyone. */
   whisper: string[] | null;
+  /** Blind roll: only GMs see the result (the roller sees that they rolled). */
+  blind: boolean;
+  /** Rolls written inline as [[formula]] in the text, in order. */
+  inline: RollResult[];
   timestamp: number;
 }
 
@@ -593,10 +615,15 @@ export interface WorldSnapshot {
 }
 
 /** Chat request for a roll: the server rolls so results can't be forged by the client. */
+/** Who sees a roll: everyone, the GMs (and the roller), only GMs (blind), or only the roller. */
+export type RollMode = "public" | "gm" | "blind" | "self";
+
 export interface RollRequest {
   formula: string;
   flavor?: string;
   speaker?: { actor: string | null; alias: string };
+  mode?: RollMode;
+  /** Older clients: same as mode "gm". */
   whisperGM?: boolean;
 }
 

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, ChatMessageDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
 import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE } from "../shared/protocol.ts";
 import { canSee } from "../shared/permissions.ts";
@@ -20,6 +20,9 @@ export function publicDoc(type: DocType, doc: BaseDoc, viewer: UserDoc): BaseDoc
   if (type === "User") {
     const { passwordHash, ...rest } = doc as UserDoc;
     return { ...rest, hasPassword: !!passwordHash };
+  }
+  if (type === "ChatMessage" && viewer.role !== "gm" && (doc as ChatMessageDoc).blind) {
+    return { ...doc, roll: null, inline: [], content: "" };
   }
   if (type === "Wall" && viewer.role !== "gm" && (doc as WallDoc).door === DOOR.SECRET) {
     return { ...doc, door: DOOR.NONE, ds: DOOR_STATE.CLOSED };
@@ -98,17 +101,20 @@ export class Hub {
       try {
         const result = roll(String(req.formula ?? ""), secureRandomInt);
         const gms = this.#world.all<UserDoc>("User").filter(u => u.role === "gm").map(u => u._id);
+        const mode = req.mode ?? (req.whisperGM ? "gm" : "public");
+        const whisper = mode === "public" ? null : mode === "self" ? [me._id] : [...new Set([...gms, me._id])];
         const [msg] = this.#world.createAsSystem("ChatMessage", [{
           author: me._id,
           speaker: { actor: req.speaker?.actor ?? null, alias: String(req.speaker?.alias || me.name).slice(0, 100) },
           content: "",
           flavor: req.flavor ? String(req.flavor).slice(0, 200) : null,
           roll: result,
-          whisper: req.whisperGM ? [...new Set([...gms, me._id])] : null,
+          whisper,
+          blind: mode === "blind",
           timestamp: Date.now()
         }]);
         this.#broadcast([{ type: "ChatMessage", after: msg }], me._id);
-        ack?.({ ok: true, result: [msg] });
+        ack?.({ ok: true, result: [publicDoc("ChatMessage", msg, me)] });
       } catch (err) {
         ack?.({ ok: false, error: (err as Error).message });
       }

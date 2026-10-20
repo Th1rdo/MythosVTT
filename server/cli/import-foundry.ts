@@ -17,7 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { ClassicLevel } from "classic-level";
 import { World } from "../world.ts";
-import type { BaseDoc, RollResult } from "../../shared/protocol.ts";
+import type { BaseDoc, RollResult, RollTerm } from "../../shared/protocol.ts";
 
 type Raw = Record<string, any>;
 
@@ -644,7 +644,23 @@ function importRoll(raw: unknown): RollResult | null {
   try {
     const r = typeof raw === "string" ? JSON.parse(raw) : raw as Raw;
     if (typeof r.total !== "number") return null;
-    return { formula: String(r.formula ?? ""), total: r.total, terms: [] };
+    // Keep the dice of Foundry's die terms (Die, FateDie, Coin) for the roll card.
+    const terms: RollTerm[] = (Array.isArray(r.terms) ? r.terms : [])
+      .filter((t: Raw) => Array.isArray(t?.results) && ["Die", "FateDie", "Coin"].includes(t.class))
+      .map((t: Raw) => ({
+        kind: "dice" as const,
+        formula: `${t.number ?? 1}d${t.class === "FateDie" ? "F" : t.class === "Coin" ? "c" : t.faces}${(t.modifiers ?? []).join("")}`,
+        count: Number(t.number) || 1,
+        faces: t.class === "FateDie" ? "f" as const : t.class === "Coin" ? "c" as const : Number(t.faces) || 6,
+        results: t.results.map((x: Raw) => ({
+          value: Number(x.result) || 0, active: x.active !== false,
+          ...(x.discarded ? { discarded: true } : {}), ...(x.rerolled ? { rerolled: true } : {}), ...(x.exploded ? { exploded: true } : {}),
+          ...(x.success ? { success: true } : {}), ...(x.failure ? { failure: true } : {}), ...(typeof x.count === "number" ? { count: x.count } : {})
+        })),
+        total: t.results.reduce((sum: number, x: Raw) => (x.active === false ? sum : sum + (typeof x.count === "number" ? x.count : Number(x.result) || 0)), 0),
+        flavor: t.options?.flavor ?? null
+      }));
+    return { formula: String(r.formula ?? ""), total: r.total, terms };
   } catch {
     return null;
   }

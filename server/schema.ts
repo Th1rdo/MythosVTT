@@ -87,7 +87,7 @@ function defaults(type: DocType): Record<string, unknown> {
     case "Combatant":
       return { actorId: null, tokenId: null, name: "", img: null, initiative: null, hidden: false, defeated: false };
     case "ChatMessage":
-      return { author: "", speaker: { actor: null, alias: "" }, content: "", html: false, flavor: null, roll: null, whisper: null, timestamp: 0 };
+      return { author: "", speaker: { actor: null, alias: "" }, content: "", html: false, flavor: null, roll: null, whisper: null, blind: false, inline: [], timestamp: 0 };
     case "JournalEntry":
       return { name: "Nova entrada", content: "", ownership: { default: OWNERSHIP.NONE }, folder: null, sort: 0 };
     case "Setting":

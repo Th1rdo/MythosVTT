@@ -110,6 +110,19 @@ input[type="color"] { padding: 0; height: 32px; width: 48px; }
 .dice { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 6px 0; }
 .die { min-width: 26px; padding: 2px 6px; border-radius: 6px; background: #2a2a35; font-weight: 600; }
 .die.dropped { opacity: 0.35; text-decoration: line-through; }
+.die.rerolled { opacity: 0.5; font-style: italic; }
+.die.exploded { box-shadow: inset 0 -2px 0 var(--accent-2); }
+.die.success:not(.dropped) { background: #1f4d2a; color: #9ff0b0; }
+.die.failure:not(.dropped) { background: #4d1f1f; color: #ffaaaa; }
+.die.fate, .die.coin { min-width: 30px; }
+.dice-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; width: 100%; justify-content: center; }
+.dice-group + .dice-group { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 4px; }
+.group-formula { color: var(--muted); font-size: 11px; min-width: 48px; text-align: right; }
+.group-formula em { color: var(--accent-2); font-style: normal; }
+.group-dice { display: flex; flex-wrap: wrap; gap: 4px; }
+.group-total { color: var(--muted); font-size: 12px; font-weight: 700; }
+.inline-roll { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: 4px; background: #2a2a35; border: 1px solid var(--control-border); font-weight: 700; cursor: help; white-space: nowrap; }
+.inline-roll i { font-size: 11px; color: var(--accent-2); }
 .die.max:not(.dropped) { background: #1f4d2a; color: #9ff0b0; }
 .die.min:not(.dropped) { background: #4d1f1f; color: #ffaaaa; }
 .mod { color: var(--muted); padding: 2px 4px; }
