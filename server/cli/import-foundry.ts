@@ -244,7 +244,7 @@ insert("User", users.map(u => ({
   passwordHash: null
 })));
 
-const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene"]);
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist"]);
 const folders = (await readCollection("folders")).filter(f => FOLDER_TYPES.has(f.type));
 const folderIds = new Set(folders.map(f => f._id));
 const folderOf = (id: unknown) => (typeof id === "string" && folderIds.has(id) ? id : null);
@@ -517,6 +517,56 @@ insert("AmbientLight", scenes.flatMap(s => {
     config: lightConfig(l.config ?? { bright: l.bright, dim: l.dim, color: l.tintColor, alpha: l.tintAlpha, angle: l.angle })
   }));
 }));
+
+const SOUND_EFFECTS = new Set(["lowpass", "highpass", "reverb"]);
+const soundEffect = (e: Raw | undefined, fallback: string | null) => ({
+  type: SOUND_EFFECTS.has(e?.type) ? e!.type : fallback,
+  intensity: Math.min(10, Math.max(1, Math.round(Number(e?.intensity) || 5)))
+});
+const unit = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : d);
+
+// Ambient sounds: radius is in scene units in both. Files that only exist in Foundry's app are dropped.
+insert("AmbientSound", scenes.flatMap(s => {
+  const { padX, padY } = sceneOffset(s);
+  return (s.sounds ?? []).map((a: Raw) => ({
+    _id: a._id,
+    _parent: s._id,
+    name: a.name ?? "",
+    x: Math.round((a.x ?? 0) - padX),
+    y: Math.round((a.y ?? 0) - padY),
+    elevation: a.elevation ?? 0,
+    levels: keepLevels(s, a.levels),
+    radius: Math.max(0, a.radius ?? 0),
+    path: asset(a.path),
+    repeat: !!a.repeat,
+    volume: unit(a.volume, 0.5),
+    walls: a.walls ?? true,
+    easing: a.easing ?? true,
+    hidden: !!a.hidden,
+    locked: !!a.locked,
+    darkness: { min: unit(a.darkness?.min, 0), max: unit(a.darkness?.max, 1) },
+    effects: { base: soundEffect(a.effects?.base, null), muffled: soundEffect(a.effects?.muffled, null) }
+  }));
+}));
+
+// Playlists arrive stopped; tracks keep a paused position if they had one.
+const CHANNELS = new Set(["music", "environment", "interface"]);
+const playlists = await readCollection("playlists");
+insert("Playlist", playlists.map(p => ({
+  _id: p._id, name: p.name ?? "Playlist", description: p.description ?? "",
+  channel: CHANNELS.has(p.channel) ? p.channel : "music",
+  mode: [-1, 0, 1, 2].includes(p.mode) ? p.mode : 0,
+  playing: false, fade: typeof p.fade === "number" && p.fade > 0 ? Math.min(60_000, p.fade) : null,
+  folder: folderOf(p.folder), sorting: p.sorting === "m" ? "m" : "a", seed: p.seed ?? 0, sort: p.sort ?? 0,
+  ownership: p.ownership ?? { default: 0 }
+})));
+insert("PlaylistSound", playlists.flatMap(p => (p.sounds ?? []).map((t: Raw) => ({
+  _id: t._id, _parent: p._id, name: t.name ?? "Faixa", description: t.description ?? "",
+  path: asset(t.path), channel: CHANNELS.has(t.channel) ? t.channel : "",
+  playing: false, pausedTime: typeof t.pausedTime === "number" && t.pausedTime > 0 ? t.pausedTime : null, startedAt: null,
+  repeat: !!t.repeat, volume: unit(t.volume, 0.5),
+  fade: typeof t.fade === "number" && t.fade > 0 ? Math.min(60_000, t.fade) : null, sort: t.sort ?? 0
+}))));
 
 // Combats: Foundry stores the turn as an index into its sorted order (initiative desc, then id).
 const combats = await readCollection("combats");

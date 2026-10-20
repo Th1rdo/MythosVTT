@@ -335,3 +335,32 @@ menu { list-style: none; margin: 0; padding: 0; }
 
 fieldset.behavior { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 fieldset.behavior legend { color: var(--accent-2); font-weight: 600; padding: 0 4px; }
+
+/* ---- Audio: playlists tab, volume sliders, sound configs ---- */
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; align-items: end; }
+.playlists-panel { gap: 0; overflow-x: hidden; }
+.playlists-panel .hover-only { display: none; }
+.playlists-panel li:hover > .hover-only, .playlists-panel li:hover > span > .hover-only { display: inline-flex; }
+.doc-list li.playlist .playlist-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audio-volumes { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.audio-volume { display: grid; grid-template-columns: 18px 72px 1fr; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.audio-volume input[type=range] { width: 100%; }
+.settings-block .audio-volumes { padding: 4px 0; border: none; }
+.now-playing { border-bottom: 1px solid var(--line); background: rgba(238, 155, 58, 0.06); }
+.now-playing[hidden] { display: none; }
+.now-title { padding: 6px 12px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-2); }
+.doc-list li.playlist { flex-wrap: wrap; row-gap: 2px; }
+.doc-list li.playlist .caret { width: 10px; color: var(--muted); }
+.doc-list li.playlist.playing .playlist-name { color: var(--accent-2); }
+.doc-list li.playlist .playlist-name { font-weight: 600; }
+.doc-list.sounds { flex-basis: 100%; padding: 2px 0 2px 14px; cursor: default; }
+.doc-list.sounds li { padding: 3px 4px; gap: 4px; cursor: default; border-left: 2px solid transparent; }
+.doc-list.sounds li.playing { border-left-color: var(--accent-2); }
+.doc-list.sounds li.playing .sound-name { color: var(--accent-2); }
+.doc-list.sounds li.paused .sound-name { font-style: italic; }
+.sound-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sound-time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sound-volume { width: 64px; }
+button.icon.off { opacity: 0.45; }
+button.icon.on { color: var(--accent-2); }
+#hotbar .control-btn.active { color: var(--accent-2); }

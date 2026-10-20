@@ -4,6 +4,7 @@ import { h } from "../dom.ts";
 import type { Board, ToolName } from "../canvas/board.ts";
 import type { WallPreset, WallsLayer } from "../canvas/walls.ts";
 import type { LightsLayer } from "../canvas/lights.ts";
+import type { SoundsLayer } from "../canvas/sounds.ts";
 import type { TilesLayer } from "../canvas/tiles.ts";
 import type { DrawingsLayer } from "../canvas/drawings.ts";
 import type { RegionsLayer } from "../canvas/regions.ts";
@@ -30,7 +31,7 @@ interface GroupDef {
  * Scene controls, laid out like Foundry's: the left column picks a layer group, the right column
  * shows that group's tools. Hover a button for what it does.
  */
-export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer, tiles: TilesLayer, drawings: DrawingsLayer, regions: RegionsLayer): HTMLElement {
+export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLayer, sounds: SoundsLayer, tiles: TilesLayer, drawings: DrawingsLayer, regions: RegionsLayer): HTMLElement {
   const el = h("nav#controls");
   let group = "tokens";
   let tool = "select";
@@ -131,6 +132,13 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
           }
         }
       ]
+    },
+    {
+      name: "sounds", icon: "fa-solid fa-music", title: "Sons ambiente", gm: true,
+      tools: [
+        { name: "select", icon: "fa-solid fa-expand", title: "Selecionar sons — arrastar para mover, duplo clique: configurar, botão direito: ligar/desligar; o rato ouve como um token", run: use("sounds", () => (sounds.drawing = false)) },
+        { name: "sound", icon: "fa-solid fa-volume-high", title: "Novo som ambiente — arrastar define o raio", run: use("sounds", () => (sounds.drawing = true)) }
+      ]
     }
   ];
 
@@ -166,7 +174,7 @@ export function sceneControls(board: Board, walls: WallsLayer, lights: LightsLay
     // The regions tool serves two groups (templates for everyone, regions for the GM).
     const owner = board.tool === "regions"
       ? (regions.tool.startsWith("region-") || (group === "regions" && regions.tool === "select") ? "regions" : "templates")
-      : ({ tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting", tiles: "tiles", drawings: "drawings", notes: "notes" } as const)[board.tool];
+      : ({ tokens: "tokens", ruler: "tokens", walls: "walls", lights: "lighting", sounds: "sounds", tiles: "tiles", drawings: "drawings", notes: "notes" } as const)[board.tool];
     if (owner !== group) {
       group = owner;
       tool = board.tool === "ruler" ? "ruler" : "select";

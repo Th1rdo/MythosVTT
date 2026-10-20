@@ -5,6 +5,7 @@ import { ITEM_DRAG, openSheet } from "../ui/sheet.ts";
 import { openItemSheet, rollItem, useItem } from "../ui/item-sheet.ts";
 import { openJournal } from "../ui/panels.ts";
 import { stateOf } from "../actors.ts";
+import { audio } from "../audio/engine.ts";
 
 const PAGES = 5;
 const DOC_DRAG = "application/x-mesa-doc";
@@ -80,7 +81,11 @@ export function hotbar(): HTMLElement {
     el.className = collapsed ? "collapsed" : "";
     setChildren(el, 
       h("div.hotbar-side", null,
-        h("button.control-btn.small", { title: "Som (chega na fase de áudio)", disabled: true }, h("i.fa-solid.fa-volume-high")),
+        h("button.control-btn.small", {
+          className: `control-btn small${audio.settings.muted ? " active" : ""}`,
+          title: audio.settings.muted ? "Ligar o som" : "Silenciar tudo",
+          onclick: () => audio.setMuted(!audio.settings.muted)
+        }, h("i", { className: audio.settings.muted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high" })),
         h("button.control-btn.small", { title: collapsed ? "Mostrar barra" : "Esconder barra", onclick: () => { collapsed = !collapsed; render(); } }, h("i.fa-solid.fa-bars"))),
       collapsed ? null : h("menu.slots", null, cells),
       collapsed ? null : h("div.hotbar-side.right", null,
@@ -109,6 +114,7 @@ export function hotbar(): HTMLElement {
     if (!/^[0-9]$/.test(e.key)) return;
     execute((page - 1) * 10 + (e.key === "0" ? 10 : Number(e.key)));
   });
+  audio.onChange(render);
   game.on("User", ev => ev.ids.includes(game.userId) && render());
   for (const t of ["Item", "Actor", "JournalEntry"] as const) game.on(t, render);
   render();

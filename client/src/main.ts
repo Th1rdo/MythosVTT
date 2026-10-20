@@ -4,11 +4,18 @@ import "@fontsource/signika/700.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./style.css";
 import type { UserDoc } from "../../shared/protocol.ts";
-import { game } from "./game.ts";
+import type { PlayAudioEvent } from "../../shared/protocol.ts";
+import { game, toast } from "./game.ts";
 import { Board } from "./canvas/board.ts";
 import { Perception } from "./canvas/perception.ts";
 import { WallsLayer } from "./canvas/walls.ts";
 import { LightsLayer } from "./canvas/lights.ts";
+import { SoundsLayer } from "./canvas/sounds.ts";
+import { AmbientPlayer } from "./audio/ambient.ts";
+import { PlaylistPlayer } from "./audio/playlists.ts";
+import { audio } from "./audio/engine.ts";
+import { playlistsPanel } from "./ui/playlists.ts";
+import { volumeControls } from "./ui/audio-config.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
 import { DrawingsLayer } from "./canvas/drawings.ts";
 import { NotesLayer } from "./canvas/notes.ts";
@@ -89,6 +96,13 @@ async function startGame(): Promise<void> {
   const perception = new Perception(board);
   const walls = new WallsLayer(board, perception);
   const lights = new LightsLayer(board);
+  const ambient = new AmbientPlayer(board);
+  const sounds = new SoundsLayer(board, ambient);
+  const playlists = new PlaylistPlayer();
+  game.socket.on("playAudio", (e: PlayAudioEvent) => audio.playOnce(e.src, e));
+  game.socket.on("preloadAudio", (src: string) => audio.whenReady(() => fetch(src).catch(() => {})));
+  // Browsers keep audio off until the page is used; say so if something is waiting to play.
+  setTimeout(() => audio.hasWaiting && toast("Clica em qualquer lado para ativar o som."), 1500);
   const tiles = new TilesLayer(board);
   const drawings = new DrawingsLayer(board);
   new NotesLayer(board, perception);
@@ -97,7 +111,7 @@ async function startGame(): Promise<void> {
   new TurnMarker(board);
   perception.refresh();
   // Debug handle for development only (stripped from production builds).
-  if (import.meta.env.DEV) Object.assign(window, { mesa: { game, board, perception, walls } });
+  if (import.meta.env.DEV) Object.assign(window, { mesa: { game, board, perception, walls, audio, ambient, playlists } });
 
   const tabs: SidebarTab[] = [
     { id: "chat", icon: "fa-solid fa-comments", label: "Chat", make: chatPanel },
@@ -106,10 +120,11 @@ async function startGame(): Promise<void> {
     { id: "actors", icon: "fa-solid fa-user", label: "Atores", make: actorsPanel },
     { id: "items", icon: "fa-solid fa-suitcase", label: "Itens", make: itemsPanel },
     { id: "journal", icon: "fa-solid fa-book-open", label: "Diário", make: journalPanel },
+    { id: "playlists", icon: "fa-solid fa-music", label: "Playlists", make: () => playlistsPanel(playlists) },
     { id: "settings", icon: "fa-solid fa-gears", label: "Definições", make: settingsPanel }
   ];
   stage.append(
-    sceneControls(board, walls, lights, tiles, drawings, regions),
+    sceneControls(board, walls, lights, sounds, tiles, drawings, regions),
     sceneNavigation(),
     playersList(board),
     hotbar(),
@@ -126,6 +141,7 @@ function settingsPanel(): HTMLElement {
       h("button", { onclick: async () => { await fetch("/api/logout", { method: "POST" }); location.reload(); } }, h("i.fa-solid.fa-right-from-bracket"), " Sair")
     ),
     uiScaleSettings(),
+    h("div.settings-block", null, h("h4", null, "Volume (só neste browser)"), volumeControls()),
     game.isGM && h("h4.settings-title", null, "Jogadores"),
     game.isGM && playersPanel()
   );

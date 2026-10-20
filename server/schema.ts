@@ -64,6 +64,22 @@ function defaults(type: DocType): Record<string, unknown> {
       };
     case "AmbientLight":
       return { x: 0, y: 0, rotation: 0, walls: true, hidden: false, levels: [], config: { ...NO_LIGHT, bright: 3, dim: 6, color: "#ffc070", alpha: 0.4 } };
+    case "AmbientSound":
+      return {
+        name: "", x: 0, y: 0, elevation: 0, levels: [], radius: 6, path: null, repeat: true, volume: 0.5, walls: true, easing: true,
+        hidden: false, locked: false, darkness: { min: 0, max: 1 },
+        effects: { base: { type: null, intensity: 5 }, muffled: { type: "lowpass", intensity: 5 } }
+      };
+    case "Playlist":
+      return {
+        name: "Nova playlist", description: "", channel: "music", mode: 0, playing: false, fade: null, folder: null,
+        sorting: "a", seed: 0, sort: 0, ownership: { default: OWNERSHIP.NONE }
+      };
+    case "PlaylistSound":
+      return {
+        name: "Faixa", description: "", path: null, channel: "", playing: false, pausedTime: null, startedAt: null,
+        repeat: false, volume: 0.5, fade: null, sort: 0
+      };
     case "FogExploration":
       return { user: "", explored: "", timestamp: 0 };
     case "Combat":
@@ -82,6 +98,9 @@ function defaults(type: DocType): Record<string, unknown> {
 const NUMBER_FIELDS: Partial<Record<DocType, string[]>> = {
   Token: ["x", "y", "width", "height", "rotation", "elevation"],
   AmbientLight: ["x", "y", "rotation"],
+  AmbientSound: ["x", "y", "elevation", "radius", "volume"],
+  Playlist: ["sort", "seed"],
+  PlaylistSound: ["volume", "sort"],
   Combat: ["round", "sort"],
   Tile: ["x", "y", "width", "height", "rotation", "alpha", "elevation", "sort"],
   Level: ["sort"],
@@ -95,7 +114,9 @@ const MAX_CONTENT = 200_000;
 const MAX_FOG_IMAGE = 900_000;
 const SENSES = new Set([0, 10, 20]);
 const CHANGE_TYPES = new Set(["add", "multiply", "override", "upgrade", "downgrade"]);
-const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene"]);
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist"]);
+const AUDIO_CHANNELS = new Set(["music", "environment", "interface"]);
+const SOUND_EFFECTS = new Set([null, "lowpass", "highpass", "reverb"]);
 const DRAWING_TYPES = new Set(["rectangle", "ellipse", "polygon", "freehand", "text"]);
 const BEHAVIOR_TYPES = new Set(["teleportToken", "changeLevel", "applyActiveEffect", "displayScrollingText", "adjustDarkness", "toggleBehavior"]);
 const SHAPE_FIELDS: Record<string, string[]> = {
@@ -163,6 +184,24 @@ export function validate(type: DocType, doc: BaseDoc): void {
     if (!DRAWING_TYPES.has(shape?.type as string) || !Array.isArray(shape.points) || shape.points.length > 20_000
       || !shape.points.every(n => typeof n === "number" && Number.isFinite(n))) throw new Error("Desenho inválido");
     if (typeof doc.text === "string" && doc.text.length > 5000) throw new Error("Texto demasiado longo");
+  }
+  if (type === "Playlist") {
+    if (!AUDIO_CHANNELS.has(doc.channel as string)) throw new Error("Playlist: canal inválido");
+    if (![-1, 0, 1, 2].includes(doc.mode as number)) throw new Error("Playlist: modo inválido");
+    if (doc.sorting !== "a" && doc.sorting !== "m") throw new Error("Playlist: ordenação inválida");
+    if (doc.fade !== null && !(typeof doc.fade === "number" && doc.fade >= 0 && doc.fade <= 60_000)) throw new Error("Playlist: transição inválida");
+  }
+  if (type === "PlaylistSound") {
+    if (doc.channel !== "" && !AUDIO_CHANNELS.has(doc.channel as string)) throw new Error("Som: canal inválido");
+    if ((doc.volume as number) < 0 || (doc.volume as number) > 1) throw new Error("Som: volume entre 0 e 1");
+    if (doc.fade !== null && !(typeof doc.fade === "number" && doc.fade >= 0 && doc.fade <= 60_000)) throw new Error("Som: transição inválida");
+    if (doc.pausedTime !== null && !(typeof doc.pausedTime === "number" && doc.pausedTime >= 0)) throw new Error("Som: posição inválida");
+    if (doc.startedAt !== null && typeof doc.startedAt !== "number") throw new Error("Som: início inválido");
+  }
+  if (type === "AmbientSound") {
+    if ((doc.volume as number) < 0 || (doc.volume as number) > 1 || (doc.radius as number) < 0) throw new Error("Som ambiente: volume/raio inválido");
+    const fx = doc.effects as { base?: { type?: unknown }; muffled?: { type?: unknown } };
+    if (!SOUND_EFFECTS.has((fx?.base?.type ?? null) as string) || !SOUND_EFFECTS.has((fx?.muffled?.type ?? null) as string)) throw new Error("Som ambiente: efeito inválido");
   }
   if (type === "FogExploration") {
     if (typeof doc.explored !== "string" || doc.explored.length > MAX_FOG_IMAGE) throw new Error("Nevoeiro inválido");

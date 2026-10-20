@@ -1,12 +1,13 @@
 import crypto from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
-  BaseDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, RollRequest, UserDoc, WallDoc, WorldSnapshot
+  BaseDoc, CombatAction, DocEvent, DocRequest, DocResponse, DocType, FogExplorationDoc, PingEvent, PlayAudioEvent, PlaylistAction, RollRequest, UserDoc, WallDoc, WorldSnapshot
 } from "../shared/protocol.ts";
-import { DOC_TYPES, DOOR, DOOR_STATE } from "../shared/protocol.ts";
+import { AUDIO_CHANNELS, DOC_TYPES, DOOR, DOOR_STATE } from "../shared/protocol.ts";
 import { canSee } from "../shared/permissions.ts";
 import { roll } from "../shared/dice.ts";
 import { runCombatAction } from "./combat.ts";
+import { runPlaylistAction } from "./playlists.ts";
 import { processRegionEvents } from "./regions.ts";
 import type { Emit } from "./regions.ts";
 import type { Change, World } from "./world.ts";
@@ -129,6 +130,39 @@ export class Hub {
         ack?.({ ok: false, error: (err as Error).message });
       }
     });
+
+    socket.on("playlist", (action: PlaylistAction, ack?: Ack<DocResponse>) => {
+      const me = this.#user(socket);
+      if (!me) return ack?.({ ok: false, error: "Sessão inválida" });
+      try {
+        this.#broadcast(runPlaylistAction(this.#world, me, action), me._id);
+        ack?.({ ok: true, result: [] });
+      } catch (err) {
+        ack?.({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    /** GM: play a one-off sound for everyone (or the listed users). */
+    socket.on("playAudio", (e: PlayAudioEvent, to?: string[]) => {
+      if (this.#user(socket)?.role !== "gm" || typeof e?.src !== "string" || !e.src) return;
+      const out: PlayAudioEvent = {
+        src: e.src.slice(0, 1000),
+        volume: typeof e.volume === "number" ? Math.min(1, Math.max(0, e.volume)) : 1,
+        channel: AUDIO_CHANNELS.includes(e.channel as never) ? e.channel : "interface",
+        loop: !!e.loop
+      };
+      for (const s of this.#io.sockets.sockets.values()) {
+        if (s.id !== socket.id && (!Array.isArray(to) || to.includes(s.data.userId))) s.emit("playAudio", out);
+      }
+    });
+
+    /** Ask every client to fetch a file ahead of time (e.g. the next track). */
+    socket.on("preloadAudio", (src: unknown) => {
+      if (this.#user(socket)?.role === "gm" && typeof src === "string") socket.broadcast.emit("preloadAudio", src.slice(0, 1000));
+    });
+
+    /** Server clock, so clients can line up playback positions. */
+    socket.on("time", (ack?: (now: number) => void) => ack?.(Date.now()));
 
     socket.on("ruler", (r: { sceneId?: unknown; points?: unknown }) => {
       const points = Array.isArray(r?.points) ? r.points.slice(0, 50) : [];

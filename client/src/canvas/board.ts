@@ -21,7 +21,7 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const FONT = "Inter, system-ui, sans-serif";
 
-export type ToolName = "tokens" | "walls" | "lights" | "ruler" | "tiles" | "drawings" | "notes" | "regions";
+export type ToolName = "tokens" | "walls" | "lights" | "sounds" | "ruler" | "tiles" | "drawings" | "notes" | "regions";
 
 /** A canvas tool receives pointer input that doesn't land on a token. */
 export interface Tool {
@@ -81,6 +81,7 @@ export class Board {
     walls: new Container(),
     doors: new Container(),
     lights: new Container(),
+    sounds: new Container(),
     controls: new Container(),
     pings: new Container()
   };
@@ -100,7 +101,7 @@ export class Board {
     await this.app.init({ resizeTo: host, background: 0x0b0b0e, antialias: true, autoDensity: true, resolution: devicePixelRatio });
     host.append(this.app.canvas);
     const L = this.layers;
-    this.world.addChild(L.background, L.tiles, L.grid, L.glow, L.markers, L.tokens, L.foreground, L.effects, L.walls, L.doors, L.lights, L.controls, L.pings);
+    this.world.addChild(L.background, L.tiles, L.grid, L.glow, L.markers, L.tokens, L.foreground, L.effects, L.walls, L.doors, L.lights, L.sounds, L.controls, L.pings);
     // Overlays never take input: in PIXI v8 even passive graphics win hit tests and would swallow token clicks.
     for (const layer of [L.grid, L.glow, L.markers, L.effects, L.walls, L.controls, L.pings]) layer.eventMode = "none";
     this.#dragLabel.anchor.set(0.5, 1);

@@ -61,10 +61,16 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer: levels, tiles, drawings, notes, regions + behaviours, grid types
 - ⬜ Ring/emanation/token region shapes; turn/round region events; pause-game, macro, movement-cost, surface behaviours; region-driven elevation; tile video controls
 
-## Phase 5 — Audio  *(audio/*, documents/playlist, playlist-sound, ambient-sound)*
-- ⬜ Playlists (sequential/shuffle/simultaneous, fades, repeat), synced playback for all
-- ⬜ Ambient sounds on the map (radius, wall occlusion, easing)
-- ⬜ Volume controls (music / environment / interface)
+## Phase 5 — Audio  *(audio/*, documents/playlist, playlist-sound, ambient-sound, layers/sounds — REA `ev_729487d9…`)*
+- ✅ Playlists + tracks (folders, sequential/shuffle/simultaneous/disabled, alphabetical/manual order, fades, repeat, per-track volume and channel)
+- ✅ Server-authoritative playback: the server picks tracks and stamps starts with its clock; everyone (late joiners too) hears the same position; pause/resume keeps the position; seeded shuffle; first "ended" report advances
+- ✅ Playlists sidebar tab: volume sliders, "now playing", play/pause/stop/skip/mode, add/import tracks, configs; players see only what's playing (or playlists they own)
+- ✅ Playlist ownership: players with owner rights control a playlist
+- ✅ Ambient sounds on the map (sounds tool): radius, volume, cosine easing, elevation, levels, darkness range, walls block or muffle, base/muffled effects (low-pass, high-pass, reverb), hidden/locked; heard from controlled tokens, or owned tokens for players; GM previews with the mouse
+- ✅ Per-browser volumes (music / environment / interface, perceptual curve) and hotbar mute; audio waits for the first click (browser rule) then syncs
+- ✅ One-off sounds (`playAudio`, `preloadAudio` socket events) — UI comes with macros (Phase 6)
+- ✅ Importer: playlists, tracks, ambient sounds (untested against real Foundry data — claude-tests has none)
+- ⬜ Drag a track onto the map to make an ambient sound; sound-effect previews in the config; playlist bulk-import dialog filters; auto-preload of the next track; audio analyser (band levels for modules)
 
 ## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers)*
 - ⬜ Compendium packs (create, browse, import), import OP system packs

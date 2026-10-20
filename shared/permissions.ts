@@ -1,6 +1,6 @@
 import { DOOR, DOOR_STATE, OWNERSHIP, REGION_VISIBILITY } from "./protocol.ts";
 import type {
-  ActiveEffectDoc, ActorDoc, AmbientLightDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
+  ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, PlaylistDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
   Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
@@ -14,6 +14,13 @@ export function ownershipLevel(ownership: Ownership | undefined, user: UserDoc):
   if (user.role === "gm") return OWNERSHIP.OWNER;
   if (!ownership) return OWNERSHIP.NONE;
   return ownership[user._id] ?? ownership.default ?? OWNERSHIP.NONE;
+}
+
+/** Whether `user` controls a playlist (GM, or given owner rights on it). */
+export function ownsPlaylist(playlistId: string | null | undefined, user: UserDoc, docs: DocLookup): boolean {
+  if (user.role === "gm") return true;
+  const p = playlistId ? (docs.get("Playlist", playlistId) as PlaylistDoc | undefined) : undefined;
+  return !!p && ownershipLevel(p.ownership, user) >= OWNERSHIP.OWNER;
 }
 
 export function ownsActor(actorId: string | null | undefined, user: UserDoc, docs: DocLookup): boolean {
@@ -51,6 +58,10 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
     }
     case "AmbientLight":
       return !(doc as AmbientLightDoc).hidden;
+    case "AmbientSound":
+      return !(doc as AmbientSoundDoc).hidden;
+    // Playlists and their tracks reach everyone (players must hear them); the directory only lists
+    // the ones a player owns or that are playing.
     case "Tile":
       return !(doc as TileDoc).hidden;
     case "Drawing":
@@ -131,6 +142,12 @@ export function checkWrite(
     case "Drawing":
       // Anyone may draw; authors edit and delete their own drawings.
       return (doc as DrawingDoc).author === user._id ? null : deny;
+    case "Playlist":
+      // Owners run and edit their playlist; only the GM creates playlists or changes who owns them.
+      if (op !== "update" || !ownsPlaylist(doc._id, user, docs)) return deny;
+      return "ownership" in (changes ?? {}) ? deny : null;
+    case "PlaylistSound":
+      return ownsPlaylist(doc._parent, user, docs) ? null : deny;
     case "Combatant":
       // Owners may mark their own combatant defeated; initiative comes from server-side rolls.
       if (op !== "update" || !ownsActor((doc as CombatantDoc).actorId, user, docs)) return deny;

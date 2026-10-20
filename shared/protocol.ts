@@ -11,12 +11,12 @@
  */
 
 export type DocType =
-  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "FogExploration"
-  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting";
+  | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "AmbientSound" | "FogExploration"
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound";
 
 export const DOC_TYPES: readonly DocType[] = [
-  "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "FogExploration",
-  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting"
+  "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "AmbientSound", "FogExploration",
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound"
 ];
 
 /** Child types whose parent is optional (world-level Items live in the Items directory). */
@@ -34,8 +34,10 @@ export const PARENT_TYPE: Partial<Record<DocType, DocType>> = {
   Region: "Scene",
   Wall: "Scene",
   AmbientLight: "Scene",
+  AmbientSound: "Scene",
   FogExploration: "Scene",
-  Combatant: "Combat"
+  Combatant: "Combat",
+  PlaylistSound: "Playlist"
 };
 
 export interface BaseDoc {
@@ -135,7 +137,7 @@ export interface ActiveEffectDoc extends BaseDoc, Omit<EffectData, "_id"> {}
 export interface FolderDoc extends BaseDoc {
   name: string;
   /** Which directory the folder belongs to. */
-  type: "Actor" | "Item" | "JournalEntry" | "Scene";
+  type: "Actor" | "Item" | "JournalEntry" | "Scene" | "Playlist";
   folder: string | null;
   color: string | null;
   sort: number;
@@ -338,6 +340,96 @@ export interface AmbientLightDoc extends BaseDoc {
   hidden: boolean;
   config: LightConfig;
   levels: string[];
+}
+
+/** Volume channels every browser mixes separately (Foundry's AUDIO_CHANNELS). */
+export type AudioChannel = "music" | "environment" | "interface";
+export const AUDIO_CHANNELS: readonly AudioChannel[] = ["music", "environment", "interface"];
+
+/** Audio filters a sound can be played through. */
+export type SoundEffectType = "lowpass" | "highpass" | "reverb";
+
+/** A looping (or one-shot) sound placed on the map, heard by tokens within its radius. */
+export interface AmbientSoundDoc extends BaseDoc {
+  name: string;
+  x: number;
+  y: number;
+  elevation: number;
+  levels: string[];
+  /** Hearing radius in scene distance units. */
+  radius: number;
+  path: string | null;
+  repeat: boolean;
+  /** 0–1. */
+  volume: number;
+  /** On: walls that block sound stop it (the sound fills the space it can reach). Off: walls only muffle it. */
+  walls: boolean;
+  /** Fade out towards the edge of the radius. */
+  easing: boolean;
+  hidden: boolean;
+  locked: boolean;
+  /** Only audible while the scene's darkness is within this range. */
+  darkness: { min: number; max: number };
+  /** Filters: always (`base`) and while heard through a wall (`muffled`). Intensity 1–10. */
+  effects: { base: { type: SoundEffectType | null; intensity: number }; muffled: { type: SoundEffectType | null; intensity: number } };
+}
+
+/** Playlist playback modes (same values as Foundry's PLAYLIST_MODES). */
+export const PLAYLIST_MODE = { DISABLED: -1, SEQUENTIAL: 0, SHUFFLE: 1, SIMULTANEOUS: 2 } as const;
+export type PlaylistMode = -1 | 0 | 1 | 2;
+
+export interface PlaylistDoc extends BaseDoc {
+  name: string;
+  description: string;
+  channel: AudioChannel;
+  mode: PlaylistMode;
+  playing: boolean;
+  /** Cross-fade in milliseconds applied to its tracks (null = none). */
+  fade: number | null;
+  folder: string | null;
+  /** "a" alphabetical, "m" manual (by `sort`). */
+  sorting: "a" | "m";
+  /** Shuffle seed, re-rolled when playback starts so every client agrees on the same order. */
+  seed: number;
+  sort: number;
+  ownership: Ownership;
+}
+
+/**
+ * A track of a playlist. While `playing`, everyone hears it from position
+ * `pausedTime + (now − startedAt)` (server clock), so late joiners land in the same place.
+ */
+export interface PlaylistSoundDoc extends BaseDoc {
+  name: string;
+  description: string;
+  path: string | null;
+  /** Empty = the playlist's channel. */
+  channel: AudioChannel | "";
+  playing: boolean;
+  /** Seconds into the track where playback (re)starts; null = from the beginning. */
+  pausedTime: number | null;
+  /** Server time (ms) when the current playback began. */
+  startedAt: number | null;
+  repeat: boolean;
+  volume: number;
+  /** Fade in/out in ms (null = the playlist's). */
+  fade: number | null;
+  sort: number;
+}
+
+/** Server-side playlist actions (socket event `playlist`). */
+export type PlaylistAction =
+  | { action: "playAll" | "stopAll" | "next" | "previous" | "cycleMode"; playlistId: string }
+  | { action: "play" | "pause" | "stop"; playlistId: string; soundId: string }
+  /** A client heard a track reach its natural end. `startedAt` identifies which playback ended. */
+  | { action: "ended"; playlistId: string; soundId: string; startedAt: number | null };
+
+/** A one-off sound played for some or all users (socket event `playAudio`). */
+export interface PlayAudioEvent {
+  src: string;
+  volume?: number;
+  channel?: AudioChannel;
+  loop?: boolean;
 }
 
 export interface FogExplorationDoc extends BaseDoc {
