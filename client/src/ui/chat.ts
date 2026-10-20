@@ -37,24 +37,25 @@ export function chatPanel(): HTMLElement {
   return h("div.chat", null, log, input);
 }
 
-function speaker(): { actor: string | null; alias: string } {
+export function speaker(): { actor: string | null; alias: string } {
   const user = game.user;
   const actor = game.get<ActorDoc>("Actor", user.character);
   return actor ? { actor: actor._id, alias: actor.name } : { actor: null, alias: user.name };
 }
 
-async function send(text: string): Promise<void> {
+/** Send what was typed in the chat: a roll command or a message. Chat macros come through here too. */
+export async function send(text: string, as = speaker()): Promise<void> {
   const cmd = /^\/(r|roll|gr|gmroll)\s+(.+)$/i.exec(text);
   if (cmd) {
     const [formula, ...flavor] = cmd[2].split("#");
-    await game.roll({ formula: formula.trim(), flavor: flavor.join("#").trim() || undefined, speaker: speaker(), whisperGM: /^g/i.test(cmd[1]) });
+    await game.roll({ formula: formula.trim(), flavor: flavor.join("#").trim() || undefined, speaker: as, whisperGM: /^g/i.test(cmd[1]) });
     return;
   }
   if (text.startsWith("/")) {
     toast(HELP);
     return;
   }
-  await game.create("ChatMessage", { content: text, speaker: speaker() }).catch(() => {});
+  await game.create("ChatMessage", { content: text, speaker: as }).catch(() => {});
 }
 
 export function messageView(m: ChatMessageDoc): HTMLElement {

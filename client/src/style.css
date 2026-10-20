@@ -364,3 +364,13 @@ fieldset.behavior legend { color: var(--accent-2); font-weight: 600; padding: 0 
 button.icon.off { opacity: 0.45; }
 button.icon.on { color: var(--accent-2); }
 #hotbar .control-btn.active { color: var(--accent-2); }
+
+/* ---- Macros ---- */
+.avatar.macro-icon { display: inline-flex; align-items: center; justify-content: center; background: var(--panel-2); color: var(--accent-2); border-radius: 4px; flex: none; }
+#hotbar .slot .avatar.macro-icon { border-radius: 0; background: transparent; width: 100% !important; height: 100% !important; font-size: calc(var(--slot) * 0.5) !important; }
+textarea.macro-command { width: 100%; resize: vertical; min-height: 160px; }
+textarea.macro-command.code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.45; tab-size: 2; }
+.context-menu { position: fixed; z-index: 1000; margin: 0; padding: 4px 0; list-style: none; min-width: 170px; background: var(--panel-solid); border: 1px solid var(--control-border); border-radius: var(--radius); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); }
+.context-menu button { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 12px; background: none; border: none; color: var(--text); text-align: left; border-radius: 0; }
+.context-menu button:hover { background: var(--control-hover); }
+.context-menu i { width: 16px; color: var(--muted); }

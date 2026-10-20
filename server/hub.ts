@@ -254,8 +254,20 @@ export class Hub {
 
   /** Deliver region messages to the users they're for. */
   #send(emits: Emit[]): void {
+    const sockets = [...this.#io.sockets.sockets.values()];
     for (const e of emits) {
-      for (const s of this.#io.sockets.sockets.values()) {
+      if (e.once && e.to) {
+        // The first listed user with a connection gets it, on one connection only.
+        for (const id of e.to) {
+          const s = sockets.find(x => x.data.userId === id);
+          if (s) {
+            s.emit(e.event, e.data);
+            break;
+          }
+        }
+        continue;
+      }
+      for (const s of sockets) {
         if (!e.to || e.to.includes(s.data.userId)) s.emit(e.event, e.data);
       }
     }

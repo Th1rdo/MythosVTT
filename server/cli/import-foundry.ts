@@ -235,16 +235,23 @@ function insert(type: Parameters<World["insertRaw"]>[0], docs: BaseDoc[]) {
 }
 
 const users = await readCollection("users");
+// Foundry hotbars only hold macros (slot → macro id); macros are imported below.
+const macros = await readCollection("macros");
+const macroIds = new Set(macros.map(m => m._id));
+const hotbarOf = (u: Raw) => Object.fromEntries(Object.entries(u.hotbar ?? {})
+  .filter(([slot, id]) => /^\d+$/.test(slot) && typeof id === "string" && macroIds.has(id))
+  .map(([slot, id]) => [slot, { type: "Macro", id }]));
 insert("User", users.map(u => ({
   _id: u._id,
   name: u.name,
   role: (u.role ?? 1) >= 3 ? "gm" : "player",
   color: typeof u.color === "string" ? u.color : "#7c8cff",
   character: u.character ?? null,
+  hotbar: hotbarOf(u),
   passwordHash: null
 })));
 
-const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist"]);
+const FOLDER_TYPES = new Set(["Actor", "Item", "JournalEntry", "Scene", "Playlist", "Macro"]);
 const folders = (await readCollection("folders")).filter(f => FOLDER_TYPES.has(f.type));
 const folderIds = new Set(folders.map(f => f._id));
 const folderOf = (id: unknown) => (typeof id === "string" && folderIds.has(id) ? id : null);
@@ -567,6 +574,13 @@ insert("PlaylistSound", playlists.flatMap(p => (p.sounds ?? []).map((t: Raw) => 
   repeat: !!t.repeat, volume: unit(t.volume, 0.5),
   fade: typeof t.fade === "number" && t.fade > 0 ? Math.min(60_000, t.fade) : null, sort: t.sort ?? 0
 }))));
+
+// Macros keep their command as-is: Foundry script macros call Foundry's API and need adapting to Mesa's.
+insert("Macro", macros.map(m => ({
+  _id: m._id, name: m.name ?? "Macro", type: m.type === "script" ? "script" : "chat",
+  author: typeof m.author === "string" ? m.author : "", img: asset(m.img), command: typeof m.command === "string" ? m.command : "",
+  folder: folderOf(m.folder), sort: m.sort ?? 0, ownership: m.ownership ?? { default: 0 }
+})));
 
 // Combats: Foundry stores the turn as an index into its sorted order (initiative desc, then id).
 const combats = await readCollection("combats");

@@ -12,11 +12,11 @@
 
 export type DocType =
   | "User" | "Actor" | "Item" | "ActiveEffect" | "Scene" | "Level" | "Token" | "Tile" | "Drawing" | "Note" | "Region" | "Wall" | "AmbientLight" | "AmbientSound" | "FogExploration"
-  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound";
+  | "Combat" | "Combatant" | "ChatMessage" | "JournalEntry" | "Folder" | "Setting" | "Playlist" | "PlaylistSound" | "Macro";
 
 export const DOC_TYPES: readonly DocType[] = [
   "User", "Actor", "Item", "ActiveEffect", "Scene", "Level", "Token", "Tile", "Drawing", "Note", "Region", "Wall", "AmbientLight", "AmbientSound", "FogExploration",
-  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound"
+  "Combat", "Combatant", "ChatMessage", "JournalEntry", "Folder", "Setting", "Playlist", "PlaylistSound", "Macro"
 ];
 
 /** Child types whose parent is optional (world-level Items live in the Items directory). */
@@ -81,7 +81,7 @@ export interface PrototypeToken {
 }
 
 export interface HotbarEntry {
-  type: "Item" | "Actor" | "JournalEntry";
+  type: "Item" | "Actor" | "JournalEntry" | "Macro";
   id: string;
 }
 
@@ -137,7 +137,7 @@ export interface ActiveEffectDoc extends BaseDoc, Omit<EffectData, "_id"> {}
 export interface FolderDoc extends BaseDoc {
   name: string;
   /** Which directory the folder belongs to. */
-  type: "Actor" | "Item" | "JournalEntry" | "Scene" | "Playlist";
+  type: "Actor" | "Item" | "JournalEntry" | "Scene" | "Playlist" | "Macro";
   folder: string | null;
   color: string | null;
   sort: number;
@@ -262,7 +262,18 @@ export type RegionBehavior = { _id: string; name: string; disabled: boolean } & 
   | { type: "displayScrollingText"; system: { text: string; color: string; events: RegionEvent[]; visibility: "all" | "gm" | "owner" } }
   | { type: "adjustDarkness"; system: { mode: "brighten" | "darken"; amount: number } }
   | { type: "toggleBehavior"; system: { events: RegionEvent[]; enable: string[]; disable: string[] } }
+  /** Runs on a client: the moving user if they may run it, else the highest-ranked online user who may; or everyone. */
+  | { type: "executeMacro"; system: { macroId: string | null; events: RegionEvent[]; everyone: boolean } }
 );
+
+/** Sent to the client(s) that should run a macro for a region behaviour. */
+export interface RunMacroEvent {
+  macroId: string;
+  sceneId: string;
+  regionId: string;
+  tokenId: string | null;
+  event: RegionEvent;
+}
 
 export interface RegionDoc extends BaseDoc {
   name: string;
@@ -534,6 +545,24 @@ export interface JournalEntryDoc extends BaseDoc {
   ownership: Ownership;
   folder: string | null;
   sort: number;
+}
+
+/**
+ * A saved command. Chat macros are sent as if typed in the chat (one command per line when every line
+ * starts with "/"); script macros are JavaScript run in the browser of whoever executes them.
+ */
+export interface MacroDoc extends BaseDoc {
+  name: string;
+  type: "chat" | "script";
+  /** Who made it (always owns it). */
+  author: string;
+  /** Image path or emoji; null = default icon. */
+  img: string | null;
+  command: string;
+  folder: string | null;
+  sort: number;
+  /** LIMITED lets others see and run it; OWNER lets them edit it. */
+  ownership: Ownership;
 }
 
 export interface SettingDoc extends BaseDoc {

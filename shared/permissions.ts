@@ -1,6 +1,6 @@
 import { DOOR, DOOR_STATE, OWNERSHIP, REGION_VISIBILITY } from "./protocol.ts";
 import type {
-  ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, PlaylistDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
+  ActiveEffectDoc, ActorDoc, AmbientLightDoc, AmbientSoundDoc, MacroDoc, PlaylistDoc, BaseDoc, ChatMessageDoc, CombatantDoc, DocType, DrawingDoc, FogExplorationDoc, ItemDoc, JournalEntryDoc, NoteDoc, RegionDoc,
   Ownership, TileDoc, TokenDoc, UserDoc, WallDoc
 } from "./protocol.ts";
 
@@ -21,6 +21,17 @@ export function ownsPlaylist(playlistId: string | null | undefined, user: UserDo
   if (user.role === "gm") return true;
   const p = playlistId ? (docs.get("Playlist", playlistId) as PlaylistDoc | undefined) : undefined;
   return !!p && ownershipLevel(p.ownership, user) >= OWNERSHIP.OWNER;
+}
+
+/** Ownership level of a macro: its author always owns it. */
+export function macroLevel(macro: MacroDoc, user: UserDoc): number {
+  if (macro.author && macro.author === user._id) return OWNERSHIP.OWNER;
+  return ownershipLevel(macro.ownership, user);
+}
+
+/** Whether `user` may run a macro (Foundry: LIMITED or better). */
+export function canRunMacro(macro: MacroDoc, user: UserDoc): boolean {
+  return macroLevel(macro, user) >= OWNERSHIP.LIMITED;
 }
 
 export function ownsActor(actorId: string | null | undefined, user: UserDoc, docs: DocLookup): boolean {
@@ -79,6 +90,8 @@ export function canSee(type: DocType, doc: BaseDoc, user: UserDoc, docs: DocLook
     }
     case "FogExploration":
       return (doc as FogExplorationDoc).user === user._id;
+    case "Macro":
+      return canRunMacro(doc as MacroDoc, user);
     case "Combatant":
       return !(doc as CombatantDoc).hidden || ownsActor((doc as CombatantDoc).actorId, user, docs);
     default:
@@ -142,6 +155,12 @@ export function checkWrite(
     case "Drawing":
       // Anyone may draw; authors edit and delete their own drawings.
       return (doc as DrawingDoc).author === user._id ? null : deny;
+    case "Macro": {
+      // Anyone makes macros (the server marks them as the author); owners edit, share and delete them.
+      if (op === "create") return (doc as MacroDoc).author === user._id ? null : deny;
+      if (macroLevel(doc as MacroDoc, user) < OWNERSHIP.OWNER) return deny;
+      return op === "update" && "author" in (changes ?? {}) ? deny : null;
+    }
     case "Playlist":
       // Owners run and edit their playlist; only the GM creates playlists or changes who owns them.
       if (op !== "update" || !ownsPlaylist(doc._id, user, docs)) return deny;

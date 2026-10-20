@@ -93,7 +93,7 @@ export function prompt(title: string, fields: { name: string; label: string; val
   });
 }
 
-export function confirmDialog(message: string): Promise<boolean> {
+export function confirmDialog(message: string, confirmLabel = "Apagar"): Promise<boolean> {
   return new Promise(resolve => {
     const key = `confirm-${Math.random()}`;
     let done = false;
@@ -107,7 +107,45 @@ export function confirmDialog(message: string): Promise<boolean> {
       h("p", null, message),
       h("div.row.end", null,
         h("button", { onclick: () => answer(false) }, "Cancelar"),
-        h("button.danger", { onclick: () => answer(true) }, "Apagar"))
+        h("button.danger", { onclick: () => answer(true) }, confirmLabel))
     );
+  });
+}
+
+export interface MenuItem {
+  label: string;
+  icon: string;
+  run: () => void;
+}
+
+/** A small right-click menu at the pointer; closes on any click elsewhere or Escape. */
+export function contextMenu(e: MouseEvent, items: MenuItem[]): void {
+  e.preventDefault();
+  document.querySelector(".context-menu")?.remove();
+  if (!items.length) return;
+  const menu = h("menu.context-menu", null, items.map(it => h("li", null, h("button", {
+    onclick: () => {
+      close();
+      it.run();
+    }
+  }, h("i", { className: it.icon }), " ", it.label))));
+  document.body.append(menu);
+  const { innerWidth: w, innerHeight: hgt } = window;
+  const r = menu.getBoundingClientRect();
+  menu.style.left = `${Math.min(e.clientX, w - r.width - 4)}px`;
+  menu.style.top = `${Math.min(e.clientY, hgt - r.height - 4)}px`;
+  const away = (ev: Event) => {
+    if (ev instanceof KeyboardEvent && ev.key !== "Escape") return;
+    if (ev.target instanceof Node && menu.contains(ev.target) && !(ev instanceof KeyboardEvent)) return;
+    close();
+  };
+  const close = () => {
+    menu.remove();
+    window.removeEventListener("pointerdown", away, true);
+    window.removeEventListener("keydown", away, true);
+  };
+  setTimeout(() => {
+    window.addEventListener("pointerdown", away, true);
+    window.addEventListener("keydown", away, true);
   });
 }

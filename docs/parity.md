@@ -72,11 +72,15 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Importer: playlists, tracks, ambient sounds (untested against real Foundry data — claude-tests has none)
 - ⬜ Drag a track onto the map to make an ambient sound; sound-effect previews in the config; playlist bulk-import dialog filters; auto-preload of the next track; audio analyser (band levels for modules)
 
-## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers)*
+## Phase 6 — Content  *(compendium, roll-table, cards, macro, adventure, journal pages, text enrichers — macros REA `ev_fb5a9b64…`)*
 - ⬜ Compendium packs (create, browse, import), import OP system packs
 - ⬜ Roll tables (draw, results to chat)
 - ⬜ Cards (decks, hands, piles)
-- ⬜ Macros (chat + script) and hotbar
+- ✅ Macros (chat + script): Macros tab, config window (icon, command, sharing none/run/edit), author always owns; players make their own
+- ✅ Hotbar macros: click an empty slot to write one, drop from the directory, keys 1–0, right-click menu (edit/remove/delete), drag between slots
+- ✅ Script API for macros (`speaker, actor, token, character, scope, mesa`); GM confirms before running a player's script; `mesa.playAudio` = one-off sounds UI
+- ✅ Region behaviour "Executar macro" (mover if allowed, else highest-ranked online user; or everyone); importer: macros + users' hotbars
+- ⬜ Script-macro permission setting (Foundry MACRO_SCRIPT, Phase 7); macro compendia; Foundry script macros need porting to Mesa's API
 - ⬜ Journal: multiple pages (text, image, PDF, video, markdown), categories, show-to-players, share image
 - ⬜ Text enrichment: document links, inline rolls `[[/r 1d20]]`, embeds, secret blocks
 - ⬜ Adventure export/import

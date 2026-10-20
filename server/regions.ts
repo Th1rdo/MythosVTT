@@ -1,14 +1,17 @@
-import type { ActorDoc, LevelPromptEvent, RegionBehavior, RegionDoc, RegionEvent, SceneDoc, ScrollingTextEvent, TokenDoc, UserDoc } from "../shared/protocol.ts";
+import type { ActorDoc, LevelPromptEvent, MacroDoc, RunMacroEvent, RegionBehavior, RegionDoc, RegionEvent, SceneDoc, ScrollingTextEvent, TokenDoc, UserDoc } from "../shared/protocol.ts";
 import { randomId } from "../shared/objects.ts";
 import { randomPointIn, tokenInRegion } from "../shared/regions.ts";
 import { defaultLevel } from "../shared/levels.ts";
+import { canRunMacro } from "../shared/permissions.ts";
 import type { Change, World } from "./world.ts";
 
 /** A message to send to some users (null = everyone). */
 export interface Emit {
   to: string[] | null;
-  event: "scrollingText" | "levelPrompt" | "pull";
-  data: ScrollingTextEvent | LevelPromptEvent | string;
+  event: "scrollingText" | "levelPrompt" | "pull" | "runMacro";
+  data: ScrollingTextEvent | LevelPromptEvent | RunMacroEvent | string;
+  /** Deliver to one connection only: the first listed user who is online. */
+  once?: boolean;
 }
 
 /**
@@ -120,6 +123,22 @@ function run(
         const behaviors = live.behaviors.map(x => (enable.has(x._id) ? { ...x, disabled: false } : disable.has(x._id) ? { ...x, disabled: true } : x));
         out.push(...world.applyAsSystem({ op: "update", type: "Region", parent: scene._id, updates: [{ _id: r._id, behaviors }] }));
       }
+      return;
+    }
+    case "executeMacro": {
+      if (!b.system.events.includes(event) || !b.system.macroId) return;
+      const macro = world.get("Macro", b.system.macroId) as MacroDoc | undefined;
+      if (!macro) return;
+      const data: RunMacroEvent = { macroId: macro._id, sceneId: scene._id, regionId: region._id, tokenId: token._id, event };
+      const eligible = world.all<UserDoc>("User").filter(u => canRunMacro(macro, u));
+      if (b.system.everyone) {
+        emits.push({ to: eligible.map(u => u._id), event: "runMacro", data });
+        return;
+      }
+      // The user who moved the token, else the highest-ranked user online who may run it.
+      const ranked = eligible.sort((a, c) => (a._id === actingUserId ? -1 : c._id === actingUserId ? 1 : 0)
+        || (a.role === c.role ? a._id.localeCompare(c._id) : a.role === "gm" ? -1 : 1));
+      if (ranked.length) emits.push({ to: ranked.map(u => u._id), event: "runMacro", data, once: true });
       return;
     }
     case "adjustDarkness":

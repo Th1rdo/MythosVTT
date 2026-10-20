@@ -4,7 +4,7 @@ import "@fontsource/signika/700.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./style.css";
 import type { UserDoc } from "../../shared/protocol.ts";
-import type { PlayAudioEvent } from "../../shared/protocol.ts";
+import type { PlayAudioEvent, RunMacroEvent } from "../../shared/protocol.ts";
 import { game, toast } from "./game.ts";
 import { Board } from "./canvas/board.ts";
 import { Perception } from "./canvas/perception.ts";
@@ -15,6 +15,8 @@ import { AmbientPlayer } from "./audio/ambient.ts";
 import { PlaylistPlayer } from "./audio/playlists.ts";
 import { audio } from "./audio/engine.ts";
 import { playlistsPanel } from "./ui/playlists.ts";
+import { macrosPanel } from "./ui/macros.ts";
+import { onRunMacro, setMacroBoard } from "./macros.ts";
 import { volumeControls } from "./ui/audio-config.ts";
 import { TilesLayer } from "./canvas/tiles.ts";
 import { DrawingsLayer } from "./canvas/drawings.ts";
@@ -99,6 +101,8 @@ async function startGame(): Promise<void> {
   const ambient = new AmbientPlayer(board);
   const sounds = new SoundsLayer(board, ambient);
   const playlists = new PlaylistPlayer();
+  setMacroBoard(board);
+  game.socket.on("runMacro", (e: RunMacroEvent) => onRunMacro(e));
   game.socket.on("playAudio", (e: PlayAudioEvent) => audio.playOnce(e.src, e));
   game.socket.on("preloadAudio", (src: string) => audio.whenReady(() => fetch(src).catch(() => {})));
   // Browsers keep audio off until the page is used; say so if something is waiting to play.
@@ -120,6 +124,7 @@ async function startGame(): Promise<void> {
     { id: "actors", icon: "fa-solid fa-user", label: "Atores", make: actorsPanel },
     { id: "items", icon: "fa-solid fa-suitcase", label: "Itens", make: itemsPanel },
     { id: "journal", icon: "fa-solid fa-book-open", label: "Diário", make: journalPanel },
+    { id: "macros", icon: "fa-solid fa-code", label: "Macros", make: macrosPanel },
     { id: "playlists", icon: "fa-solid fa-music", label: "Playlists", make: () => playlistsPanel(playlists) },
     { id: "settings", icon: "fa-solid fa-gears", label: "Definições", make: settingsPanel }
   ];

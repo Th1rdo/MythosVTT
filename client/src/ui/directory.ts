@@ -38,8 +38,8 @@ export interface DirectoryOptions<T extends BaseDoc> {
   /** Manual order (e.g. scene sort); the header's sort button toggles between this and A→Z. */
   sort?: (a: T, b: T) => number;
   empty: string;
-  /** "Create X" button in the header (GM). */
-  create?: { label: string; icon: string; run: () => void };
+  /** "Create X" button in the header (GM, or everyone with `everyone`). */
+  create?: { label: string; icon: string; run: () => void; everyone?: boolean };
   /** Image used as a banner background for the row (scene thumbnails). */
   banner?: (doc: T) => string | null;
 }
@@ -69,9 +69,9 @@ export function directory<T extends BaseDoc & { name: string; folder?: string | 
   });
   const sortBtn = h("button.icon", { onclick: () => { alphabetical = !alphabetical; render(); } });
   const header = h("header.dir-header", null,
-    game.isGM && h("div.dir-create", null,
+    (game.isGM || opts.create?.everyone) && h("div.dir-create", null,
       opts.create && h("button", { onclick: opts.create.run }, h("i", { className: opts.create.icon }), " ", opts.create.label),
-      h("button", { onclick: () => createFolder(opts.type) }, h("i.fa-solid.fa-folder"), " Criar pasta")),
+      game.isGM && h("button", { onclick: () => createFolder(opts.type) }, h("i.fa-solid.fa-folder"), " Criar pasta")),
     h("div.dir-search-row", null,
       h("i.fa-solid.fa-magnifying-glass"),
       search,

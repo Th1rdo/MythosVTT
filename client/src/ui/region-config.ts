@@ -1,4 +1,4 @@
-import type { RegionBehavior, RegionDoc, RegionEvent, SceneDoc } from "../../../shared/protocol.ts";
+import type { MacroDoc, RegionBehavior, RegionDoc, RegionEvent, SceneDoc } from "../../../shared/protocol.ts";
 import { REGION_VISIBILITY } from "../../../shared/protocol.ts";
 import { CONDITIONS } from "../../../shared/conditions.ts";
 import { randomId } from "../../../shared/objects.ts";
@@ -13,7 +13,8 @@ const BEHAVIORS: [RegionBehavior["type"], string][] = [
   ["applyActiveEffect", "Aplicar efeito enquanto dentro"],
   ["displayScrollingText", "Mostrar texto"],
   ["adjustDarkness", "Ajustar escuridão"],
-  ["toggleBehavior", "Ligar/desligar comportamentos"]
+  ["toggleBehavior", "Ligar/desligar comportamentos"],
+  ["executeMacro", "Executar macro"]
 ];
 
 function defaultSystem(type: RegionBehavior["type"]): RegionBehavior["system"] {
@@ -24,6 +25,7 @@ function defaultSystem(type: RegionBehavior["type"]): RegionBehavior["system"] {
     case "displayScrollingText": return { text: "", color: "#ffffff", events: ["tokenEnter"], visibility: "all" };
     case "adjustDarkness": return { mode: "brighten", amount: 1 };
     case "toggleBehavior": return { events: ["tokenEnter"], enable: [], disable: [] };
+    case "executeMacro": return { macroId: null, events: ["tokenEnter"], everyone: false };
   }
 }
 
@@ -115,6 +117,18 @@ export function openRegionConfig(regionId: string, sceneId: string): void {
               field("Desligar", multiSelect(sceneBehaviors(), s.disable, ids => set({ disable: ids }))))
           ];
           break;
+        case "executeMacro": {
+          const macros = game.all<MacroDoc>("Macro").sort((a, c) => a.name.localeCompare(c.name, "pt"));
+          fields = [
+            field("Macro", h("select", { onchange: (e: Event) => set({ macroId: (e.target as HTMLSelectElement).value || null }) },
+              h("option", { value: "" }, "— escolhe uma macro —"),
+              macros.map(m => h("option", { value: m._id, selected: s.macroId === m._id }, m.name)))),
+            h("div.row", null, eventsPicker(s.events, ev => set({ events: ev })),
+              h("label.row", null, h("input", { type: "checkbox", checked: s.everyone, onchange: (e: Event) => set({ everyone: (e.target as HTMLInputElement).checked }) }),
+                "Executar para todos"))
+          ];
+          break;
+        }
       }
       const disabled = h("input", { type: "checkbox", checked: b.disabled, onchange: (e: Event) => (b.disabled = (e.target as HTMLInputElement).checked) });
       return h("fieldset.behavior", null,
