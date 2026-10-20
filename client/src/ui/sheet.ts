@@ -3,7 +3,8 @@ import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { opTestFormula } from "../../../shared/dice.ts";
 import { ATTRIBUTES, DEGREES, ITEM_TYPES, SKILL_LABELS, isOrdemActor, skillBonus, skillFormula } from "../../../shared/ordem.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, pickFile, safeHtml, upload } from "../dom.ts";
+import { avatar, h, safeHtml } from "../dom.ts";
+import { browseFiles } from "./file-picker.ts";
 import type { ActorRef } from "../actors.ts";
 import { deleteEffect, ownEffects, saveEffect, stateOf, tokenOf, updateActor } from "../actors.ts";
 import { closeWindow, openWindow, setWindowTitle } from "./windows.ts";
@@ -105,14 +106,9 @@ function header(ref: ActorRef, actor: ActorDoc, editable: boolean): HTMLElement 
     img.classList.add("clickable");
     img.title = "Mudar imagem";
     img.addEventListener("click", async () => {
-      const file = await pickFile("image/*");
-      if (!file) return;
-      try {
-        const path = await upload(file);
-        await updateActor(ref, ref.token ? { img: path } : { img: path, "token.img": path });
-      } catch (err) {
-        toast((err as Error).message, "error");
-      }
+      const path = await browseFiles("image", actor.img);
+      if (!path) return;
+      await updateActor(ref, ref.token ? { img: path } : { img: path, "token.img": path });
     });
   }
   return h("div.sheet-head", null,

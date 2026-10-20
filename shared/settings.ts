@@ -50,6 +50,7 @@ export const SETTINGS: SettingDef[] = [
   bool("core.playerTemplates", "world", "permissions", "Jogadores podem pôr modelos de medição", true),
   bool("core.playerMacroScript", "world", "permissions", "Jogadores podem fazer macros de script", true, "Desligado: só macros de chat. Scripts correm no browser de quem os executa."),
   bool("core.playerUpload", "world", "permissions", "Jogadores podem carregar ficheiros", false, "Imagens e sons para as suas personagens, macros e diário."),
+  bool("core.playerBrowse", "world", "permissions", "Jogadores podem ver os ficheiros do mundo", false, "No explorador de ficheiros (e carregar para outras pastas, se também puderem carregar)."),
   bool("core.playerPing", "world", "permissions", "Jogadores podem sinalizar o mapa", true),
   bool("core.playerRuler", "world", "permissions", "Os outros veem a régua dos jogadores", true),
   bool("core.playerWhisper", "world", "permissions", "Jogadores podem sussurrar (/w)", true),

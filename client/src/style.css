@@ -520,3 +520,17 @@ kbd.capturing, .capturing { border-color: var(--accent-2); color: var(--accent-2
 .player-avatar { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; border: 2px solid var(--player-color); }
 .player-pronouns { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .user-avatar-preview .avatar { border-radius: 50%; }
+
+/* ---- File picker ---- */
+.crumbs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.crumbs button.link { background: none; border: none; padding: 2px 4px; color: var(--text); }
+.file-browser { display: flex; flex-direction: column; gap: 2px; max-height: 52vh; overflow-y: auto; margin: 6px 0; border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
+.file-browser.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.file-entry { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: pointer; min-width: 0; }
+.file-entry span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.file-entry:hover { background: rgba(255, 255, 255, 0.05); }
+.file-entry.selected { outline: 2px solid var(--accent-2); }
+.file-entry.dir i { color: var(--accent-2); }
+.file-browser.thumbs .file-entry { flex-direction: column; align-items: stretch; text-align: center; }
+.file-browser.thumbs .file-entry img { width: 100%; height: 80px; object-fit: contain; background: #0d0c14; border-radius: 3px; }
+.file-browser.thumbs .file-entry i { font-size: 34px; text-align: center; padding: 18px 0; }

@@ -2,7 +2,8 @@ import type { ActorDoc, ItemDoc } from "../../../shared/protocol.ts";
 import { ITEM_TYPES, SKILL_LABELS, itemTemplate, skillFormula } from "../../../shared/ordem.ts";
 import { parseFormula } from "../../../shared/dice.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, pickFile, safeHtml, upload } from "../dom.ts";
+import { avatar, h, safeHtml } from "../dom.ts";
+import { browseFiles } from "./file-picker.ts";
 import { closeWindow, openWindow, setWindowTitle } from "./windows.ts";
 import { ownershipEditor } from "./sheet.ts";
 
@@ -68,13 +69,8 @@ function itemForm(item: ItemDoc): HTMLElement {
     img.classList.add("clickable");
     img.title = "Mudar imagem";
     img.addEventListener("click", async () => {
-      const file = await pickFile("image/*");
-      if (!file) return;
-      try {
-        save(item, { img: await upload(file) });
-      } catch (err) {
-        toast((err as Error).message, "error");
-      }
+      const chosen = await browseFiles("image", item.img);
+      if (chosen) save(item, { img: chosen });
     });
   }
 

@@ -3,7 +3,8 @@ import { LINK_TYPES, OWNERSHIP } from "../../../shared/protocol.ts";
 import { ownershipLevel } from "../../../shared/permissions.ts";
 import { parseFormula } from "../../../shared/dice.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, pickFile, safeHtml, setChildren, upload } from "../dom.ts";
+import { avatar, h, safeHtml, setChildren } from "../dom.ts";
+import { browseFiles } from "./file-picker.ts";
 import { directory } from "./directory.ts";
 import { closeWindow, confirmDialog, openWindow, prompt, setWindowTitle } from "./windows.ts";
 import { linkChip } from "./links.ts";
@@ -88,8 +89,8 @@ export function openTableSheet(tableId: string): void {
         h("button.table-img", {
           type: "button", title: "Mudar imagem",
           onclick: async () => {
-            const file = await pickFile("image/*");
-            if (file) save({ img: await upload(file).catch(err => (toast(err.message, "error"), t.img)) });
+            const chosen = await browseFiles("image", t.img);
+            if (chosen) save({ img: chosen });
           }
         }, avatar(t.img, t.name, 56)),
         h("div.stack.grow", null,

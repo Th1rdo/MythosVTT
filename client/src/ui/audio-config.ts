@@ -2,6 +2,7 @@ import type { AmbientSoundDoc, AudioChannel, PlaylistDoc, PlaylistSoundDoc, Soun
 import { AUDIO_CHANNELS, OWNERSHIP } from "../../../shared/protocol.ts";
 import { game, toast } from "../game.ts";
 import { h, upload } from "../dom.ts";
+import { browseButton } from "./file-picker.ts";
 import { closeWindow, confirmDialog, openWindow } from "./windows.ts";
 import { levelsField } from "./canvas-config.ts";
 import { audio } from "../audio/engine.ts";
@@ -31,21 +32,9 @@ function percentSlider(value: number): { node: HTMLElement; read: () => number }
 }
 
 /** Path to an audio file: type it, upload one, or listen to it. */
-export function audioPathField(value: string | null, onUpload?: (path: string, file: File) => void): { node: HTMLElement; input: HTMLInputElement } {
+export function audioPathField(value: string | null, onUpload?: (path: string, fileName: string) => void): { node: HTMLElement; input: HTMLInputElement } {
   const input = h("input", { value: value ?? "", placeholder: "/assets/… ou URL" });
-  const choose = h("button", {
-    type: "button", title: "Carregar um ficheiro de áudio",
-    onclick: async () => {
-      const file = await pickFiles(AUDIO_ACCEPT, false).then(f => f[0]);
-      if (!file) return;
-      try {
-        input.value = await upload(file);
-        onUpload?.(input.value, file);
-      } catch (err) {
-        toast((err as Error).message, "error");
-      }
-    }
-  }, h("i.fa-solid.fa-upload"));
+  const choose = browseButton(input, "audio", path => onUpload?.(path, path.split("/").pop() ?? path));
   const listen = h("button", {
     type: "button", title: "Ouvir",
     onclick: () => input.value && audio.playOnce(input.value, { channel: "interface", volume: 0.8 })
@@ -74,7 +63,7 @@ export function openAmbientSoundConfig(soundId: string, sceneId: string): void {
   const body = openWindow(key, "Som ambiente", { width: 420 });
   if (!body) return;
   const name = h("input", { value: s.name ?? "" });
-  const path = audioPathField(s.path, (_, file) => { if (!name.value) name.value = titleFromFile(file.name); });
+  const path = audioPathField(s.path, (_, file) => { if (!name.value) name.value = titleFromFile(file); });
   const radius = num(s.radius, { min: 0 });
   const elevation = num(s.elevation ?? 0);
   const volume = percentSlider(s.volume);
@@ -190,7 +179,7 @@ export function openPlaylistSoundConfig(playlistId: string, soundId?: string): v
   const body = openWindow(key, s ? `Faixa: ${s.name}` : `Nova faixa em ${playlist.name}`, { width: 400 });
   if (!body) return;
   const name = h("input", { value: s?.name ?? "" });
-  const path = audioPathField(s?.path ?? null, (_, file) => { if (!name.value) name.value = titleFromFile(file.name); });
+  const path = audioPathField(s?.path ?? null, (_, file) => { if (!name.value) name.value = titleFromFile(file); });
   const description = h("textarea", { rows: 2, value: s?.description ?? "" });
   const channel = select([["", `Da playlist (${CHANNEL_LABELS[playlist.channel]})`], ...AUDIO_CHANNELS.map(c => [c, CHANNEL_LABELS[c]] as [string, string])], s?.channel ?? "");
   const volume = percentSlider(s?.volume ?? 0.5);

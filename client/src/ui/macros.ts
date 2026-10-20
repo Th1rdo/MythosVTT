@@ -2,7 +2,8 @@ import type { MacroDoc, UserDoc } from "../../../shared/protocol.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { macroLevel } from "../../../shared/permissions.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, pickFile, upload } from "../dom.ts";
+import { avatar, h } from "../dom.ts";
+import { browseButton } from "./file-picker.ts";
 import { directory } from "./directory.ts";
 import { closeWindow, confirmDialog, openWindow, setWindowTitle } from "./windows.ts";
 import { executeMacro } from "../macros.ts";
@@ -68,18 +69,7 @@ export function openMacroConfig(macroId?: string, hotbarSlot?: number): void {
   const name = h("input", { value: existing?.name ?? "", placeholder: "Nome" });
   const type = h("select", null, [["chat", "Chat"], ["script", "Script"]].map(([v, l]) => h("option", { value: v, selected: (existing?.type ?? "chat") === v }, l)));
   const img = h("input", { value: existing?.img ?? "", placeholder: "Emoji ou imagem (vazio = ícone)" });
-  const pickImg = h("button", {
-    type: "button", title: "Carregar imagem",
-    onclick: async () => {
-      const file = await pickFile("image/*");
-      if (!file) return;
-      try {
-        img.value = await upload(file);
-      } catch (err) {
-        toast((err as Error).message, "error");
-      }
-    }
-  }, h("i.fa-solid.fa-image"));
+  const pickImg = browseButton(img, "image");
   const command = h("textarea.macro-command", { rows: 12, spellcheck: false, value: existing?.command ?? "" });
   const help = h("p.muted.small");
   const updateHelp = () => {

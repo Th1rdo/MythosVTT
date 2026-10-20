@@ -95,7 +95,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ Roll card: per-group dice with discarded/rerolled/exploded/success/failure styling; importer keeps Foundry dice results
 - ⬜ Roll resolver (manual/physical dice entry), dice config (fulfilment methods), deferred inline rolls `[[/r …]]` as buttons, Dice So Nice-style 3D
 
-## Phase 7 — UX and administration  *(applications/ui, settings, sidebar, helpers — shell REA `ev_9483b78d…`, settings `ev_e0b8ff40…`, keys `ev_2d5e38e7…`, user/pause `ev_6b3ceeb4…`)*
+## Phase 7 — UX and administration  *(applications/ui, settings, sidebar, helpers — shell REA `ev_9483b78d…`, settings `ev_e0b8ff40…`, keys `ev_2d5e38e7…`, user/pause `ev_6b3ceeb4…`, files `ev_324ad5da…`)*
 - ✅ Foundry-like shell: two-column scene controls (layer groups + tools), scene navigation pill with user pips, players list with latency/FPS, hotbar (10 slots × 5 pages, drop items/actors/journal, keys 1–0, lock/clear), collapsible sidebar icon strip with floating chat dock + notifications, directory headers (create, folder, search, sort, collapse all), scene banners
 - ✅ GUI size per browser: left bar, right sidebar, hotbar (60–160%)
 - ✅ Settings framework: one shared registry (world / user / client scope), world values as Setting docs validated and enforced by the server, user values on the User, client in localStorage; Definições window (categories, save, reset) with Som and Tamanho da interface inside
@@ -107,7 +107,8 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 - ✅ User config: colour, avatar, pronouns, character (players: their own actors), GM: name + password; open from the players list
 - ⬜ Invitation links
 - ✅ Image popout + share image with everyone (Phase 6.4)
-- ⬜ File picker / browser, video popouts
+- ✅ File picker (REA `ev_324ad5da…`): browse world assets by folder with kinds (image, audio, video, PDF), thumbnails/list, search, upload into the current folder, new folder (GM), type a URL; used by every image/audio/document field; players need "ver os ficheiros" (else plain upload); PDF and more audio types uploadable
+- ⬜ Video popouts, favourite folders, S3/external sources
 - ⬜ Setup screen (multiple worlds), world config, backups
 - ⬜ Localization (pt-PT first, en)
 - ⬜ Tours / help

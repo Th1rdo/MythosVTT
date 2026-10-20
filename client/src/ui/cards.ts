@@ -2,7 +2,8 @@ import type { CardDoc, CardFace, CardsAction, CardsDoc, DrawHow } from "../../..
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { ownershipLevel } from "../../../shared/permissions.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, pickFile, safeHtml, setChildren, upload } from "../dom.ts";
+import { avatar, h, safeHtml, setChildren } from "../dom.ts";
+import { browseButton } from "./file-picker.ts";
 import { directory } from "./directory.ts";
 import { ownershipEditor } from "./sheet.ts";
 import { closeWindow, confirmDialog, openWindow, setWindowTitle } from "./windows.ts";
@@ -234,7 +235,7 @@ function openStackConfig(stackId: string): void {
     }
   },
     h("label.field", null, h("span", null, "Nome"), name), h("label.field", null, h("span", null, "Tipo"), type),
-    h("label.field", null, h("span", null, "Imagem"), h("div.row", null, img, h("button", { type: "button", onclick: async () => { const f = await pickFile("image/*"); if (f) img.value = await upload(f); } }, h("i.fa-solid.fa-upload")))),
+    h("label.field", null, h("span", null, "Imagem"), h("div.row", null, img, browseButton(img, "image"))),
     h("label.field", null, h("span", null, "Descrição"), description),
     h("label.row", null, displayCount, "Mostrar a contagem a todos"),
     h("div.row.end", null,
@@ -262,7 +263,7 @@ function openCardConfig(stackId: string, cardId?: string): void {
         h("input", { value: f.name, placeholder: "Nome da face", oninput: (e: Event) => (f.name = (e.target as HTMLInputElement).value) }),
         h("input", { value: f.text, placeholder: "Texto (ex.: A♥)", oninput: (e: Event) => (f.text = (e.target as HTMLInputElement).value) })),
       h("div.row", null, imgIn,
-        h("button", { type: "button", title: "Carregar imagem", onclick: async () => { const file = await pickFile("image/*"); if (file) { f.img = await upload(file); imgIn.value = f.img; } } }, h("i.fa-solid.fa-upload")),
+        browseButton(imgIn, "image", path => (f.img = path)),
         i !== "back" && faces.length > 1 ? h("button.icon.small", { type: "button", title: "Tirar esta face", onclick: () => { faces.splice(i, 1); renderFaces(); } }, "✕") : null));
   };
   const renderFaces = () => setChildren(facesBox, faces.map((f, i) => faceRow(f, i)),

@@ -4,7 +4,8 @@ import type { TileDoc } from "../../../shared/protocol.ts";
 import type { Point } from "../../../shared/geometry.ts";
 import { onLevel } from "../../../shared/levels.ts";
 import { game, toast } from "../game.ts";
-import { imageSize, pickFile, upload } from "../dom.ts";
+import { imageSize } from "../dom.ts";
+import { browseFiles } from "../ui/file-picker.ts";
 import type { Board, Tool } from "./board.ts";
 import { loadTexture } from "./board.ts";
 import { openTileConfig } from "../ui/canvas-config.ts";
@@ -129,10 +130,9 @@ export class TilesLayer implements Tool {
 
   /** Ask for an image; the next click places it. */
   async startPlacing(): Promise<void> {
-    const file = await pickFile("image/*,video/webm");
-    if (!file) return;
+    const src = await browseFiles("imagevideo");
+    if (!src) return;
     try {
-      const src = await upload(file);
       const size = await imageSize(src).catch(() => ({ width: 200, height: 200 }));
       this.#pending = { src, ...size };
       this.mode = "place";

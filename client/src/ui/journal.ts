@@ -3,8 +3,9 @@ import { OWNERSHIP, PAGE_FORMAT } from "../../../shared/protocol.ts";
 import { ownershipLevel, pageLevel } from "../../../shared/permissions.ts";
 import { randomId } from "../../../shared/objects.ts";
 import { game, toast } from "../game.ts";
-import { h, pickFile, setChildren, upload } from "../dom.ts";
+import { h, setChildren } from "../dom.ts";
 import { enrich, markdown, toggleSecret } from "../enrich.ts";
+import { browseFiles } from "./file-picker.ts";
 import { ownershipEditor } from "./sheet.ts";
 import { closeWindow, confirmDialog, openWindow, prompt, setWindowTitle } from "./windows.ts";
 
@@ -150,18 +151,15 @@ function pageEditor(p: JournalEntryPageDoc, entry: JournalEntryDoc, done: () => 
   const autoplay = h("input", { type: "checkbox", checked: !!p.video?.autoplay });
   const body = h("div.stack");
   const accept: Record<PageType, string> = { text: "", image: "image/*", pdf: "application/pdf,.pdf", video: "video/*,.mp4,.webm" };
+  const kinds: Record<PageType, "image" | "pdf" | "video"> = { text: "image", image: "image", pdf: "pdf", video: "video" };
   const pick = h("button", {
-    type: "button", title: "Carregar ficheiro",
+    type: "button", title: "Escolher ou carregar ficheiro",
     onclick: async () => {
-      const file = await pickFile(accept[type.value as PageType]);
-      if (!file) return;
-      try {
-        src.value = await upload(file);
-      } catch (err) {
-        toast((err as Error).message, "error");
-      }
+      const chosen = await browseFiles(kinds[type.value as PageType], src.value);
+      if (chosen) src.value = chosen;
     }
-  }, h("i.fa-solid.fa-upload"));
+  }, h("i.fa-solid.fa-folder-open"));
+
   const renderBody = () => {
     const t = type.value as PageType;
     if (t === "text") {

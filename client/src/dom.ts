@@ -58,9 +58,10 @@ export function timeLabel(ts: number): string {
   return sameDay ? d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString("pt-PT");
 }
 
-/** Ask the server to store a file; returns its /assets path. GM only. */
-export async function upload(file: File): Promise<string> {
-  const res = await fetch(`/api/upload?name=${encodeURIComponent(file.name)}`, { method: "POST", body: file });
+/** Ask the server to store a file (in a world assets folder, default "uploads"); returns its /assets path. */
+export async function upload(file: File, dir?: string): Promise<string> {
+  const where = dir !== undefined ? `&dir=${encodeURIComponent(dir)}` : "";
+  const res = await fetch(`/api/upload?name=${encodeURIComponent(file.name)}${where}`, { method: "POST", body: file });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Falha no upload");
   return json.path;

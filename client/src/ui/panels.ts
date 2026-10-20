@@ -3,7 +3,8 @@ import { sceneLevels } from "../../../shared/levels.ts";
 import { ITEM_TYPES, itemTemplate } from "../../../shared/ordem.ts";
 import { OWNERSHIP } from "../../../shared/protocol.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, imageSize, pickFile, setChildren, upload } from "../dom.ts";
+import { avatar, h, imageSize, setChildren } from "../dom.ts";
+import { browseFiles } from "./file-picker.ts";
 import { ITEM_DRAG, openSheet } from "./sheet.ts";
 import { openJournal } from "./journal.ts";
 import { openItemSheet } from "./item-sheet.ts";
@@ -177,11 +178,11 @@ function sceneConfig(sceneId: string): void {
   const imgLabel = h("span.muted.small.grow", null, img ? img.split("/").pop() : "sem imagem");
 
   const chooseImage = async () => {
-    const file = await pickFile("image/*,video/webm");
-    if (!file) return;
+    const chosen = await browseFiles("imagevideo", img);
+    if (!chosen) return;
     try {
-      img = await upload(file);
-      imgLabel.textContent = file.name;
+      img = chosen;
+      imgLabel.textContent = chosen.split("/").pop() ?? chosen;
       const size = await imageSize(img).catch(() => null);
       if (size) {
         width.value = String(size.width);
@@ -249,10 +250,9 @@ function levelsEditor(sceneId: string): HTMLElement {
         h("button.small", {
           type: "button", title: l.background.src ? `Fundo: ${l.background.src.split("/").pop()}` : "Escolher fundo",
           onclick: async () => {
-            const file = await pickFile("image/*,video/webm");
-            if (!file) return;
+            const src = await browseFiles("imagevideo", l.background.src);
+            if (!src) return;
             try {
-              const src = await upload(file);
               await upd({ "background.src": src });
               const size = await imageSize(src).catch(() => null);
               if (size && levels.length === 1) game.update("Scene", { _id: sceneId, width: size.width, height: size.height });

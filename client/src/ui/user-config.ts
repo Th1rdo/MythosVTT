@@ -1,6 +1,7 @@
 import type { ActorDoc, UserDoc } from "../../../shared/protocol.ts";
 import { game, toast } from "../game.ts";
-import { avatar, h, pickFile, upload } from "../dom.ts";
+import { avatar, h } from "../dom.ts";
+import { browseFiles } from "./file-picker.ts";
 import { closeWindow, openWindow, prompt } from "./windows.ts";
 
 /**
@@ -33,14 +34,10 @@ export function openUserConfig(userId: string): void {
       h("button", {
         type: "button",
         onclick: async () => {
-          const file = await pickFile("image/*");
-          if (!file) return;
-          try {
-            avatarSrc = await upload(file);
-            preview.replaceChildren(avatar(avatarSrc, u.name, 64));
-          } catch (err) {
-            toast((err as Error).message, "error");
-          }
+          const chosen = await browseFiles("image", avatarSrc);
+          if (!chosen) return;
+          avatarSrc = chosen;
+          preview.replaceChildren(avatar(avatarSrc, u.name, 64));
         }
       }, h("i.fa-solid.fa-image"), " Mudar a imagem"),
       avatarSrc ? h("button", { type: "button", onclick: () => { avatarSrc = null; preview.replaceChildren(avatar(null, u.name, 64)); } }, "Tirar a imagem") : null)),
